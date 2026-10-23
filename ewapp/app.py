@@ -580,6 +580,15 @@ def get_schedule():
     return out
 
 
+def save_schedule_row(car: str, day: int, t: str, enabled: bool, soc: int) -> None:
+    """Ett laddschema (klar kl T, mål soc %, per veckodag och bil): används av appens schema OCH av Home Assistant (Familjetavlan) så att båda slår igenom i smartboxen."""
+    with ENGINE.begin() as c:
+        c.execute(text("""INSERT INTO ev_charging_schedule (car_id, day_of_week, target_time, enabled, target_soc, panic_mode) VALUES (:c, :d, :t, :e, :s, FALSE)
+                          ON CONFLICT (car_id, day_of_week) DO UPDATE SET target_time = EXCLUDED.target_time, enabled = EXCLUDED.enabled, target_soc = EXCLUDED.target_soc"""),
+                  {"c": car, "d": day, "t": t, "e": bool(enabled), "s": max(20, min(100, int(soc)))})
+    set_override("force_ev_recalc", "true")                    # smartbox räknar om laddplanen direkt
+
+
 @app.post("/api/schedule")
 async def set_schedule(request: Request):
     b = await request.json()
@@ -592,11 +601,7 @@ async def set_schedule(request: Request):
     except ValueError:
         raise HTTPException(400, "Ogiltig tid")
     soc = max(20, min(100, intval(b.get("soc") or 100)))
-    with ENGINE.begin() as c:
-        c.execute(text("""INSERT INTO ev_charging_schedule (car_id, day_of_week, target_time, enabled, target_soc, panic_mode) VALUES (:c, :d, :t, :e, :s, FALSE)
-                          ON CONFLICT (car_id, day_of_week) DO UPDATE SET target_time = EXCLUDED.target_time, enabled = EXCLUDED.enabled, target_soc = EXCLUDED.target_soc"""),
-                  {"c": car, "d": day, "t": t, "e": bool(b.get("enabled")), "s": soc})
-    set_override("force_ev_recalc", "true")                    # smartbox räknar om laddplanen direkt
+    save_schedule_row(car, day, t, bool(b.get("enabled")), soc)
     logact(request, f"Schema {car} dag {day}: {'på' if b.get('enabled') else 'av'} {t} {soc} %")
     return {"ok": True}
 
@@ -1190,6 +1195,19 @@ def plan_blocks(car: str) -> list:
              "kw": round(sum(b["_kws"]) / len(b["_kws"]), 1)} for b in blocks]
 
 
+def schedule_rows(car: str) -> list:
+    """Laddschemat för bilen: sju rader {day 0=måndag, time, soc, enabled} (som i appen)."""
+    rows = {d: {"day": d, "time": "07:00", "soc": 100, "enabled": False} for d in range(7)}
+    try:
+        with ENGINE.connect() as c:
+            for day, t, soc, en in c.execute(text("SELECT day_of_week, target_time, target_soc, enabled FROM ev_charging_schedule WHERE car_id = :c"), {"c": car}):
+                if 0 <= day <= 6:
+                    rows[day] = {"day": day, "time": t.strftime("%H:%M"), "soc": int(soc), "enabled": bool(en)}
+    except Exception:
+        pass
+    return [rows[d] for d in range(7)]
+
+
 def publish_plan(car: str, st: dict, ov: dict) -> tuple:
     c = CARS[car]
     soc = num(st, c["soc"])
@@ -1211,7 +1229,7 @@ def publish_plan(car: str, st: dict, ov: dict) -> tuple:
     kwh = round(sum(b["kw"] * (dt.datetime.fromisoformat(b["end"]) - dt.datetime.fromisoformat(b["start"])).total_seconds() / 3600 for b in blocks), 1)
     after = None if (soc is None or not blocks or not c["cap_kwh"]) else round(min(100.0, soc + kwh * 0.9 / c["cap_kwh"] * 100.0))      # 90 % verkningsgrad, som i appens plan
     attrs = {"friendly_name": f"{c['name']} laddplan", "icon": "mdi:ev-station", "slots": blocks, "mode": mode, "charging": charging, "soc": None if soc is None else round(soc),
-             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard", "updated": now.isoformat(timespec="seconds")}
+             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard", "schedule": schedule_rows(car), "schedule_car": car, "updated": now.isoformat(timespec="seconds")}
     return f"sensor.{slug(car)}_laddplan", (state, attrs)
 
 
@@ -1266,9 +1284,34 @@ def _channels() -> list:
     return out + _house_channels()
 
 
+SCHEDULE_CMD = "input_text.energywizard_laddschema_kommando"
+
+
+def schedule_command() -> bool:
+    """Familjetavlan (eller annan app) ändrar laddschemat genom att skriva JSON i input_text.energywizard_laddschema_kommando:
+    {"car": "tesla", "day": 0-6, "time": "07:00", "soc": 80, "enabled": true}. Vi sparar raden som appens schema (slår igenom i smartboxen) och kvitterar genom att tömma fältet."""
+    raw = _ha_get(SCHEDULE_CMD)
+    if not raw or raw in ("unknown", "unavailable"):
+        return False
+    try:
+        b = json.loads(raw)
+        car, day, t = b.get("car"), intval(b.get("day")), str(b.get("time", "07:00"))
+        dt.datetime.strptime(t, "%H:%M")
+        if car not in CARS or not 0 <= day <= 6:
+            raise ValueError("bil eller dag")
+        save_schedule_row(car, day, t, bool(b.get("enabled")), intval(b.get("soc") or 100))
+        print(f"HA-brygga: laddschema {car} dag {day} {t} {'på' if b.get('enabled') else 'av'}", flush=True)
+    except Exception as e:
+        print(f"HA-brygga: ogiltigt laddschemakommando ({type(e).__name__})", flush=True)
+    requests.post(f"{H._BASE}/services/input_text/set_value", headers=H._HEADERS, json={"entity_id": SCHEDULE_CMD, "value": ""}, timeout=4, verify=False)
+    return True
+
+
 def bridge_tick(publish: bool) -> None:
     """Ett varv: (1) om en Home Assistant-väljare ändrats av någon annan (t.ex. Familjetavlan), gör samma sak som appens knapp; (2) om appen ändrats, uppdatera väljaren; (3) publicera laddplanen."""
     ov = overrides()
+    if schedule_command():
+        publish = True
     for ent, name, getf, setf, opts in _channels():
         sel = _ha_get(ent)
         mine = getf(ov)
