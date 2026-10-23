@@ -320,15 +320,10 @@ def state(request: Request):
             "solar_w": num(st, "sensor.solaredge_aktuell_effekt")}
 
 
-@app.post("/api/car/{car}/action")
-async def action(car: str, request: Request):
-    if car in CARS:
-        _b = await request.json()
-        logact(request, f"{CARS[car]['name']}: {_b.get('kind')}" + (f" {_b.get('amps')} A" if _b.get("amps") else ""))
-    if car not in CARS:
-        raise HTTPException(404, "Okänd bil")
-    body = await request.json()
-    kind = body.get("kind")
+def car_command(car: str, kind: str, body: dict | None = None) -> dict | None:
+    """Laddknapparnas logik (start/max/set/stop/auto) på ett ställe: används av appens knappar OCH av Home Assistant-väljaren (input_select.<bilnamn>_laddlage), så att båda ger exakt samma överstyrning.
+    Returnerar svaret, eller None om kind inte är en laddåtgärd."""
+    body = body or {}
     c = CARS[car]
     st = states()
     status = (val(st, c["status"]) or "unknown").lower()
@@ -353,6 +348,30 @@ async def action(car: str, request: Request):
         H.set_ev_dynamic_limit(c["charger"], 0)
         H.turn_off_charger(c["charger"])
         return {"ok": True, "msg": "Laddning stoppad (håller tills du väljer Auto)"}
+    if kind == "auto":
+        set_override(f"{car}_hold", "off")
+        set_override(f"{car}_force_amps", "0")
+        set_override(f"{car}_force_phases", "0")
+        set_override("force_ev_recalc", "true")
+        return {"ok": True, "msg": "Auto – AI:n styr igen"}
+    return None
+
+
+@app.post("/api/car/{car}/action")
+async def action(car: str, request: Request):
+    if car in CARS:
+        _b = await request.json()
+        logact(request, f"{CARS[car]['name']}: {_b.get('kind')}" + (f" {_b.get('amps')} A" if _b.get("amps") else ""))
+    if car not in CARS:
+        raise HTTPException(404, "Okänd bil")
+    body = await request.json()
+    kind = body.get("kind")
+    c = CARS[car]
+    st = states()
+    status = (val(st, c["status"]) or "unknown").lower()
+    r = car_command(car, kind, body)
+    if r is not None:
+        return r
     if kind in ("heat_on", "heat_off"):
         on = kind == "heat_on"
         ok = H.set_car_climate(c["climate"], "heat_cool" if on else "off", 21.0 if on else None)
@@ -362,12 +381,6 @@ async def action(car: str, request: Request):
         if not ok:
             raise HTTPException(502, "Bilen svarade inte på klimatkommandot")
         return {"ok": True, "msg": ("Värmekommando skickat (21 °C)" if on else "Stoppkommando skickat") + (" – Nissan kan ta någon minut på sig" if car == "nissan" else "")}
-    if kind == "auto":
-        set_override(f"{car}_hold", "off")
-        set_override(f"{car}_force_amps", "0")
-        set_override(f"{car}_force_phases", "0")
-        set_override("force_ev_recalc", "true")
-        return {"ok": True, "msg": "Auto – AI:n styr igen"}
     raise HTTPException(400, "Okänd åtgärd")
 
 
@@ -502,6 +515,11 @@ async def home_action(what: str, request: Request):
         with ENGINE.begin() as c:
             c.execute(text("UPDATE system_settings SET spa_force_heat = :v WHERE id = 1"), {"v": bool(v)})
         return {"ok": True, "msg": "Spabad: värmer nu" if v else "Spabad: tvångsvärme av"}
+    if what == "spa_auto":                                   # Auto = följer sitt eget schema (HA/smartboxen styr): inget tvång, ingen Eco-överstyrning
+        with ENGINE.begin() as c:
+            c.execute(text("UPDATE system_settings SET spa_force_heat = FALSE WHERE id = 1"))
+        set_override("spa_force_eco", "auto")
+        return {"ok": True, "msg": "Spabad: Auto – följer sitt schema"}
     if what == "spa_eco":
         set_override("spa_force_eco", "on" if v else "auto")
         return {"ok": True, "msg": "Spabad: Eco på" if v else "Spabad: Eco av"}
@@ -1132,10 +1150,162 @@ def _watch_loop():
         time.sleep(60)
 
 
+# -- Home Assistant-bryggan: laddplan och laddläge som vanliga HA-entiteter (för Familjetavlan och andra) -----------------------------------
+# Avtalet (samma för alla smartstyrningar, se Familjetavlans docs/SMART-LADDNING.md):
+#   sensor.<bilnamn>_laddplan  tillstånd = text ("Laddar nu", "Planerad 01:15", "Pausad", "Ingen plan");
+#                              attribut: slots = [{start, end, kw}] (ISO 8601 med tidszon, sammanhängande block), mode, soc, soc_after_plan, planned_kwh
+#   input_select.<bilnamn>_laddlage  Auto | Ladda nu | Pausa  (skrivs av Familjetavlan; ger samma överstyrning som appens knappar)
+MODE_OPTS = {"auto": "Auto", "now": "Ladda nu", "hold": "Pausa"}
+
+
+def slug(car: str) -> str:
+    """Entitets-id av bilens namn: "Tesla Model Y" -> tesla_model_y."""
+    return re.sub(r"[^a-z0-9]+", "_", CARS[car]["name"].lower()).strip("_")
+
+
+def ew_mode(car: str, ov: dict) -> str:
+    if str(ov.get(f"{car}_hold", "off")).lower() == "on":
+        return MODE_OPTS["hold"]
+    if intval(ov.get(f"{car}_force_amps")) > 0:
+        return MODE_OPTS["now"]
+    return MODE_OPTS["auto"]
+
+
+def plan_blocks(car: str) -> list:
+    """Planerad laddning som sammanhängande block [{start, end, kw}] i ISO 8601 med tidszon (kvartsslots ur ev_plan_slots)."""
+    now = dt.datetime.now(TZ).replace(tzinfo=None)
+    try:
+        with ENGINE.connect() as c:
+            rows = c.execute(text("SELECT t_slot, kw FROM ev_plan_slots WHERE car_id = :c AND t_slot >= :n ORDER BY t_slot"), {"c": car, "n": now - dt.timedelta(minutes=15)}).fetchall()
+    except Exception:
+        return []
+    blocks = []
+    for t, kw in rows:
+        kw = float(kw)
+        if blocks and (t - blocks[-1]["_end"]).total_seconds() <= 60:
+            b = blocks[-1]; b["_end"] = t + dt.timedelta(minutes=15); b["_kws"].append(kw)
+        else:
+            blocks.append({"_start": t, "_end": t + dt.timedelta(minutes=15), "_kws": [kw]})
+    return [{"start": b["_start"].replace(tzinfo=TZ).isoformat(timespec="minutes"), "end": b["_end"].replace(tzinfo=TZ).isoformat(timespec="minutes"),
+             "kw": round(sum(b["_kws"]) / len(b["_kws"]), 1)} for b in blocks]
+
+
+def publish_plan(car: str, st: dict, ov: dict) -> tuple:
+    c = CARS[car]
+    soc = num(st, c["soc"])
+    blocks = plan_blocks(car)
+    mode = ew_mode(car, ov)
+    status = (val(st, c["status"]) or "unknown").lower()
+    charging = status in ("charging",)
+    now = dt.datetime.now(TZ)
+    if mode == MODE_OPTS["hold"]:
+        state = "Pausad"
+    elif charging:
+        state = "Laddar nu"
+    elif blocks:
+        b0 = blocks[0]
+        t0 = dt.datetime.fromisoformat(b0["start"])
+        state = "Planerad " + (t0.strftime("%H:%M") if t0.date() == now.date() else t0.strftime("%a %H:%M"))
+    else:
+        state = "Ingen plan"
+    kwh = round(sum(b["kw"] * (dt.datetime.fromisoformat(b["end"]) - dt.datetime.fromisoformat(b["start"])).total_seconds() / 3600 for b in blocks), 1)
+    after = None if (soc is None or not blocks or not c["cap_kwh"]) else round(min(100.0, soc + kwh * 0.9 / c["cap_kwh"] * 100.0))      # 90 % verkningsgrad, som i appens plan
+    attrs = {"friendly_name": f"{c['name']} laddplan", "icon": "mdi:ev-station", "slots": blocks, "mode": mode, "charging": charging, "soc": None if soc is None else round(soc),
+             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard", "updated": now.isoformat(timespec="seconds")}
+    return f"sensor.{slug(car)}_laddplan", (state, attrs)
+
+
+def _ha_get(entity: str):
+    r = requests.get(f"{H._BASE}/states/{entity}", headers=H._HEADERS, timeout=4, verify=False)
+    return r.json().get("state") if r.status_code == 200 else None
+
+
+def _ha_select(entity: str, option: str) -> None:
+    requests.post(f"{H._BASE}/services/input_select/select_option", headers=H._HEADERS, json={"entity_id": entity, "option": option}, timeout=4, verify=False)
+
+
+_bridge_last: dict = {}
+
+
+def _spa_force_heat() -> bool:
+    try:
+        with ENGINE.connect() as c:
+            return bool(c.execute(text("SELECT spa_force_heat FROM system_settings WHERE id = 1")).scalar())
+    except Exception:
+        return False
+
+
+def _spa_apply(option: str) -> None:
+    """Spabadets lägen (exklusiva): Auto = följer sitt schema, Värm nu = tvångsvärme, Eco = Eco-överstyrning."""
+    with ENGINE.begin() as c:
+        c.execute(text("UPDATE system_settings SET spa_force_heat = :v WHERE id = 1"), {"v": option == "Värm nu"})
+    set_override("spa_force_eco", "on" if option == "Eco" else "auto")
+
+
+def _house_channels() -> list:
+    """Husets lägen som Home Assistant-väljare. Alla har Auto först = följer sitt eget schema (smartstyrningen), samma som knapparna i appen."""
+    def three(key, labels):
+        names = {"auto": "Auto", "on": labels[0], "off": labels[1]}
+        inv = {v: k for k, v in names.items()}
+        return (lambda ov: names.get(str(ov.get(key, "auto")).lower(), "Auto"), lambda opt: set_override(key, inv[opt]), ["Auto", labels[0], labels[1]])
+    heat, hw = three("heat", ("Varm", "Sänkt")), three("hotwater", ("Till", "Från"))
+    return [("input_select.energywizard_varme", "Värme inne läge", *heat),
+            ("input_select.energywizard_varmvatten", "Varmvatten läge", *hw),
+            ("input_select.energywizard_spabad", "Spabad läge", lambda ov: "Värm nu" if _spa_force_heat() else ("Eco" if ov.get("spa_force_eco") == "on" else "Auto"), _spa_apply, ["Auto", "Värm nu", "Eco"])]
+
+
+def _channels() -> list:
+    """(entitet, namn, läs-funktion, skriv-funktion, alternativ) för bilarna och huset."""
+    out = []
+    for car in CARS:
+        kinds = {"Auto": "auto", "Ladda nu": "start", "Pausa": "stop"}
+
+        def setcar(opt, car=car):
+            car_command(car, kinds[opt], {})
+        out.append((f"input_select.{slug(car)}_laddlage", f"{CARS[car]['name']} laddläge", lambda ov, car=car: ew_mode(car, ov), setcar, ["Auto", "Ladda nu", "Pausa"]))
+    return out + _house_channels()
+
+
+def bridge_tick(publish: bool) -> None:
+    """Ett varv: (1) om en Home Assistant-väljare ändrats av någon annan (t.ex. Familjetavlan), gör samma sak som appens knapp; (2) om appen ändrats, uppdatera väljaren; (3) publicera laddplanen."""
+    ov = overrides()
+    for ent, name, getf, setf, opts in _channels():
+        sel = _ha_get(ent)
+        mine = getf(ov)
+        last = _bridge_last.get(ent)
+        if sel in opts and sel != mine and sel != last and last is not None:   # ändrad i Home Assistant: tillämpa som appens knapp (första varvet efter start: appen gäller, väljaren följer)
+            try:
+                setf(sel)
+                print(f"HA-brygga: {ent} -> {sel}", flush=True)
+            except HTTPException as e:
+                print(f"HA-brygga: {ent} -> {sel} nekades: {e.detail}", flush=True)
+            except Exception as e:
+                print(f"HA-brygga: {ent} -> {sel} misslyckades: {type(e).__name__}", flush=True)
+            ov = overrides(); mine = getf(ov); publish = True
+        if sel is not None and sel != mine:
+            _ha_select(ent, mine)                                            # appen (eller smartboxen) ändrade: håll väljaren i takt
+        _bridge_last[ent] = mine
+    if publish:
+        st = states()
+        H.publish_states(dict(publish_plan(car, st, ov) for car in CARS))
+
+
+def _bridge_loop():
+    n = 0
+    while True:
+        try:
+            bridge_tick(publish=(n % 12 == 0))                              # väljaren var 5:e sekund, planen var minut
+        except Exception as e:
+            print(f"HA-brygga: {type(e).__name__}: {str(e)[:100]}", flush=True)
+        n += 1
+        time.sleep(5)
+
+
 @app.on_event("startup")
 def _start_watch():
     import threading
     threading.Thread(target=_watch_loop, daemon=True, name="ew-watch").start()
+    threading.Thread(target=_bridge_loop, daemon=True, name="ew-ha-bridge").start()
 
 
 @app.get("/api/ping")
