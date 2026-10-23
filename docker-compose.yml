@@ -40,7 +40,10 @@ services:
   # Smartbox: Värmepumpsstyrning (Hjärnan)
   ####################################################################
   smartbox:
+    image: ghcr.io/murre87/energywizard-smartbox:latest   # byggs av GitHub vid push och hämtas av Watchtower
     build: ./smartbox
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     container_name: smartbox
     restart: unless-stopped
     depends_on:
@@ -62,7 +65,10 @@ services:
   # Dashboard: Streamlit (Den Visuella "Glassmorphism" Frontenden)
   ####################################################################
   smartdashboard:
+    image: ghcr.io/murre87/energywizard-smartdashboard:latest   # byggs av GitHub vid push och hämtas av Watchtower
     build: ./smartdashboard
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     container_name: smartdashboard
     restart: unless-stopped
     env_file:
@@ -88,7 +94,10 @@ services:
   # EnergyWizard Mobil: lätt mobilsida (PWA) för laddning, bredvid Streamlit. Nås på /m/ (nginx)
   ####################################################################
   ewapp:
+    image: ghcr.io/murre87/energywizard-ewapp:latest   # byggs av GitHub vid push och hämtas av Watchtower
     build: ./ewapp
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     container_name: ewapp
     restart: unless-stopped
     env_file:
