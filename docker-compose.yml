@@ -1,0 +1,113 @@
+# docker-compose.yml för EnergyWizard (LXC på NUC)
+# Skapad: 2026-04-09
+# Syfte: Central kontroll av värmepump, elbilar och spabad med Peak Shaving.
+
+services:
+  ####################################################################
+  # Databas: PostgreSQL
+  ####################################################################
+  postgres-smartbox:
+    image: postgres:15-alpine
+    container_name: postgres-smartbox
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ####################################################################
+  # Adminer: Webbgränssnitt för Databasen
+  ####################################################################
+  adminer:
+    image: adminer
+    container_name: adminer-smartbox
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8780:8080"
+    depends_on:
+      - postgres-smartbox
+
+  ####################################################################
+  # Smartbox: Värmepumpsstyrning (Hjärnan)
+  ####################################################################
+  smartbox:
+    build: ./smartbox
+    container_name: smartbox
+    restart: unless-stopped
+    depends_on:
+      postgres-smartbox:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_HOST=postgres-smartbox
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - HA_IP=192.168.1.109
+      - HA_TOKEN=${HA_TOKEN}
+      - PUMP_IP=${PUMP_IP}
+      - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
+      - EASEE_CARPORT_ID=${EASEE_CARPORT_ID}
+
+  ####################################################################
+  # Dashboard: Streamlit (Den Visuella "Glassmorphism" Frontenden)
+  ####################################################################
+  smartdashboard:
+    build: ./smartdashboard
+    container_name: smartdashboard
+    restart: unless-stopped
+    env_file:
+      - /home/emil/.dashboard.env   # gemensamt DASHBOARD_PASSWORD för alla dashboards
+    ports:
+      - "8501:8501"
+    volumes:
+      # Delad logik mellan backend och frontend
+      - ./smartbox:/smartbox
+    depends_on:
+      postgres-smartbox:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_HOST=postgres-smartbox
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - HA_IP=192.168.1.109
+      - HA_TOKEN=${HA_TOKEN}
+
+  ####################################################################
+  # EnergyWizard Mobil: lätt mobilsida (PWA) för laddning, bredvid Streamlit. Nås på /m/ (nginx)
+  ####################################################################
+  ewapp:
+    build: ./ewapp
+    container_name: ewapp
+    restart: unless-stopped
+    env_file:
+      - /home/emil/.dashboard.env
+    volumes:
+      - ./smartbox:/smartbox:ro
+    depends_on:
+      postgres-smartbox:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_HOST=postgres-smartbox
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - HA_IP=192.168.1.109
+      - HA_TOKEN=${HA_TOKEN}
+      - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
+      - EASEE_CARPORT_ID=${EASEE_CARPORT_ID}
+
+volumes:
+  postgres_data:

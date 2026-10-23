@@ -1,0 +1,26 @@
+# Gränssnitt och Dashboard
+streamlit
+streamlit-echarts
+streamlit-extras
+plotly
+
+# API och Server (Modern asynkron stack)
+fastapi
+granian
+pydantic
+httpx
+
+# Datahantering och Databas
+polars
+sqlalchemy
+
+# Intelligens och Maskininlärning
+scikit-learn
+ollama
+
+# Testning och Kvalitetssäkring
+pytest
+logfire
+psycopg[binary]>=3.1.0
+psycopg_pool>=3.1.0
+SQLAlchemy>=2.0.0

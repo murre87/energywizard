@@ -1,0 +1,51 @@
+{
+  "name": "EnergyWizard",
+  "short_name": "EnergyWizard",
+  "description": "Ladda bilen – enkelt.",
+  "start_url": "./?pwa=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ladda Tesla nu",
+      "short_name": "Ladda Tesla",
+      "url": "./?do=tesla_start"
+    },
+    {
+      "name": "Ladda Nissan nu",
+      "short_name": "Ladda Nissan",
+      "url": "./?do=nissan_start"
+    },
+    {
+      "name": "Godnatt – släck uppe",
+      "short_name": "Godnatt",
+      "url": "./?do=goodnight"
+    },
+    {
+      "name": "Tänd fönsterlampor",
+      "short_name": "Tänd lampor",
+      "url": "./?do=windows_on"
+    }
+  ]
+}

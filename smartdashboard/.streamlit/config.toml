@@ -1,0 +1,11 @@
+# EnergyWizard – app-tema (fix: enhetligt tema så app-chrome matchar plotly_dark-charts)
+[theme]
+base = "dark"
+primaryColor = "#3498db"              # samma accent-blå som dashboardens Flat-UI-palett
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#1c1f26"
+textColor = "#fafafa"
+font = "sans-serif"
+
+[server]
+headless = true

@@ -1,0 +1,18 @@
+# Hemligheter och driftdata: aldrig i git
+.env
+*.env
+.venv/
+.pytest_cache/
+.vscode/
+__pycache__/
+*.pyc
+*.bak
+*.pem
+*.key
+*.sqlite
+*.sqlite-*
+# gamla engångsskript med inbakade token, och rå entitetslista från Home Assistant
+fetch_ha.py
+Emil_homeassistant_fetch_data.py
+ha_entities.txt
+node_modules/

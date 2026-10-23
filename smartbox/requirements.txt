@@ -1,0 +1,12 @@
+requests
+psycopg[binary]>=3.1.0
+psycopg_pool>=3.1.0
+pandas
+pymodbus
+scikit-learn
+numpy
+urllib3
+psycopg[binary] 
+psycopg_pool
+SQLAlchemy>=2.0.0
+scikit-learn==1.8.0

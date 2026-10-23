@@ -1,0 +1,14 @@
+[Unit]
+Description=EnergyWizard Matter Poller
+After=network.target matter-server.service
+
+[Service]
+Type=simple
+User=emil
+WorkingDirectory=/home/emil/opt/Energywizz/smartbox
+ExecStart=/home/emil/matter_server/venv/bin/python /home/emil/opt/Energywizz/smartbox/matter_poller.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
