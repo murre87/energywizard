@@ -1,0 +1,30 @@
+# Bygger de tre bilderna (privata) på GitHub Container Registry vid varje push till main.
+# Servern hämtar dem med Watchtower, så en ny version kommer av sig själv.
+name: bilder
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  bygg:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [ewapp, smartbox, smartdashboard]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.app }}
+          push: true
+          tags: |
+            ghcr.io/murre87/energywizard-${{ matrix.app }}:latest
+            ghcr.io/murre87/energywizard-${{ matrix.app }}:${{ github.sha }}
