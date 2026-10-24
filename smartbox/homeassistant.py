@@ -100,6 +100,11 @@ GECKO_ENTITIES = {
     "economy_mode": "switch.spabad_economy_mode",
 }
 
+# --- SPABADETS SMARTPLUGG ---
+# Spabadets Shelly Plug S Gen3 (enheten "Spabadsplugg" i Shelly-integrationen). Tidigare pekade koden på Matter-entiteten
+# switch.shelly_plug_s_gen3, men den noden finns inte längre i Matter-servern (otillgänglig sedan dess), så omstarten av spabadet fungerade aldrig.
+SPA_PLUG = "switch.shelly2"
+
 # --- ROBOTGRÄSKLIPPARE ---
 # Shelly-plugg som matar klipparens laddstation.
 # Entitets-id verifierade direkt mot Home Assistant (live).

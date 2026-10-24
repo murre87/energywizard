@@ -89,8 +89,8 @@ if initial_pump_data:
 else:
     print("⚠️ UPPSTARTSKONTROLL: Kunde inte läsa värmepumpen vid uppstart.")
 
-print("🤖 Säkerställer att spabadets smartplug (Shelly/Matter) är påslagen...")
-ha_toggle_switch("switch.shelly_plug_s_gen3", turn_on=True)
+print("🤖 Säkerställer att spabadets smartplug (Shelly) är påslagen...")
+ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
 
 # Tillståndsvariabler
 last_minute          = None
@@ -740,9 +740,9 @@ while True:
                     spa_reboot_stage += 1
                     
                     def reboot_plug_async():
-                        ha_toggle_switch("switch.shelly_plug_s_gen3", turn_on=False)
+                        ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=False)
                         time.sleep(10)
-                        ha_toggle_switch("switch.shelly_plug_s_gen3", turn_on=True)
+                        ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
                     threading.Thread(target=reboot_plug_async).start()
             else:
                 if spa_offline_since is not None:
@@ -1645,7 +1645,7 @@ while True:
                 print(f"{'='*55}")
                 
                 if spa_reboot_stage == 0:
-                    ha_toggle_switch("switch.shelly_plug_s_gen3", turn_on=True)
+                    ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
                 
                 for log_msg in gpm_actions["log"]:
                     print(f"  {log_msg}")

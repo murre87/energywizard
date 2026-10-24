@@ -498,7 +498,7 @@ def home():
     ov = overrides()
     cfg = get_settings_row()
     mower = mower_info()
-    plug = val(st, "switch.shelly_plug_s_gen3")
+    plug = val(st, H.MOWER_ENTITIES["is_on"])         # klipparens Shelly-plugg (var tidigare spabadets gamla Matter-entitet: knappen nekade därför alltid)
     return {"ok": True,
             "heat": {"inside": num(st, "sensor.smartbox_inomhustemp"), "target": num(st, "sensor.smartbox_maltemperatur"), "outside": num(st, "sensor.smartbox_utetemperatur"), "mode": ov.get("heat", "auto"),
                      "pump_w": num(st, "sensor.smartbox_effekt_varmepump"), "price_mode": val(st, "sensor.smartbox_lage"), "cop": num(st, "sensor.smartbox_cop"), "temp_cheap": cfg.get("temp_cheap"), "temp_expensive": cfg.get("temp_expensive")},
@@ -538,7 +538,7 @@ async def home_action(what: str, request: Request):
         if v not in ("on", "off"):
             raise HTTPException(400, "Ogiltigt")
         st = states()
-        if val(st, "switch.shelly_plug_s_gen3") is None:
+        if val(st, H.MOWER_ENTITIES["is_on"]) is None:
             raise HTTPException(409, "Klipparens eluttag (Shelly) är offline – kolla ström och wifi")
         if v == "off" and (mower_info().get("status") == "Klipper"):
             raise HTTPException(409, "Säkerhetsspärr: klipparen klipper just nu")
