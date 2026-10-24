@@ -1285,11 +1285,23 @@ while True:
             # Under pågående laddning är bilen vaken av sig själv; styrningen sker via Easee, så detta gäller bara
             # avläsningen av batterinivån. Högst en gång per TESLA_WAKE_MIN_INTERVAL_H (även vid misslyckat försök).
             try:
+                # Dessutom: ett kvarts-vaket före första planerade laddblocket, så att planen räknas om på ett färskt värde i stället för ett gammalt (högst var 30:e minut).
+                _plan_soon = False
+                if ev_connection_state['tesla']['connected'] and tesla_soc_stale:
+                    try:
+                        from sqlalchemy import text as _wt
+                        from database_engine import engine as _weng
+                        _n = now.replace(tzinfo=None)
+                        with _weng.connect() as _wc:
+                            _plan_soon = bool(_wc.execute(_wt("SELECT 1 FROM ev_plan_slots WHERE car_id = 'tesla' AND kw > 0 AND t_slot BETWEEN :a AND :b LIMIT 1"), {"a": _n, "b": _n + timedelta(minutes=15)}).fetchone())
+                    except Exception as _pe:
+                        print(f"⚠️ Kunde inte läsa laddplanen för väckning: {_pe}")
+                _wake_gap = timedelta(minutes=30) if _plan_soon else timedelta(hours=TESLA_WAKE_MIN_INTERVAL_H)
                 if (ev_connection_state['tesla']['connected'] and tesla_soc_stale
-                        and (_soc_mem["last_wake"] is None or (now - _soc_mem["last_wake"]) > timedelta(hours=TESLA_WAKE_MIN_INTERVAL_H))):
+                        and (_soc_mem["last_wake"] is None or (now - _soc_mem["last_wake"]) > _wake_gap)):
                     _soc_mem["last_wake"] = now
                     if homeassistant.press_button("button.tesla_model_y_wake_up"):
-                        print("🚗 Väckte Teslan (inkopplad, batterinivå okänd)")
+                        print("🚗 Väckte Teslan (" + ("laddning planerad inom 15 min, batterinivån gammal" if _plan_soon else "inkopplad, batterinivå okänd") + ")")
             except Exception as _we:
                 print(f"⚠️ Väckning av Tesla misslyckades: {_we}")
 

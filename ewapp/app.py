@@ -25,6 +25,7 @@ CARS = {
                "tracker": "device_tracker.leaf_location", "cap_kwh": 40.0, "phases": 1, "arrival": None, "dist": None, "online": "binary_sensor.easee_lite_online",
                "climate": "climate.leaf_climate", "inside": "sensor.leaf_internal_temperature"},
 }
+WATCH_AFTER_S = {"sensor.tesla_model_y_battery": 48 * 3600}
 WATCH = ["sensor.carport_status", "sensor.easee_lite_status", "sensor.tesla_model_y_battery", "sensor.smartbox_leaf_batteri"]
 
 app = FastAPI(title="EnergyWizard Mobil")
@@ -1148,7 +1149,8 @@ def watch_once():
         bad = val(st, e) is None
         if bad:
             first = _prev["bad"].setdefault(e, now)
-            if now - first > 900 and _prev["bad"].get(e + "_sent") is None:
+            # En sovande Tesla ger inget batterivärde: smartboxen räknar då med senast kända nivå (högst 48 h) och väcker bilen när det är dags. Larma först när det gått längre än så.
+            if now - first > WATCH_AFTER_S.get(e, 900) and _prev["bad"].get(e + "_sent") is None:
                 _prev["bad"][e + "_sent"] = now
                 push(["emil"], "EnergyWizard: sensor saknas", f"{e} har saknat värde i över 15 minuter.")
         else:
