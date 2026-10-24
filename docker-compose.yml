@@ -95,7 +95,10 @@ services:
   ####################################################################
   ewapp:
     image: ghcr.io/murre87/energywizard-ewapp:latest   # byggs av GitHub vid push och hämtas av Watchtower
-    build: ./ewapp
+    build:
+      context: ./ewapp
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: ewapp

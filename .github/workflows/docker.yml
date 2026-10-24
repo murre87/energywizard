@@ -24,6 +24,8 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.app }}
+          build-args: |
+            APP_VERSION=1.${{ github.run_number }}
           push: true
           tags: |
             ghcr.io/murre87/energywizard-${{ matrix.app }}:latest

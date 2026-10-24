@@ -158,3 +158,5 @@ html[data-ambient][data-tod=night] body { background: radial-gradient(900px 520p
 .instbox h3 { margin:10px 0 6px; font-size:1.3rem; } .instbox p { margin:0 0 14px; color:var(--mut, #667); font-size:.92rem; line-height:1.4; } .insti { width:64px; height:64px; border-radius:18px; }
 .instx { position:absolute; top:8px; right:10px; width:36px; height:36px; border-radius:50%; border:0; background:rgba(127,127,127,.18); color:inherit; font-size:1.5rem; line-height:1; }
 .instbox .btn { display:block; width:100%; min-height:50px; border:0; border-radius:16px; font-weight:800; font-size:1rem; background:linear-gradient(135deg,#22d3a0,#38bdf8); color:#04130e; }
+
+.greet .ver{display:inline-block;margin-top:4px;font-size:.72rem;opacity:.8;color:var(--acc,#16a34a);white-space:nowrap}
