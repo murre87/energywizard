@@ -1,4 +1,5 @@
-# Bygger de tre bilderna (privata) på GitHub Container Registry vid varje push till main.
+# Kör testerna först, och bygger sedan de tre bilderna (privata) på GitHub Container Registry vid varje push till main.
+# Går ett test sönder byggs ingen ny bild, så Watchtower hämtar aldrig trasig kod.
 # Servern hämtar dem med Watchtower, så en ny version kommer av sig själv.
 name: bilder
 on:
@@ -9,7 +10,11 @@ permissions:
   contents: read
   packages: write
 jobs:
+  tester:
+    uses: ./.github/workflows/tester.yml
+
   bygg:
+    needs: tester
     runs-on: ubuntu-latest
     strategy:
       matrix:
