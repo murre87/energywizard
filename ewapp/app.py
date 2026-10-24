@@ -1,6 +1,6 @@
 """EnergyWizard Mobil (ewapp): lättviktig mobilsida för laddning (Tesla först), bredvid Streamlit-dashboarden. Delar HA-, databas- och överstyrningslogik med smartbox (monteras från ./smartbox).
 Serveras under /m/ (nginx tar bort prefixet). Allt kräver inloggning med samma lösenord som dashboarden. Bil-knapparna skriver samma överstyrningar som dashboarden (overrides) och slår på/av laddaren direkt."""
-import base64, hashlib, hmac, json, math, os, re, sys, time, datetime as dt
+import base64, hashlib, hmac, ipaddress, json, math, os, re, sys, time, datetime as dt
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, "/smartbox")
@@ -74,12 +74,23 @@ def _user_password(user: str):
     return EXTRA_USERS.get(user.lower())
 
 
+def client_ip(request: Request) -> str:
+    """Klientens IP. X-Forwarded-For litas bara när anropet kommer från vår egen proxy (privat nät): annars kan klienten förfalska den och kringgå inloggningsspärren."""
+    peer = request.client.host if request.client else "?"
+    try:
+        trusted = ipaddress.ip_address(peer).is_private
+    except ValueError:
+        trusted = False
+    xff = [x.strip() for x in request.headers.get("x-forwarded-for", "").split(",") if x.strip()]
+    return xff[-1] if (xff and trusted) else peer
+
+
 _fails: dict = {}
 
 
 @app.post("/api/login")
 async def login(request: Request):
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    ip = client_ip(request)
     if _fails.get(ip, (0, 0))[0] >= 8 and time.time() - _fails[ip][1] < 600:
         raise HTTPException(429, "För många försök – vänta några minuter")
     body = await request.json()
@@ -399,7 +410,7 @@ def _secure_ok(request: Request) -> bool:
 @app.post("/api/secure")
 async def secure(request: Request):
     """Lås upp och öppna luckor kräver lösenordet igen (10 minuters fönster): den som bara har telefonen upplåst kommer inte åt bilen."""
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    ip = client_ip(request)
     if _unlock_fails.get(ip, (0, 0))[0] >= 5 and time.time() - _unlock_fails[ip][1] < 900:
         raise HTTPException(429, "För många försök – vänta en stund")
     body = await request.json()
