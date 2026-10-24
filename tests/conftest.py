@@ -43,6 +43,7 @@ def smartbox(db, monkeypatch):
 
     monkeypatch.setattr(logger, "DB_HOST", DB_HOST)
     monkeypatch.setattr(logger, "_pool", None)
+    logger.init_log_db()  # skapar sensor_log m.fl. som i drift
     db.execute("TRUNCATE elpriser, weather_forecast")
     yield logger
     if logger._pool is not None:

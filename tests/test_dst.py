@@ -17,7 +17,7 @@ def _fyll(db, start_utc: datetime, hours: int, step_min: int = 15):
     with db.cursor() as cur:
         cur.executemany("INSERT INTO elpriser (time_start, sek_per_kwh) VALUES (%s, %s) ON CONFLICT DO NOTHING", rows)
         cur.executemany(
-            "INSERT INTO weather_forecast (timestamp, temp, cloud_cover) VALUES (%s, 5, 80) ON CONFLICT DO NOTHING",
+            "INSERT INTO weather_forecast (timestamp, temp, cloud_cover, wind_speed, wind_dir, precipitation_category, rain_probability, thunder_probability) VALUES (%s, 5, 80, 3, 180, 0, 10, 0) ON CONFLICT DO NOTHING",
             [(start_utc + timedelta(hours=h),) for h in range(hours)],
         )
 

@@ -75,6 +75,8 @@ def predict_schedule(cheap_hours_count=8):
     # Sampla upp dataramen till 15-minuters intervall för att matcha EV/Spabad
     df_prices['t'] = pd.to_datetime(df_prices['t']).dt.tz_localize(None)
     df_prices.set_index('t', inplace=True)
+    # Normaltid införs sista söndagen i oktober: klockan 02 finns då två gånger i lokal tid. Behåll första så indexet blir unikt.
+    df_prices = df_prices[~df_prices.index.duplicated(keep='first')]
     max_t = df_prices.index.max()
     full_idx = pd.date_range(start=start_dt.replace(tzinfo=None), end=max_t + pd.Timedelta(minutes=45), freq='15min')
     df_prices = df_prices.reindex(full_idx).ffill().reset_index().rename(columns={'index': 't'})
@@ -283,6 +285,7 @@ def get_spa_schedule_plan(now_dt, target_dt, curr_temp, model_intercept, model_s
     if not df_p.empty:
         df_p['t'] = pd.to_datetime(df_p['t']).dt.tz_localize(None)
         df_p.set_index('t', inplace=True)
+        df_p = df_p[~df_p.index.duplicated(keep='first')]  # dubbel timme vid övergången till normaltid
         df_plan = df_p.reindex(full_idx_15).ffill().bfill().reset_index().rename(columns={'index': 't_slot'})
         df_plan['t_hour'] = df_plan['t_slot'].dt.floor('h')
     else:
