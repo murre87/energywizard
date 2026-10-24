@@ -86,6 +86,8 @@ def check_spa_schedule_plan(now, target_dt, curr_temp, target_temp, model_interc
         if not df_p.empty: # Prisdata
             df_p['t'] = pd.to_datetime(df_p['t']).dt.tz_localize(None)
             df_p.set_index('t', inplace=True)
+            # Sommartid -> normaltid (sista söndagen i oktober): klockan 02 finns två gånger i lokal tid. Behåll första så indexet blir unikt.
+            df_p = df_p[~df_p.index.duplicated(keep='first')]
             df_plan = df_p.reindex(full_idx).ffill().bfill().reset_index().rename(columns={'index': 't_slot'})
         else:
             df_plan = pd.DataFrame({'t_slot': full_idx, 'price': 0.5})
@@ -261,6 +263,8 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
 
     df_prices['t'] = pd.to_datetime(df_prices['t']).dt.tz_localize(None)
     df_prices.set_index('t', inplace=True)
+    # Samma sak här: den dubbla timmen vid övergången till normaltid ger dubbletter i indexet (reindex kraschar annars).
+    df_prices = df_prices[~df_prices.index.duplicated(keep='first')]
     start_grid = now.replace(minute=0, second=0, microsecond=0, tzinfo=None)
     full_idx = pd.date_range(start=start_grid, end=planning_window_end.replace(tzinfo=None), freq='15min')
     df_plan = df_prices.reindex(full_idx).ffill().bfill().reset_index()
