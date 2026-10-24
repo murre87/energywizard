@@ -487,7 +487,10 @@ function drawInstallPrompt() {
 }
 function maybeInstallPrompt() {
   if (_instShown || isStandalone() || LS.get("ew_installed", "") === "1") return;
-  _instShown = true; setTimeout(() => { if (!isStandalone() && LS.get("ew_installed", "") !== "1") drawInstallPrompt(); }, 1500);
+  _instShown = true;
+  // Not on top of the login form: wait until signed in.
+  const later = () => { if (isStandalone() || LS.get("ew_installed", "") === "1") return; if (document.getElementById("lf")) { setTimeout(later, 3000); return; } drawInstallPrompt(); };
+  setTimeout(later, 1500);
 }
 window.addEventListener("beforeinstallprompt", () => { if (document.getElementById("instp")) setTimeout(drawInstallPrompt, 0); });
 maybeInstallPrompt();
