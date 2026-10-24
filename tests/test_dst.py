@@ -62,3 +62,17 @@ def test_planen_tal_prisdubbletter_fran_databasen(smartbox, db):
     nu = datetime(2026, 10, 24, 21, 0, tzinfo=SWE)
     # Ska inte kasta.
     decisions.calculate_ev_charge_plan(nu, _schema(), _bilar(), {})
+
+
+@pytest.mark.parametrize(
+    "nu",
+    [datetime(2026, 10, 24, 21, 0, tzinfo=SWE), datetime(2026, 10, 25, 1, 0, tzinfo=SWE), datetime(2026, 3, 28, 21, 0, tzinfo=SWE)],
+)
+def test_spa_planen_klarar_tidsomstallning(smartbox, db, nu, capsys):
+    """Spa-planen sväljer fel (och faller tillbaka på 'inte värma'), så ett fel syns bara som en rad i loggen: kolla den."""
+    import decisions
+
+    _fyll(db, (nu - timedelta(hours=2)).astimezone(zoneinfo.ZoneInfo("UTC")).replace(minute=0), hours=40)
+    decisions.check_spa_schedule_plan(nu, nu + timedelta(hours=20), 34.0, 38.5, 0.0, 0.02, 0.5, 0.01, 40.0, 5.0)
+    ut = capsys.readouterr().out
+    assert "Fel i check_spa_schedule_plan" not in ut, ut[-600:]
