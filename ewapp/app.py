@@ -1063,6 +1063,8 @@ def _lights_work(a, who_req_log):
     if not plan:
         raise HTTPException(400, "Okänd åtgärd")
     ents, svc, msg = plan
+    if a == "windows_on" and dt.datetime.now(TZ).hour < 8:       # Charlie sover aldrig längre än till kl 08: hennes fönsterlampa tänds inte före dess
+        ents = [e for e in ents if e != "light.fonsterlampa_charlie"]
     want = "on" if svc == "turn_on" else "off"
     cur = lambda e: (states().get(e) or {}).get("state")
     for attempt in range(3):                                   # Zigbee tappar ibland kommandon: kontrollera och försök igen på de som inte följt med (sista försöket en och en)
