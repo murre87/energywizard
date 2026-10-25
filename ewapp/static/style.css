@@ -160,3 +160,9 @@ html[data-ambient][data-tod=night] body { background: radial-gradient(900px 520p
 .instbox .btn { display:block; width:100%; min-height:50px; border:0; border-radius:16px; font-weight:800; font-size:1rem; background:linear-gradient(135deg,#22d3a0,#38bdf8); color:#04130e; }
 
 .greet .ver{display:inline-block;margin-top:4px;font-size:.72rem;opacity:.8;color:var(--acc,#16a34a);white-space:nowrap}
+
+/* Värmen är på: varm ton på kortet och en chip (2026-10-25) */
+.card.heating { background-image:linear-gradient(160deg, rgba(255,140,60,.26), rgba(255,80,60,.12) 55%, transparent); border-color:rgba(255,120,60,.65); box-shadow:0 0 0 1px rgba(255,120,60,.35), 0 8px 28px rgba(255,100,40,.22); }
+.chip.heat { background:rgba(255,120,60,.22); border-color:rgba(255,120,60,.7); color:#ff8a4c; font-weight:700; }
+:root[data-theme=light] .chip.heat { color:#c2410c; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .chip.heat { color:#c2410c; } }

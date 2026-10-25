@@ -98,6 +98,7 @@ def main():
         kwh = {"nissan": NISSAN_KWH, "tesla": TESLA_KWH}
         fas = {"nissan": 1, "tesla": 3}
         plan, senaste_plan_h = None, None
+        med_data = 0
         buf = io.StringIO()
         t = start.tz_convert(UTC)
         slut = (start + pd.Timedelta(hours=18)).tz_convert(UTC)
@@ -108,6 +109,7 @@ def main():
                 if rad is None or pd.isna(rad.get("price")) and pd.isna(rad.get("indoor_temp")):
                     t += pd.Timedelta(minutes=15)
                     continue
+                med_data += 1
                 p_nu = float(price15.get(t, num(rad.get("price"), 0.5)))
                 framat = [float(price15.get(t + pd.Timedelta(minutes=15 * i), p_nu)) for i in range(96)]
                 if a.plan_var and nu.minute == 0 and (nu.hour >= 18 or nu.hour < 7) and ((nu.hour - 18) % (24 if a.plan_var <= 0 else a.plan_var) == 0 or plan is None):
@@ -149,6 +151,8 @@ def main():
                         anteckna("ström-utanför-gränser", dagnamn, f"{bil} {amp} A vid {nu}")
                         amp = max(0, min(tak, amp))
                     soc[bil] = min(100.0, soc[bil] + amp * 230 * fas[bil] / 1000 * 0.25 / kwh[bil] * 100 * 0.9)
+                if os.environ.get("TRACE"):
+                    print(f"TRACE {nu:%m-%d %H:%M} pris {p_nu:.2f} net {net:.0f}W pv {pv:.0f}W  N {ak.get('nissan_limit_a')}A/{soc['nissan']:.0f}%  T {ak.get('tesla_limit_a')}A/{soc['tesla']:.0f}%  plan={'ja' if plan is not None and len(plan) else 'nej'}", file=sys.__stdout__)
                 mode = ak.get("pump_mode") or ak.get("mode")
                 logged = rad.get("active_mode")
                 if isinstance(logged, str) and isinstance(mode, str):
@@ -159,7 +163,7 @@ def main():
         for rad in buf.getvalue().splitlines():
             if FEL_MONSTER.search(rad):
                 anteckna("sväljt-fel-i-loggen", dagnamn, rad.strip())
-        slagen.append((dagnamn, soc["nissan"], soc["tesla"]))
+        slagen.append((dagnamn, soc["nissan"], soc["tesla"], med_data))
         # Målet 80 % kl 07 (golv 50 %): kontrollera vid dygnets slut (12:00 nästa dag) att bilarna nått minst golvet.
         if soc["nissan"] < 50 or soc["tesla"] < 50:
             anteckna("bil-under-golvet", dagnamn, f"Nissan {soc['nissan']:.0f} %, Tesla {soc['tesla']:.0f} %")
@@ -180,10 +184,12 @@ def main():
     svar = sorted(dagfel.items(), key=lambda x: -x[1])[:5]
     if svar:
         print("\nDagar med flest anmärkningar:", ", ".join(f"{d} ({n})" for d, n in svar))
-    lag = [(d, n, t) for d, n, t in slagen if n < 75 or t < 75]
-    print(f"\nDygn där en bil inte nådde 75 % till middagstid: {len(lag)} av {len(slagen)}")
-    for d, n, t in lag[:6]:
-        print(f"    {d}: Nissan {n:.0f} %, Tesla {t:.0f} %")
+    lag = [(d, n, t, k) for d, n, t, k in slagen if n < 75 or t < 75]
+    print(f"\nDygn där en bil inte nådde 75 % till middagstid: {len(lag)} av {len(slagen)} (kvartar med loggdata av 72 i fönstret 18–12)")
+    for d, n, t, k in lag:
+        print(f"    {d}: Nissan {n:.0f} %, Tesla {t:.0f} %, data {k}/72")
+    full = [x for x in lag if x[3] >= 66]
+    print(f"  varav med nästan full loggdata (≥66/72): {len(full)}")
 
 
 if __name__ == "__main__":

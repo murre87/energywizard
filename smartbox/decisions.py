@@ -173,9 +173,9 @@ def check_spa_schedule_plan(now, target_dt, curr_temp, target_temp, model_interc
 NISSAN_BATTERY_KWH = 40
 TESLA_BATTERY_KWH = 75
 
-# ANVÄNDARREGEL: Oavsett laddschema ska bilen alltid vara minst 50 % på morgonen (kl 07:00).
+# ANVÄNDARREGEL (Emil, 2026-10-25): oavsett laddschema ska bilen alltid vara minst 50 % kl 06:00 varje morgon.
 MORNING_MIN_SOC = 50
-MORNING_HOUR = 7
+MORNING_HOUR = 6
 
 def get_car_plan_details(now, car_id, schedule, current_soc, battery_kwh):
     """Hjälpfunktion som beräknar nästa mål och energibehov för en bil."""
@@ -215,6 +215,18 @@ def get_car_plan_details(now, car_id, schedule, current_soc, battery_kwh):
     # laddförluster (AC till DC-omvandling samt värmeförluster), annars når vi aldrig ända fram.
     kwh_needed = max(0, (target_soc - current_soc) / 100.0 * battery_kwh) * 1.12
     return target_dt, target_soc, kwh_needed, panic_mode
+
+def get_morning_floor(now, current_soc, battery_kwh, target_dt):
+    """Golvet (MORNING_MIN_SOC kl MORNING_HOUR) som ett eget första delmål: (deadline, kWh från nätet) eller None.
+    Behövs bara när bilen är under golvet och schemats tid ligger EFTER kl 06 - då ska golvet nås först och resten till schemats tid."""
+    if current_soc is None or current_soc >= MORNING_MIN_SOC or target_dt is None:
+        return None
+    morning_dt = now.replace(hour=MORNING_HOUR, minute=0, second=0, microsecond=0)
+    if morning_dt <= now:
+        morning_dt += timedelta(days=1)
+    if target_dt <= morning_dt:
+        return None
+    return morning_dt, max(0.0, (MORNING_MIN_SOC - current_soc) / 100.0 * battery_kwh) * 1.12
 
 def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
     """Skapar en "Spread & Smooth" laddningsplan för de kommande 48 timmarna."""
@@ -353,104 +365,114 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
 
     cars_to_plan = []
     if nissan_target_dt and nissan_kwh > 0 and nissan_plugged_in:
-        cars_to_plan.append({'id': 'nissan', 'deadline': nissan_target_dt, 'kwh_needed': nissan_kwh, 'min_kw': 6 * 230 * 1 / 1000.0, 'max_kw': min(20, fuse_a) * 230 * 1 / 1000.0, 'panic_mode': nissan_panic})
+        cars_to_plan.append({'id': 'nissan', 'deadline': nissan_target_dt, 'kwh_needed': nissan_kwh, 'min_kw': 6 * 230 * 1 / 1000.0, 'max_kw': min(20, fuse_a) * 230 * 1 / 1000.0, 'panic_mode': nissan_panic, 'floor': get_morning_floor(now, nissan_soc, NISSAN_BATTERY_KWH, nissan_target_dt)})
     if tesla_target_dt and tesla_kwh > 0 and tesla_plugged_in:
-        cars_to_plan.append({'id': 'tesla', 'deadline': tesla_target_dt, 'kwh_needed': tesla_kwh, 'min_kw': 6 * 230 * tesla_phases / 1000.0, 'max_kw': min(16, fuse_a) * 230 * tesla_phases / 1000.0, 'panic_mode': tesla_panic})
+        cars_to_plan.append({'id': 'tesla', 'deadline': tesla_target_dt, 'kwh_needed': tesla_kwh, 'min_kw': 6 * 230 * tesla_phases / 1000.0, 'max_kw': min(16, fuse_a) * 230 * tesla_phases / 1000.0, 'panic_mode': tesla_panic, 'floor': get_morning_floor(now, tesla_soc, TESLA_BATTERY_KWH, tesla_target_dt)})
     cars_to_plan.sort(key=lambda x: x['deadline'])
 
     hourly_energy_allocated = {}
     now_slot_naive = now.replace(minute=(now.minute // 15) * 15, second=0, microsecond=0, tzinfo=None)
 
     for car in cars_to_plan:
-        kwh_needed = car['kwh_needed']
         car_min_kw = car['min_kw']
         car_max_kw = car['max_kw']
+        # Delmål: först golvet kl 06 (om bilen är under det och schemats tid är senare), sedan resten till schemats tid.
+        stages = []
+        if car.get('floor'):
+            stages.append((car['floor'][0], min(car['floor'][1], car['kwh_needed'])))
+            stages.append((car['deadline'], car['kwh_needed'] - stages[0][1]))
+        else:
+            stages.append((car['deadline'], car['kwh_needed']))
 
-        car_deadline_dt_naive = car['deadline'].replace(tzinfo=None)
-        potential_slots_df = df_plan[(df_plan['t_slot'] < car_deadline_dt_naive) & (df_plan['t_slot'] >= now_slot_naive)]
+        for stage_idx, (stage_deadline, kwh_needed) in enumerate(stages):
+            if kwh_needed <= 0:
+                continue
+            car_deadline_dt_naive = stage_deadline.replace(tzinfo=None)
+            potential_slots_df = df_plan[(df_plan['t_slot'] < car_deadline_dt_naive) & (df_plan['t_slot'] >= now_slot_naive)]
+            if stage_idx > 0:   # slots som delmålet före redan gett ström tas inte om (skulle skrivas över)
+                potential_slots_df = potential_slots_df[potential_slots_df[f"{car['id']}_kw"] <= 0]
+            if potential_slots_df.empty:
+                continue
 
-        if potential_slots_df.empty:
-            continue
+            charge_slots_indices = potential_slots_df.sort_values('score').index.tolist()
+            kwh_rem = kwh_needed
 
-        charge_slots_indices = potential_slots_df.sort_values('score').index.tolist()
-        kwh_rem = kwh_needed
-
-        # PASS 1: Respektera Peak Shaving (Effektvakten)
-        for idx in charge_slots_indices:
-            if kwh_rem <= 0: break
-
-            slot_dt = df_plan.at[idx, 't_slot']
-            hour_key = slot_dt.strftime('%Y-%m-%d %H:00')
-            
-            peak_shaving_enabled = cfg.get("peak_shaving_enabled", True)
-            limit = df_plan.at[idx, 'slot_power_limit']
-            hourly_limit_kwh = limit if peak_shaving_enabled and limit > 0 else 99.0
-            
-            base_load_profile = learning.get_base_load_profile()
-            assumed_base_load_kwh = learning.predict_base_load(slot_dt, base_load_profile)
-            available_ev_kwh_for_hour = max(0.0, hourly_limit_kwh - assumed_base_load_kwh)
-            
-            min_kwh_per_slot = car_min_kw / 4.0
-            if 0 < available_ev_kwh_for_hour < min_kwh_per_slot:
-                available_ev_kwh_for_hour = min_kwh_per_slot
-                
-            already_allocated_this_hour = hourly_energy_allocated.get(hour_key, 0.0)
-            max_kwh_for_slot = available_ev_kwh_for_hour - already_allocated_this_hour
-            
-            if max_kwh_for_slot <= 0: continue
-            
-            max_kw_from_energy = max_kwh_for_slot * 4.0
-            max_total_kw = min(car_max_kw, max_kw_from_energy)
-
-            available_kw_slot = max_total_kw - df_plan.at[idx, 'allocated_kw']
-            if available_kw_slot < car_min_kw: continue
-
-            power_to_give = min(available_kw_slot, car_max_kw)
-            kwh_to_give = power_to_give / 4.0  # kWh for a 15-min slot
-            if kwh_to_give > kwh_rem:
-                power_to_give = kwh_rem * 4.0
-
-            if 0 < power_to_give < car_min_kw:
-                power_to_give = car_min_kw
-
-            kwh_to_give_final = power_to_give / 4.0
-
-            df_plan.at[idx, f"{car['id']}_kw"] = power_to_give
-            df_plan.at[idx, 'allocated_kw'] += power_to_give
-            kwh_rem -= kwh_to_give_final
-            hourly_energy_allocated[hour_key] = already_allocated_this_hour + kwh_to_give_final
-            
-        # PASS 2: PANIC MODE (Ignorera Peak Shaving för att tvinga bilen full)
-        if kwh_rem > 0 and car['panic_mode']:
+            # PASS 1: Respektera Peak Shaving (Effektvakten)
             for idx in charge_slots_indices:
                 if kwh_rem <= 0: break
-                current_allocated = df_plan.at[idx, f"{car['id']}_kw"]
-                available_extra_kw = car_max_kw - current_allocated
-                
-                # Fysiskt tak: Huvudsäkring - Förväntad baslast i detta 15-min fönster
+
                 slot_dt = df_plan.at[idx, 't_slot']
-                assumed_base_load_kw = learning.predict_base_load(slot_dt, base_load_profile)
-                fuse_limit_kw = (fuse_a * 230 * 3 / 1000.0) - assumed_base_load_kw
+                hour_key = slot_dt.strftime('%Y-%m-%d %H:00')
+            
+                peak_shaving_enabled = cfg.get("peak_shaving_enabled", True)
+                limit = df_plan.at[idx, 'slot_power_limit']
+                hourly_limit_kwh = limit if peak_shaving_enabled and limit > 0 else 99.0
+            
+                base_load_profile = learning.get_base_load_profile()
+                assumed_base_load_kwh = learning.predict_base_load(slot_dt, base_load_profile)
+                available_ev_kwh_for_hour = max(0.0, hourly_limit_kwh - assumed_base_load_kwh)
+            
+                min_kwh_per_slot = car_min_kw / 4.0
+                if 0 < available_ev_kwh_for_hour < min_kwh_per_slot:
+                    available_ev_kwh_for_hour = min_kwh_per_slot
                 
-                room_in_slot = max(0.0, fuse_limit_kw - df_plan.at[idx, 'allocated_kw'])
-                available_extra_kw = min(available_extra_kw, room_in_slot)
+                already_allocated_this_hour = hourly_energy_allocated.get(hour_key, 0.0)
+                max_kwh_for_slot = available_ev_kwh_for_hour - already_allocated_this_hour
+            
+                if max_kwh_for_slot <= 0: continue
+            
+                max_kw_from_energy = max_kwh_for_slot * 4.0
+                max_total_kw = min(car_max_kw, max_kw_from_energy)
+
+                available_kw_slot = max_total_kw - df_plan.at[idx, 'allocated_kw']
+                if available_kw_slot < car_min_kw: continue
+
+                power_to_give = min(available_kw_slot, car_max_kw)
+                kwh_to_give = power_to_give / 4.0  # kWh for a 15-min slot
+                if kwh_to_give > kwh_rem:
+                    power_to_give = kwh_rem * 4.0
+
+                if 0 < power_to_give < car_min_kw:
+                    power_to_give = car_min_kw
+
+                kwh_to_give_final = power_to_give / 4.0
+
+                df_plan.at[idx, f"{car['id']}_kw"] = power_to_give
+                df_plan.at[idx, 'allocated_kw'] += power_to_give
+                kwh_rem -= kwh_to_give_final
+                hourly_energy_allocated[hour_key] = already_allocated_this_hour + kwh_to_give_final
+            
+            # PASS 2: PANIC MODE (Ignorera Peak Shaving för att tvinga bilen full)
+            if kwh_rem > 0 and car['panic_mode']:
+                for idx in charge_slots_indices:
+                    if kwh_rem <= 0: break
+                    current_allocated = df_plan.at[idx, f"{car['id']}_kw"]
+                    available_extra_kw = car_max_kw - current_allocated
                 
-                if available_extra_kw > 0:
-                    power_to_add = min(available_extra_kw, kwh_rem * 4.0)
-                    if (current_allocated + power_to_add) > 0 and (current_allocated + power_to_add) < car_min_kw:
-                        # Tvinga inte upp till car_min_kw om det spränger huvudsäkringen (brandrisk)
-                        if room_in_slot >= car_min_kw:
-                            power_to_add = car_min_kw - current_allocated
-                        else:
-                            power_to_add = 0.0 # Blås inte huvudsäkringen, ens i Panic Mode!
+                    # Fysiskt tak: Huvudsäkring - Förväntad baslast i detta 15-min fönster
+                    slot_dt = df_plan.at[idx, 't_slot']
+                    assumed_base_load_kw = learning.predict_base_load(slot_dt, base_load_profile)
+                    fuse_limit_kw = (fuse_a * 230 * 3 / 1000.0) - assumed_base_load_kw
+                
+                    room_in_slot = max(0.0, fuse_limit_kw - df_plan.at[idx, 'allocated_kw'])
+                    available_extra_kw = min(available_extra_kw, room_in_slot)
+                
+                    if available_extra_kw > 0:
+                        power_to_add = min(available_extra_kw, kwh_rem * 4.0)
+                        if (current_allocated + power_to_add) > 0 and (current_allocated + power_to_add) < car_min_kw:
+                            # Tvinga inte upp till car_min_kw om det spränger huvudsäkringen (brandrisk)
+                            if room_in_slot >= car_min_kw:
+                                power_to_add = car_min_kw - current_allocated
+                            else:
+                                power_to_add = 0.0 # Blås inte huvudsäkringen, ens i Panic Mode!
 
-                    # FIX: sätt inte panic-flaggan på en slot som ändå får 0 kW (vilseledande nedströms)
-                    if power_to_add <= 0:
-                        continue
+                        # FIX: sätt inte panic-flaggan på en slot som ändå får 0 kW (vilseledande nedströms)
+                        if power_to_add <= 0:
+                            continue
 
-                    df_plan.at[idx, f"{car['id']}_kw"] += power_to_add
-                    df_plan.at[idx, f"{car['id']}_panic"] = True
-                    df_plan.at[idx, 'allocated_kw'] += power_to_add
-                    kwh_rem -= power_to_add / 4.0
+                        df_plan.at[idx, f"{car['id']}_kw"] += power_to_add
+                        df_plan.at[idx, f"{car['id']}_panic"] = True
+                        df_plan.at[idx, 'allocated_kw'] += power_to_add
+                        kwh_rem -= power_to_add / 4.0
 
     return df_plan.sort_values('t_slot')
