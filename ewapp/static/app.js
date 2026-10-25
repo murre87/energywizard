@@ -73,6 +73,12 @@ function actions(c, big) {
 const ageTxt = (h) => (h < 1 ? Math.round(h * 60) + " min" : h < 48 ? Math.round(h) + " h" : Math.round(h / 24) + " dygn");
 const staleChip = (c) => (c.age_h != null && c.age_h > 2 ? `<button class="chip warn" data-a="cardata" data-c="${c.key}" title="Bilen har inte skickat nya värden. Öppna för att väcka den och uppdatera.">Data ${ageTxt(c.age_h)} gammal</button>` : "");
 const heatChip = (c) => (c.climate_on ? `<span class="chip heat">🔥 Värmen är på${c.inside != null ? " · " + f1(c.inside) + " °" : ""}</span>` : "");
+const planLink = (c, t) => (c.home && c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length ? `<a class="plink" data-a="planlist" data-c="${c.key}" role="button" tabindex="0">${esc(t)} ›</a>` : esc(t));
+function planSheet(key) {
+  const c = S.cars.find((x) => x.key === key); if (!c) return;
+  sheet(`<h3>Laddplan – ${esc(c.name)}</h3>${planList(c)}<button class="big" data-v="ok">Stäng</button>`);
+  $("#sheet").onclick = (e) => { if (e.target.id === "sheet" || e.target.closest("[data-v]")) closeSheet(); };
+}
 function planList(c) {
   const pa = c.plan_all; if (!c.home || !pa || !pa.blocks || !pa.blocks.length) return "";
   const mx = Math.max(...pa.blocks.map((b) => b.kwh), 0.1);
@@ -84,7 +90,7 @@ function hero(c) {
   const si = statusInfo(c), color = c.soc == null ? "var(--mut)" : c.soc < 20 ? "var(--bad)" : c.soc < 40 ? "var(--warn)" : "var(--acc)";
   const chips = [`<span class="chip ${c.home ? "ok" : ""}">${c.home ? "Hemma" : "Borta" + (c.away && c.away.car_km_from_home != null ? ` · ${c.away.car_km_from_home} km hemifrån` : "")}</span>`, c.home ? `<span class="chip ${c.plugged ? "ok" : "warn"}">${c.plugged ? "Kabel i" : "Ingen kabel"}</span>` : "", staleChip(c), heatChip(c), c.mode === "manual" ? `<span class="chip warn">Manuellt ${c.amps} A${c.phases ? " · " + c.phases + "-fas" : ""}</span>` : "", ...(c.facts || []).slice(0, 2).map((f) => `<span class="chip">${esc(f)}</span>`)].join("");
   return `<section class="card hero${c.climate_on ? " heating" : ""}"><div class="carname">${esc(c.name)} ${ER() === "family" ? "" : `<button class="link" data-a="cardata" data-c="${c.key}">Alla data</button>`}</div><div class="ring">${ring(c.soc, color)}<div class="pct" data-a="refreshsoc" data-c="${c.key}" title="Tryck för att uppdatera"><b>${c.soc == null ? "–" : c.soc}<small style="font-size:.45em">%</small></b><span>batteri</span></div></div>
-  <div class="chips">${chips}</div><div class="stat">${esc(si.t)}${c.away && c.away.km ? ` <span class="note">· ${c.away.km} km kvar</span>` : ""}</div>${c.home && c.plugged ? `<div class="note sunline${c.solar && c.solar.active ? " on" : ""}">${esc(solarText(c))}</div>` : ""}${planList(c)}${c.home ? actions(c, true) : ""}
+  <div class="chips">${chips}</div><div class="stat">${planLink(c, si.t)}${c.away && c.away.km ? ` <span class="note">· ${c.away.km} km kvar</span>` : ""}</div>${c.home && c.plugged ? `<div class="note sunline${c.solar && c.solar.active ? " on" : ""}">${esc(solarText(c))}</div>` : ""}${c.home ? actions(c, true) : ""}
   <div class="chips">${c.home ? `<button class="mini" data-a="${c.climate_on ? "heat_off" : "heat_on"}" data-c="${c.key}">${c.climate_on ? "Stoppa värme" : "Starta värme"}</button>` : ""}${c.home && c.plugged ? `<button class="mini" data-a="power" data-c="${c.key}">Välj effekt</button>` : ""}${c.home && c.plugged ? `<button class="mini" data-a="trip" data-c="${c.key}">Resplan</button>` : ""}${c.mode !== "auto" ? `<button class="mini" data-a="auto" data-c="${c.key}">Auto</button>` : ""}${c.access ? `<button class="mini" data-a="access">${c.access.locked ? "Lås & luckor" : "Olåst · luckor"}</button>` : ""}</div></section>`;
 }
 function compact(c) {
@@ -396,6 +402,7 @@ document.addEventListener("click", async (e) => {
   const a = b.dataset.a, c = b.dataset.c, v = b.dataset.v;
   if (!can(a)) { toast(ER() === "guest" ? "Gästläge – du kan bara titta" : "Det här kan bara administratören ändra"); return; }
   if (a === "tab") { if (v !== page) { try { history.pushState({ page: v }, ""); } catch (e) {} } page = v; LS.set("ew_page", v); render(); return load(); }
+  if (a === "planlist") return planSheet(c);
   if (a === "power") return powerSheet(c);
   if (a === "swap") { LS.set("ew_primary", c); return render(); }
   if (a === "settings") return settingsSheet();
