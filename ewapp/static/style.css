@@ -166,3 +166,15 @@ html[data-ambient][data-tod=night] body { background: radial-gradient(900px 520p
 .chip.heat { background:rgba(255,120,60,.22); border-color:rgba(255,120,60,.7); color:#ff8a4c; font-weight:700; }
 :root[data-theme=light] .chip.heat { color:#c2410c; }
 @media (prefers-color-scheme: light) { :root:not([data-theme]) .chip.heat { color:#c2410c; } }
+
+/* Laddplan: alla block (2026-10-25) */
+.plist { width:100%; margin:6px 0 8px; padding:10px 12px; border-radius:14px; background:rgba(127,127,127,.08); border:1px solid var(--line); text-align:left; }
+.plist .phead { display:flex; justify-content:space-between; align-items:baseline; font-size:.85rem; margin-bottom:6px; } .plist .phead span { color:var(--mut); }
+.plist .pb { display:grid; grid-template-columns:minmax(92px,auto) 1fr auto; gap:10px; align-items:center; padding:5px 0; font-size:.88rem; border-top:1px solid var(--line); }
+.plist .pb:first-of-type { border-top:0; }
+.plist .pbt { display:flex; flex-direction:column; line-height:1.15; } .plist .pbd { font-size:.7rem; color:var(--mut); }
+.plist .pbbar { height:8px; border-radius:99px; background:rgba(127,127,127,.18); overflow:hidden; } .plist .pbbar i { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--acc),#3b82f6); }
+.plist .pb.early .pbbar i { background:linear-gradient(90deg,#f59e0b,var(--acc)); }
+.plist .pbn { text-align:right; font-weight:600; white-space:nowrap; } .plist .pbn small { display:block; font-weight:400; font-size:.7rem; color:var(--mut); }
+.plist .pfloor { margin-top:6px; padding-top:6px; border-top:1px solid var(--line); font-size:.82rem; font-weight:600; } .plist .pfloor.ok { color:var(--acc); } .plist .pfloor.warn { color:var(--warn); }
+.page.t3 .plist, .page.t4 .plist { display:none; }

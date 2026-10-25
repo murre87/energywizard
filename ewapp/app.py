@@ -220,6 +220,41 @@ def plan_segments(car: str, soc, cap_kwh: float) -> list:
     return out
 
 
+def plan_blocks_ui(car: str, soc, cap_kwh: float) -> dict:
+    """ALLA laddblock i planen (sammanhängande kvartsslots) för appens laddplan: dag, start, slut, kWh, snitt-kW och batterinivå före/efter,
+    samt vad bilen beräknas ha kl 06:00 (golvet) - {blocks: [...], kwh, floor: {soc, ok, time}}."""
+    now = dt.datetime.now(TZ).replace(tzinfo=None)
+    morning = now.replace(hour=6, minute=0, second=0, microsecond=0)
+    if morning <= now:
+        morning += dt.timedelta(days=1)
+    try:
+        with ENGINE.connect() as c:
+            rows = c.execute(text("SELECT t_slot, kw FROM ev_plan_slots WHERE car_id = :c AND t_slot >= :n AND kw > 0 ORDER BY t_slot"), {"c": car, "n": now - dt.timedelta(minutes=15)}).fetchall()
+    except Exception:
+        return {"blocks": [], "kwh": 0.0, "floor": None}
+    cur = float(soc) if soc is not None else None
+    blocks, at_morning = [], cur
+    for t, kw in rows:
+        kw = float(kw)
+        gain = (kw * 0.25 * 0.9 / cap_kwh * 100.0) if cap_kwh else 0.0
+        if not blocks or (t - blocks[-1]["_end"]).total_seconds() > 60:
+            blocks.append({"_start": t, "_end": t, "kws": [], "soc0": None if cur is None else round(cur)})
+        blocks[-1]["_end"] = t + dt.timedelta(minutes=15); blocks[-1]["kws"].append(kw)
+        if cur is not None:
+            cur = min(100.0, cur + gain)
+        blocks[-1]["soc1"] = None if cur is None else round(cur)
+        if t + dt.timedelta(minutes=15) <= morning:
+            at_morning = cur
+    out, total = [], 0.0
+    for g in blocks:
+        kwh = sum(g["kws"]) * 0.25; total += kwh
+        day = "idag" if g["_start"].date() == now.date() else ("imorgon" if g["_start"].date() == now.date() + dt.timedelta(days=1) else g["_start"].strftime("%a"))
+        out.append({"day": day, "start": g["_start"].strftime("%H:%M"), "end": g["_end"].strftime("%H:%M"), "kwh": round(kwh, 1), "kw": round(sum(g["kws"]) / len(g["kws"]), 1),
+                    "soc0": g["soc0"], "soc1": g["soc1"], "before_morning": g["_end"] <= morning})
+    floor = None if at_morning is None else {"soc": round(at_morning), "ok": at_morning >= 49.5, "time": "06:00", "day": "idag" if morning.date() == now.date() else "imorgon"}
+    return {"blocks": out, "kwh": round(total, 1), "floor": floor}
+
+
 def solar_info(ov: dict) -> dict:
     return {"active": ov.get("solar_ev_active") == "on", "amps": intval(ov.get("solar_ev_amps")), "phases": intval(ov.get("solar_ev_phases")), "last_start": ov.get("solar_ev_last_start"), "last_end": ov.get("solar_ev_last_end")}
 
@@ -294,7 +329,7 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
     return {"key": key, "name": c["name"], "soc": None if soc is None else round(soc), "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
             "mode": mode, "amps": amps, "phases": phases, "eta": eta, "away": away, "online": (val(st, c["online"]) or "off") == "on", "default_phases": c["phases"],
             "climate_on": (val(st, c["climate"]) or "off") not in ("off", "unavailable"), "inside": num(st, c["inside"]),
-            "age_h": age_h(st, c["soc"] if key == "tesla" else "sensor.leaf_battery_level"), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "solar": solar_info(ov),
+            "age_h": age_h(st, c["soc"] if key == "tesla" else "sensor.leaf_battery_level"), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "plan_all": plan_blocks_ui(key, soc, c["cap_kwh"]), "solar": solar_info(ov),
             "access": ({"locked": val(st, "lock.tesla_model_y_doors") == "locked", "trunk": val(st, "cover.tesla_model_y_trunk") == "open", "frunk": val(st, "cover.tesla_model_y_frunk") == "open"} if key == "tesla" else None)}
 
 
