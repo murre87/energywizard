@@ -1260,6 +1260,15 @@ def publish_plan(car: str, st: dict, ov: dict) -> tuple:
     c = CARS[car]
     soc = num(st, c["soc"])
     blocks = plan_blocks(car)
+    pa = plan_blocks_ui(car, soc, c["cap_kwh"])
+    by_start = {(b["day"], b["start"]): b for b in pa["blocks"]}
+    now0 = dt.datetime.now(TZ)
+    for b in blocks:      # batterinivå före/efter per block (valfria fält i avtalet), matchade på starttid
+        t0 = dt.datetime.fromisoformat(b["start"])
+        day = "idag" if t0.date() == now0.date() else ("imorgon" if t0.date() == now0.date() + dt.timedelta(days=1) else t0.strftime("%a"))
+        m = by_start.get((day, t0.strftime("%H:%M")))
+        if m and m["soc0"] is not None:
+            b["soc_start"], b["soc_end"] = m["soc0"], m["soc1"]
     mode = ew_mode(car, ov)
     status = (val(st, c["status"]) or "unknown").lower()
     charging = status in ("charging",)
@@ -1271,13 +1280,14 @@ def publish_plan(car: str, st: dict, ov: dict) -> tuple:
     elif blocks:
         b0 = blocks[0]
         t0 = dt.datetime.fromisoformat(b0["start"])
-        state = "Planerad " + (t0.strftime("%H:%M") if t0.date() == now.date() else t0.strftime("%a %H:%M"))
+        state = "Planerad " + (t0.strftime("%H:%M") if t0.date() == now.date() else ("imorgon " if t0.date() == now.date() + dt.timedelta(days=1) else ["mån", "tis", "ons", "tors", "fre", "lör", "sön"][t0.weekday()] + " ") + t0.strftime("%H:%M"))
     else:
         state = "Ingen plan"
     kwh = round(sum(b["kw"] * (dt.datetime.fromisoformat(b["end"]) - dt.datetime.fromisoformat(b["start"])).total_seconds() / 3600 for b in blocks), 1)
     after = None if (soc is None or not blocks or not c["cap_kwh"]) else round(min(100.0, soc + kwh * 0.9 / c["cap_kwh"] * 100.0))      # 90 % verkningsgrad, som i appens plan
     attrs = {"friendly_name": f"{c['name']} laddplan", "icon": "mdi:ev-station", "slots": blocks, "mode": mode, "charging": charging, "soc": None if soc is None else round(soc),
-             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard", "schedule": schedule_rows(car), "schedule_car": car, "updated": now.isoformat(timespec="seconds")}
+             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard",
+             "morning_check": ({"time": pa["floor"]["time"], "soc": pa["floor"]["soc"], "min": 50} if pa.get("floor") else None), "schedule": schedule_rows(car), "schedule_car": car, "updated": now.isoformat(timespec="seconds")}
     return f"sensor.{slug(car)}_laddplan", (state, attrs)
 
 
