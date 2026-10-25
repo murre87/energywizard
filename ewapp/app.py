@@ -285,6 +285,40 @@ def car_facts(key: str, st: dict) -> list:
     return out
 
 
+_CAR_MEM: dict = {}          # senast kända värden per bil: {key: {"soc": x, "home": bool, "t": datetime}}; sparas också i databasen (överlever omstart)
+_CAR_MEM_MAX_H = 48
+_car_mem_ready = False
+
+
+def _car_mem_load() -> None:
+    """Läser senast kända batterinivå/plats ur databasen en gång (tabellen skapas vid behov)."""
+    global _car_mem_ready
+    if _car_mem_ready:
+        return
+    _car_mem_ready = True
+    try:
+        with ENGINE.begin() as c:
+            c.execute(text("CREATE TABLE IF NOT EXISTS ew_car_memory (car text PRIMARY KEY, soc real, home boolean, updated timestamptz NOT NULL DEFAULT now())"))
+            for car, soc, home, t in c.execute(text("SELECT car, soc, home, updated FROM ew_car_memory")).fetchall():
+                _CAR_MEM[car] = {"soc": soc, "home": home, "t": t}
+    except Exception as e:
+        print(f"⚠️ bilminne: {type(e).__name__}", flush=True)
+
+
+def _car_mem_save(key: str, soc, home) -> None:
+    """Sparar live-värdena (högst var 10:e minut, eller direkt vid ändrad plats)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    m = _CAR_MEM.get(key)
+    if m and m.get("soc") == soc and m.get("home") == home and (now - m["t"]).total_seconds() < 600:
+        return
+    _CAR_MEM[key] = {"soc": soc, "home": home, "t": now}
+    try:
+        with ENGINE.begin() as c:
+            c.execute(text("INSERT INTO ew_car_memory (car, soc, home, updated) VALUES (:c, :s, :h, now()) ON CONFLICT (car) DO UPDATE SET soc = EXCLUDED.soc, home = EXCLUDED.home, updated = now()"), {"c": key, "s": soc, "h": home})
+    except Exception as e:
+        print(f"⚠️ bilminne (spara): {type(e).__name__}", flush=True)
+
+
 def car_state(key: str, st: dict, ov: dict) -> dict:
     c = CARS[key]
     status = (val(st, c["status"]) or "unknown").lower()
@@ -294,6 +328,17 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
     p = num(st, c["power"]) or 0.0
     power_kw = p / 1000.0 if p > 100 else p
     soc = num(st, c["soc"])
+    # En sovande bil eller en HA-omstart ger "unknown": visa då senast kända värden i stället för "–" och "borta" (högst 48 h gamla).
+    _car_mem_load()
+    mem = _CAR_MEM.get(key)
+    fresh_mem = bool(mem) and (dt.datetime.now(dt.timezone.utc) - mem["t"]).total_seconds() < _CAR_MEM_MAX_H * 3600
+    soc_stale = False
+    if soc is None and fresh_mem and mem.get("soc") is not None:
+        soc, soc_stale = float(mem["soc"]), True
+    if tracker in ("unknown", "unavailable") and fresh_mem and mem.get("home") is not None:
+        home = bool(mem["home"])
+    elif tracker not in ("unknown", "unavailable") and soc is not None and not soc_stale:
+        _car_mem_save(key, soc, home)
     amps, phases = intval(ov.get(f"{key}_force_amps")), intval(ov.get(f"{key}_force_phases"))
     hold = ov.get(f"{key}_hold") == "on"
     mode = ("manual" if amps > 0 else ("hold" if hold else "auto")) if (home and plugged) else ("hold" if hold else "auto")
@@ -326,7 +371,7 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
                     "dest_home": None if d_dest is None else d_dest < 1.5, "dest_km_from_home": None if d_dest is None else round(d_dest), "car_km_from_home": None if d_car is None else round(d_car)}
         except Exception:
             away = None
-    return {"key": key, "name": c["name"], "soc": None if soc is None else round(soc), "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
+    return {"key": key, "name": c["name"], "soc": None if soc is None else round(soc), "soc_stale": soc_stale, "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
             "mode": mode, "amps": amps, "phases": phases, "eta": eta, "away": away, "online": (val(st, c["online"]) or "off") == "on", "default_phases": c["phases"],
             "climate_on": (val(st, c["climate"]) or "off") not in ("off", "unavailable"), "inside": num(st, c["inside"]),
             "age_h": age_h(st, c["soc"] if key == "tesla" else "sensor.leaf_battery_level"), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "plan_all": plan_blocks_ui(key, soc, c["cap_kwh"]), "solar": solar_info(ov),
