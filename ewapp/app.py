@@ -251,8 +251,11 @@ def plan_blocks_ui(car: str, soc, cap_kwh: float) -> dict:
         day = "idag" if g["_start"].date() == now.date() else ("imorgon" if g["_start"].date() == now.date() + dt.timedelta(days=1) else g["_start"].strftime("%a"))
         out.append({"day": day, "start": g["_start"].strftime("%H:%M"), "end": g["_end"].strftime("%H:%M"), "kwh": round(kwh, 1), "kw": round(sum(g["kws"]) / len(g["kws"]), 1),
                     "soc0": g["soc0"], "soc1": g["soc1"], "before_morning": g["_end"] <= morning})
+    summary = None
+    if out:
+        summary = {"day": out[0]["day"], "start": out[0]["start"], "end": out[-1]["end"], "soc0": out[0]["soc0"], "soc1": out[-1]["soc1"], "kwh": round(total, 1), "n": len(out)}
     floor = None if at_morning is None else {"soc": round(at_morning), "ok": at_morning >= 49.5, "time": "06:00", "day": "idag" if morning.date() == now.date() else "imorgon"}
-    return {"blocks": out, "kwh": round(total, 1), "floor": floor}
+    return {"blocks": out, "kwh": round(total, 1), "floor": floor, "summary": summary}
 
 
 def solar_info(ov: dict) -> dict:

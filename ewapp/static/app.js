@@ -43,6 +43,8 @@ function chooseCar() {
 }
 // ---- Bil -------------------------------------------------------------------------------------------------------------------------
 function planText(c) {
+  const sm = c.plan_all && c.plan_all.summary;      // hela planen: första start → sista slut och batteriet efter planen
+  if (sm) return `${sm.day === "idag" ? "" : sm.day + " "}${sm.start} → ${sm.end}${sm.soc0 != null ? ` · ${sm.soc0} → ${sm.soc1} %` : ""}`;
   const g = (c.plan || [])[0]; if (!g) return null;
   return `${g.day === "idag" ? "" : g.day + " "}${g.start} → ${g.end}${g.soc0 != null ? ` · ${g.soc0} → ${g.soc1} %` : ""} · ${f1(g.kw)} kW`;
 }
