@@ -1305,6 +1305,18 @@ while True:
             except Exception as _we:
                 print(f"⚠️ Väckning av Tesla misslyckades: {_we}")
 
+            # 🚗 Nissan: Leaf-integrationen i HA hämtar bara nytt värde när vi ber om det, så batterinivån står kvar på
+            # det gamla (24 okt natt: 12 % trots att bilen blev fulladdad). Be om en uppdatering var 30:e minut medan
+            # bilen är inkopplad och inte full, annars var 3:e timme.
+            try:
+                _nsoc = nissan_data.get("soc") if nissan_data else None
+                _ngap = timedelta(minutes=30) if (_nsoc is None or _nsoc < 98) else timedelta(hours=3)
+                if ev_connection_state['nissan']['connected'] and (_soc_mem.get("nissan_poll") is None or (now - _soc_mem["nissan_poll"]) > _ngap):
+                    _soc_mem["nissan_poll"] = now
+                    homeassistant.press_button("button.leaf_update_data")
+            except Exception as _ne:
+                print(f"⚠️ Uppdatering av Leaf-data misslyckades: {_ne}")
+
             # 🧠 GPM UTVÄRDERING
             # ============================================================
             gpm_state = {

@@ -863,7 +863,11 @@ def get_optimal_pi_params():
         print(f"⚙️ AI: PI-regulator autotunad. Ny kp={kp:.5f}, ki={ki:.6f} (Standardavvikelse historiskt: {std_dev:.0f}W)")
         return kp, ki
     except Exception as e:
-        print(f"❌ Fel vid autotuning av PI: {e}")
+        # sensor_log har ingen kolumn solar_limit_pct (loggas aldrig), så frågan föll varje gång och skrev ett fel var minut.
+        # Standardvärdena gäller i alla fall; spara dem ett dygn så att felet inte upprepas.
+        print(f"❌ Fel vid autotuning av PI (standardvärden används i 24 h): {e}")
+        _cached_pi_params = (default_kp, default_ki)
+        _cached_pi_time = now
         return default_kp, default_ki
 
 _cached_house_heating_model = None
