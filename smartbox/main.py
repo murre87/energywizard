@@ -169,6 +169,7 @@ def _estimate_pump_el_w(forward_c):
     return 2700.0
 
 _pv_hist = []   # de senaste minutvärdena för solproduktion (för att upptäcka fastfrusna solvärden)
+_meter_freeze = health.MeterFreeze()   # upptäcker en nätmätare (Tibber) som står still på samma värden (falsk 'oförklarad last')
 _sensor_watch = health.SensorWatch(grace_min=30)   # varnar när en sensor som fungerat tystnat >30 min
 _link_watch = health.LinkWatch(min_outage_min=5)   # sammanfattar HA-avbrott >5 min när HA är tillbaka
 SENSOR_LABELS = {"indoor_1": "Tempsensor 1 (Zigbee)", "matter_1": "Timmerflotte 1", "matter_2": "Timmerflotte 2",
@@ -1778,7 +1779,8 @@ while True:
                 _pv_hist.append(round(solar_prod_w or 0))
                 del _pv_hist[:-5]
                 _pv_frozen = len(_pv_hist) == 5 and len(set(_pv_hist)) == 1 and _pv_hist[0] > 0
-                _lc = health.load_check(_total_w, _known_w, avg_net, (avg_hl1, avg_hl2, avg_hl3), _pv_frozen)
+                _meter_frozen = _meter_freeze.frozen(avg_net, (avg_hl1, avg_hl2, avg_hl3), time.time())
+                _lc = health.load_check(_total_w, _known_w, avg_net, (avg_hl1, avg_hl2, avg_hl3), _pv_frozen, meter_frozen=_meter_frozen)
                 _unexpl_w = _lc["unexplained_w"]
                 logger.log_load_breakdown(_total_w, _ev_w, _pump_w, _spa_w, _unexpl_w)
                 # Oförklarad-last-notis – OBEROENDE av peak-shaving. >2 kW oförklarat i 10+ min,
