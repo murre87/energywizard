@@ -35,6 +35,9 @@ def _percentile(values, pct):
     return s[k]
 
 
+SPA_EV_PAUSE_MAX_DROP_C = 5.0      # badet pausas under bilens laddfönster så länge det är högst så här många grader under normaltemperaturen
+
+
 class GlobalPriorityManager:
     def __init__(self):
         self.pump_mode_lock_until = None
@@ -604,6 +607,12 @@ class GlobalPriorityManager:
             actions["spa_target"] = spa_low_temp
             actions["spa_eco"] = True
             actions["log"].append("🛁 Prio 4 (SPA): Elbil laddas och el köps från nätet. Blockerar spabadsvärme för att skydda effekttaket.")
+        elif ev_is_charging and not ev_is_solar_only and price >= 0 and (spa_temp is None or spa_temp >= spa_normal_temp - SPA_EV_PAUSE_MAX_DROP_C):
+            # 2026-10-27: Tesla nådde inte 100 % före avresan eftersom säkringen bara gav 9-13 A (badet drog ~3 kW). Under bilens laddfönster pausas därför badets
+            # uppvärmning (Economy), så att all ledig ström går till bilen. Gäller inte solöverskott/minuspris, och inte om badet redan svalnat mer än 5 °C under normaltemperaturen.
+            actions["spa_target"] = spa_low_temp
+            actions["spa_eco"] = True
+            actions["log"].append("🛁 Prio 4 (SPA): Bilen laddas. Pausar badets uppvärmning under laddfönstret så att mer ström finns kvar till bilen.")
         elif is_away:
             actions["spa_target"] = spa_low_temp
             actions["spa_eco"] = True

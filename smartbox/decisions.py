@@ -216,6 +216,18 @@ def get_car_plan_details(now, car_id, schedule, current_soc, battery_kwh):
     kwh_needed = max(0, (target_soc - current_soc) / 100.0 * battery_kwh) * 1.12
     return target_dt, target_soc, kwh_needed, panic_mode
 
+FULL_CHARGE_MARGIN_H = 1.0   # 2026-10-27: Tesla stod på 91 % kl 05:45 trots schema 100 % (säkringen gav 9-13 A, inte de 16 A planen räknade med)
+
+
+def full_charge_deadline(now, target_dt, target_soc, margin_h=FULL_CHARGE_MARGIN_H):
+    """Kräver schemat 100 % planeras laddningen klar en timme före avresan: det blir en timmes marginal mot att säkringen, badet eller värmepumpen
+    ger mindre ström än planen räknade med. Ligger den tidigare tidpunkten redan bakom oss (mindre än en timme kvar) gäller avresetiden som förut."""
+    if target_dt is None or target_soc is None or target_soc < 100:
+        return target_dt
+    early = target_dt - timedelta(hours=margin_h)
+    return early if early > now else target_dt
+
+
 def get_morning_floor(now, current_soc, battery_kwh, target_dt):
     """Golvet (MORNING_MIN_SOC kl MORNING_HOUR) som ett eget första delmål: (deadline, kWh från nätet) eller None.
     Behövs bara när bilen är under golvet och schemats tid ligger EFTER kl 06 - då ska golvet nås först och resten till schemats tid."""
@@ -243,8 +255,8 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
     tesla_phases_str = car_data.get('tesla_phases')
     tesla_phases = 3 if tesla_phases_str is None or any(x in str(tesla_phases_str) for x in ['Three', '3', 'auto', 'Auto']) else 1
 
-    nissan_target_dt, _, nissan_kwh, nissan_panic = get_car_plan_details(now, 'nissan', ev_schedule, nissan_soc, NISSAN_BATTERY_KWH)
-    tesla_target_dt, _, tesla_kwh, tesla_panic = get_car_plan_details(now, 'tesla', ev_schedule, tesla_soc, TESLA_BATTERY_KWH)
+    nissan_target_dt, nissan_target_soc, nissan_kwh, nissan_panic = get_car_plan_details(now, 'nissan', ev_schedule, nissan_soc, NISSAN_BATTERY_KWH)
+    tesla_target_dt, tesla_target_soc, tesla_kwh, tesla_panic = get_car_plan_details(now, 'tesla', ev_schedule, tesla_soc, TESLA_BATTERY_KWH)
 
     max_dt = now
     if nissan_target_dt and nissan_target_dt > max_dt: max_dt = nissan_target_dt
@@ -365,9 +377,9 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
 
     cars_to_plan = []
     if nissan_target_dt and nissan_kwh > 0 and nissan_plugged_in:
-        cars_to_plan.append({'id': 'nissan', 'deadline': nissan_target_dt, 'kwh_needed': nissan_kwh, 'min_kw': 6 * 230 * 1 / 1000.0, 'max_kw': min(20, fuse_a) * 230 * 1 / 1000.0, 'panic_mode': nissan_panic, 'floor': get_morning_floor(now, nissan_soc, NISSAN_BATTERY_KWH, nissan_target_dt)})
+        cars_to_plan.append({'id': 'nissan', 'deadline': full_charge_deadline(now, nissan_target_dt, nissan_target_soc), 'kwh_needed': nissan_kwh, 'min_kw': 6 * 230 * 1 / 1000.0, 'max_kw': min(20, fuse_a) * 230 * 1 / 1000.0, 'panic_mode': nissan_panic, 'floor': get_morning_floor(now, nissan_soc, NISSAN_BATTERY_KWH, nissan_target_dt)})
     if tesla_target_dt and tesla_kwh > 0 and tesla_plugged_in:
-        cars_to_plan.append({'id': 'tesla', 'deadline': tesla_target_dt, 'kwh_needed': tesla_kwh, 'min_kw': 6 * 230 * tesla_phases / 1000.0, 'max_kw': min(16, fuse_a) * 230 * tesla_phases / 1000.0, 'panic_mode': tesla_panic, 'floor': get_morning_floor(now, tesla_soc, TESLA_BATTERY_KWH, tesla_target_dt)})
+        cars_to_plan.append({'id': 'tesla', 'deadline': full_charge_deadline(now, tesla_target_dt, tesla_target_soc), 'kwh_needed': tesla_kwh, 'min_kw': 6 * 230 * tesla_phases / 1000.0, 'max_kw': min(16, fuse_a) * 230 * tesla_phases / 1000.0, 'panic_mode': tesla_panic, 'floor': get_morning_floor(now, tesla_soc, TESLA_BATTERY_KWH, tesla_target_dt)})
     cars_to_plan.sort(key=lambda x: x['deadline'])
 
     hourly_energy_allocated = {}
