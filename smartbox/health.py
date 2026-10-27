@@ -66,7 +66,24 @@ def fmt_duration(td):
     return f"{h // 24} dygn"
 
 
-def load_check(total_w, known_w, net_w, phase_currents, pv_frozen=False, volt=230.0):
+class MeterFreeze:
+    """Nätmätaren (Tibber Pulse) kan sluta rapportera och lämna kvar sista värdet. 2026-10-27 09:22: 'Oförklarad hög last 3,4 kW' fast bilen var borta och värmepumpen stannat - nätimporten (2808,9 W) och
+    de tre fasströmmarna stod exakt still sedan 09:02. Samma värden i minst FREEZE_AFTER_S sekunder (och över 300 W) räknas som fastfrysta: då blir det ingen notis om oförklarad last."""
+    FREEZE_AFTER_S = 600
+
+    def __init__(self):
+        self.sig = None
+        self.since = None
+
+    def frozen(self, net_w, phase_currents, now_s):
+        sig = (round(float(net_w or 0), 1),) + tuple(round(float(x or 0), 1) for x in phase_currents)
+        if sig != self.sig:
+            self.sig, self.since = sig, now_s
+            return False
+        return abs(sig[0]) > 300 and (now_s - self.since) >= self.FREEZE_AFTER_S
+
+
+def load_check(total_w, known_w, net_w, phase_currents, pv_frozen=False, volt=230.0, meter_frozen=False):
     """Oförklarad last med extra kontroll från FASSTRÖMMARNA (Tibber, oberoende av solsensorn).
 
     Nätimporten är alltid verklig förbrukning, så husets last >= brutto-importen (summan av de POSITIVA fasströmmarna
@@ -81,5 +98,5 @@ def load_check(total_w, known_w, net_w, phase_currents, pv_frozen=False, volt=23
     grid_lb = max(0.0, gross - known_w)
     pv_based = max(0.0, total_w - known_w) if net_w > 0 else 0.0
     unexplained = grid_lb if pv_frozen else pv_based
-    alert = unexplained > 2000.0 and net_w > 0 and grid_lb >= 1000.0
-    return {"gross_import_w": gross, "grid_lb_w": grid_lb, "pv_based_w": pv_based, "unexplained_w": unexplained, "alert": alert}
+    alert = unexplained > 2000.0 and net_w > 0 and grid_lb >= 1000.0 and not meter_frozen          # en fastfrusen mätare ger falsklarm
+    return {"gross_import_w": gross, "grid_lb_w": grid_lb, "pv_based_w": pv_based, "unexplained_w": unexplained, "alert": alert, "meter_frozen": bool(meter_frozen)}
