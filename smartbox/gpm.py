@@ -35,6 +35,16 @@ def _percentile(values, pct):
     return s[k]
 
 
+SOLAR_EV_EXPENSIVE_IMPORT_W = 500.0   # solladdning som köper mer än så här från nätet vid dyr el justeras varje minut i stället för var 5:e
+SOLAR_EV_FAST_EVAL_MIN = 1.0
+
+
+def _is_expensive(price, all_prices):
+    """Dyr = i dygnets dyraste tredjedel (samma definition som appens 'dyrt'); en platt dag eller minuspris räknas inte som dyr."""
+    p67 = _percentile(all_prices, 67)
+    return price is not None and price > 0 and p67 is not None and price >= p67
+
+
 SPA_EV_PAUSE_MAX_DROP_C = 5.0      # badet pausas under bilens laddfönster så länge det är högst så här många grader under normaltemperaturen
 
 
@@ -245,7 +255,9 @@ class GlobalPriorityManager:
                     actions["log"].append(f"☀️ Prio 3.5 (SOLAR EV): Startar sol-laddning{_why}! Mål: {self.ev_solar_target_amps}A på {self.ev_solar_target_phases}-fas (nollar {abs(avg_net):.0f}W överskott).")
             else:
                 # Vi laddar redan. Uppdatera strömstyrkan var 5:e minut för att matcha överskottet.
-                if time_since_eval >= 5.0:
+                # 2026-10-30: köper vi el vid dyrt pris (solen försvann medan spabad/värmepump drog) justeras det varje minut, så att bilen inte laddar på dyr nätel i fem minuter.
+                dyr_import = avg_net > SOLAR_EV_EXPENSIVE_IMPORT_W and _is_expensive(price, state.get('all_prices'))
+                if time_since_eval >= 5.0 or (dyr_import and time_since_eval >= SOLAR_EV_FAST_EVAL_MIN):
                     self.ev_solar_last_eval_time = now
                     current_voltage = 690.0 if self.ev_solar_target_phases == 3 else 230.0
                     delta_amps = -avg_net / current_voltage

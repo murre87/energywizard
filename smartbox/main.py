@@ -1849,6 +1849,16 @@ while True:
                 # EL-effekt är avg_tot (~2200 W när kompressorn går, annars 0). Använd den här.
                 _pump_w = avg_tot if avg_tot else 0.0
                 _spa_w  = spa_power_w or 0.0
+                # Vilken bil laddar? Publiceras som sensor.smartbox_elbil_laddar (energiflödet i HA visar annars bara "Elbil").
+                _laddar = [namn for namn, d in (("Nissan Leaf", nissan_charger_data), ("Tesla Model Y", tesla_charger_data))
+                           if d and ((d.get("power_kw") or 0.0) > 0.3 or str(d.get("status")) == "charging")]
+                _laddar_txt = " + ".join(_laddar) if _laddar else "Ingen"
+                if _solar_persist.get("laddar") != _laddar_txt:
+                    from database_engine import engine as _eng
+                    from sqlalchemy import text as _tx
+                    with _eng.begin() as _c:
+                        _c.execute(_tx("INSERT INTO overrides (device, mode, updated_at) VALUES ('ev_charging_car', :m, NOW()) ON CONFLICT (device) DO UPDATE SET mode = EXCLUDED.mode, updated_at = NOW()"), {"m": _laddar_txt})
+                    _solar_persist["laddar"] = _laddar_txt
                 _known_w = _ev_w + _pump_w + _spa_w
                 # Robust total: aldrig mindre än de uppmätta lasterna (skyddar mot glitchande
                 # pv-sensor som annars kan göra house_consumption_w falskt negativ → 0).
