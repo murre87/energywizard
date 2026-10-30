@@ -8,10 +8,15 @@ from house_config import (
     build_solar_driver, build_spa_driver, load_house_config,
 )
 from drivers.car import NullCarDriver
+from drivers.car_generic import NissanCarDriver, TeslaCarDriver
 from drivers.charger import NullChargerDriver
+from drivers.charger_easee import EaseeChargerDriver
 from drivers.heatpump import NullHeatPumpDriver
+from drivers.heatpump_thermia import ThermiaHusdataHeatPumpDriver
 from drivers.solar import NullSolarDriver
+from drivers.solar_solaredge import SolarEdgeSolarDriver
 from drivers.spa import NullSpaDriver
+from drivers.spa_gecko import GeckoSpaDriver
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "config" / "house_config.example.yaml"
@@ -47,18 +52,23 @@ def test_tomt_hus_null_drivrutiner_kraschar_inte_vid_anrop():
     spa.set_target_temp(30.0); spa.set_economy(True)
 
 
-def test_emils_hus_har_tva_bilar_och_laddare_konfigurerade():
-    """Fas 0 registrerar ännu inga riktiga drivrutiner (det är Fas 1), så även Emils
-    config med riktiga entiteter faller tillbaka till Null-drivrutiner - men listan med
-    bilar/laddare ska ändå byggas korrekt från configen."""
+def test_emils_hus_bygger_riktiga_drivrutiner():
+    """Fas 1: Emils config pekar på riktiga drivrutiner (nissan/tesla/easee), inte Null.
+    Anropar INTE read_state()/read_state() på dem här - de pratar med en riktig Home
+    Assistant som inte finns i testmiljön. Bara att rätt klasser/id:n byggs upp testas."""
     cfg = load_house_config(str(EMIL))
     cars = build_car_drivers(cfg)
     assert [c.id for c in cars] == ["nissan", "tesla"]
     assert [c.battery_kwh for c in cars] == [40, 75]
+    assert isinstance(cars[0], NissanCarDriver)
+    assert isinstance(cars[1], TeslaCarDriver)
     chargers = build_charger_drivers(cfg)
     assert set(chargers.keys()) == {"nissan", "tesla"}
-    assert all(isinstance(c, NullCarDriver) for c in cars)
-    assert all(isinstance(c, NullChargerDriver) for c in chargers.values())
+    assert all(isinstance(c, EaseeChargerDriver) for c in chargers.values())
+    assert all(c.supports_phase_switch for c in chargers.values())
+    assert isinstance(build_heat_pump_driver(cfg), ThermiaHusdataHeatPumpDriver)
+    assert isinstance(build_solar_driver(cfg), SolarEdgeSolarDriver)
+    assert isinstance(build_spa_driver(cfg), GeckoSpaDriver)
 
 
 def test_null_bil_och_laddare_kraschar_inte_vid_anrop():
