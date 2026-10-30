@@ -1,4 +1,5 @@
 const STATS_URL = new URL("data/stats.json", document.currentScript.src);
+const ZONES_URL = new URL("data/price_zones.json", document.currentScript.src);
 const LANG = document.documentElement.lang === "en" ? "en" : "sv";
 
 const T = {
@@ -19,6 +20,10 @@ const T = {
     monthNote: "Ingen vinterprognos - bara den riktiga trenden hittills. Prisoptimeringen ökar tydligt när elpriserna blir mer volatila på hösten.",
     monthCol: "Månad", timingCol: "Prisoptimering", solarCol: "Solel",
     locale: "sv-SE",
+    zoneTitle: "📍 Elpriser per elområde (3 års snitt)",
+    zoneNote: (since) => `Verkliga spotpriser sen ${since} - inte en uppskattning. Våra siffror ovan är från vårt eget hus i SE3. Ju större skillnad mellan dygnets billigaste och dyraste timme ("dygnsspridning"), desto mer finns det att vinna på att flytta förbrukningen - prisoptimeringens potential är alltså störst i SE3/SE4, inte i SE1/SE2.`,
+    zoneCol: "Område", zoneAvgCol: "Snittpris", zoneRangeCol: "Dygnsspridning (snitt)",
+    zoneHome: "(vårt hus)",
   },
   en: {
     err: "Couldn't load the numbers right now.",
@@ -37,6 +42,10 @@ const T = {
     monthNote: "No winter forecast - just the real trend so far. Price timing savings clearly rise as electricity prices get more volatile in autumn.",
     monthCol: "Month", timingCol: "Price timing", solarCol: "Solar",
     locale: "en-SE",
+    zoneTitle: "📍 Electricity prices by price zone (3-year average)",
+    zoneNote: (since) => `Real spot prices since ${since} - not an estimate. Our numbers above are from our own house in SE3. The bigger the gap between a day's cheapest and most expensive hour ("daily spread"), the more there is to gain from shifting consumption - so price-timing potential is biggest in SE3/SE4, not SE1/SE2.`,
+    zoneCol: "Zone", zoneAvgCol: "Average price", zoneRangeCol: "Daily spread (avg)",
+    zoneHome: "(our house)",
   },
 }[LANG];
 
@@ -48,6 +57,31 @@ async function loadStats() {
   } catch (e) {
     document.getElementById("stats").innerHTML = `<div class="card"><div class="note">${T.err}</div></div>`;
   }
+  const zonesEl = document.getElementById("zones");
+  if (zonesEl) {
+    try {
+      const r = await fetch(ZONES_URL, { cache: "no-store" });
+      renderZones(await r.json());
+    } catch (e) {
+      zonesEl.innerHTML = "";
+    }
+  }
+}
+
+function renderZones(z) {
+  const el = document.getElementById("zones");
+  const rows = Object.entries(z.zones).map(([name, v]) =>
+    `<tr><td>${name}${name === "SE3" ? ` <span class="tag">${T.zoneHome}</span>` : ""}</td><td>${v.avg_sek_per_kwh.toFixed(2)} kr</td><td>${v.avg_daily_range_sek_per_kwh.toFixed(2)} kr</td></tr>`
+  ).join("");
+  el.innerHTML = `
+    <div class="card" style="grid-column:1/-1">
+      <h3>${T.zoneTitle}</h3>
+      <div class="note">${T.zoneNote(new Date(z.since).toLocaleDateString(T.locale))}</div>
+      <table class="monthtable">
+        <thead><tr><th>${T.zoneCol}</th><th>${T.zoneAvgCol}</th><th>${T.zoneRangeCol}</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function render(d) {
