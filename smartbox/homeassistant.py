@@ -590,6 +590,9 @@ def press_button(entity_id: str):
                           json={"entity_id": entity_id}, timeout=5, verify=False)
         r.raise_for_status()
         return True
+    except requests.exceptions.ReadTimeout:
+        print(f"⚠️ {entity_id}: inget svar från HA inom 5 s (knappen tryckt, bilen kan vara långsam)")      # kommandot hinner oftast fram; ingen upprepning
+        return False
     except Exception as e:
         print(f"❌ Kunde inte trycka på {entity_id}: {e}")
         return False

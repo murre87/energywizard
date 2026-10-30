@@ -74,6 +74,10 @@ def _collect():
                 ent[f"sensor.smartbox_effekt_{key}"] = (_num(max(float(val or 0), 0.0), 0),
                     {"friendly_name": f"Smartbox Effekt {label}", "unit_of_measurement": "W", "device_class": "power", "icon": icon})
 
+        car = c.execute(text("SELECT mode FROM overrides WHERE device = 'ev_charging_car'")).fetchone()
+        if car:
+            ent["sensor.smartbox_elbil_laddar"] = (car[0], {"friendly_name": "Smartbox Elbil som laddar", "icon": "mdi:car-electric"})
+
         ph = c.execute(text("SELECT shelly_l1_a, shelly_l2_a, shelly_l3_a FROM sensor_log "
                             "WHERE timestamp > now() - interval '5 minutes' AND shelly_l1_a IS NOT NULL ORDER BY timestamp DESC LIMIT 1")).fetchone()
         if ph:

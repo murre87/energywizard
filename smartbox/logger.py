@@ -441,10 +441,11 @@ def init_overrides_db():
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS overrides (
                         device     VARCHAR(50) PRIMARY KEY,
-                        mode       VARCHAR(10) NOT NULL DEFAULT 'auto',
+                        mode       VARCHAR(64) NOT NULL DEFAULT 'auto',
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                     )
                 """)
+                cur.execute("ALTER TABLE overrides ALTER COLUMN mode TYPE VARCHAR(64)")        # 2026-10-30: 10 räckte inte för tidsstämplar ('2026-10-30 08:57'), vilket fällde hela sol-laddningens sparande
                 cur.execute("""
                     INSERT INTO overrides (device, mode) VALUES
                         ('heat',             'auto'),
