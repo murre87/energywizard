@@ -21,5 +21,11 @@ class ThermiaHusdataHeatPumpDriver(HeatPumpDriver):
     def set_water_stop_temp(self, target_c: float) -> None:
         pump.set_water_stop_temp(target_c)
 
+    def set_water_start_temp(self, target_c: float) -> None:
+        pump.set_water_start_temp(target_c)
+
+    def set_heating_start_temp(self, target_c: float) -> None:
+        pump.set_heating_start_temp(target_c)
+
     def set_operating_mode(self, mode) -> None:
         pump.set_operating_mode(mode)

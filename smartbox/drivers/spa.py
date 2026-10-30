@@ -29,6 +29,20 @@ class SpaDriver(ABC):
         """None om ingen effektsensor finns konfigurerad för spat."""
         raise NotImplementedError
 
+    @abstractmethod
+    def read_activities(self) -> dict:
+        """Vilka delfunktioner som är PÅ just nu (värme, cirkulationspump, bubbel m.fl.)
+        - används för att lära sig vilken fas som driver vad. Tomt dict om spat saknar
+        stöd för detaljerad aktivitetsavläsning."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_plug_power(self, on: bool) -> bool:
+        """Slår på/av spats smartplug, om en sådan finns konfigurerad (strömtillförsel-
+        tillförlitlighet, inte termisk styrning). Returnerar False utan effekt om spat
+        saknar en styrbar plugg."""
+        raise NotImplementedError
+
 
 class NullSpaDriver(SpaDriver):
     """Inget spa konfigurerat - spa-logiken (Prio 4, 5.5, 11, 11.2, 12 i gpm.py)
@@ -44,3 +58,9 @@ class NullSpaDriver(SpaDriver):
 
     def read_power_w(self) -> float | None:
         return None
+
+    def read_activities(self) -> dict:
+        return {}
+
+    def set_plug_power(self, on: bool) -> bool:
+        return False
