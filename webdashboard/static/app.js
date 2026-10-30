@@ -75,11 +75,37 @@ function renderSidebar() {
   nav.querySelectorAll(".navitem").forEach(b => b.onclick = () => openPage(b.dataset.page));
 }
 
+async function renderSystem() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="placeholder">Laddar…</div>`;
+  await loadUpdates(false);
+}
+
+async function loadUpdates(force) {
+  const main = document.getElementById("main");
+  const d = await api(`api/updates${force ? "?force=1" : ""}`);
+  if (!d.ok) { main.innerHTML = `<div class="placeholder">${d.error}</div>`; return; }
+  const when = d.checked_at ? new Date(d.checked_at * 1000).toLocaleString("sv-SE") : "–";
+  const rows = d.pending.length
+    ? d.pending.map(n => `<div class="card" style="margin-bottom:8px">🆕 <b>${n}</b> <span class="note">har en nyare version - Watchtower uppdaterar den vid nästa schemalagda körning (08:00)</span></div>`).join("")
+    : `<div class="card">✅ Allt uppdaterat - inga nya versioner hittade bland ${d.total} containrar.</div>`;
+  main.innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:700">🛠️ Systemuppdateringar</div>
+      <div class="note" style="margin-top:4px">Watchtower håller koll på alla ${d.total} containrar på servern och uppdaterar dem automatiskt. Senast kollad: ${when}.</div>
+      <button class="icobtn" id="checknowbtn" style="margin-top:10px">Kolla nu</button>
+    </div>
+    ${rows}`;
+  document.getElementById("checknowbtn").onclick = () => loadUpdates(true);
+}
+
 function openPage(id) {
   currentPage = id;
   renderSidebar();
   if (id === "oversikt") {
     renderOversikt();
+  } else if (id === "system") {
+    renderSystem();
   } else {
     document.getElementById("main").innerHTML = `<div class="placeholder">"${PAGES.find(p => p.id === id)?.name}" byggs i en senare fas.</div>`;
   }
