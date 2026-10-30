@@ -31,7 +31,7 @@ class CarDriver(ABC):
 
 class NullCarDriver(CarDriver):
     """Ingen bil konfigurerad på den här platsen i husets config."""
-    def __init__(self, id: str = "", battery_kwh: float = 0.0):
+    def __init__(self, id: str = "", battery_kwh: float = 0.0, entities: dict | None = None):
         self.id = id
         self.battery_kwh = battery_kwh
 

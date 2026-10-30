@@ -1,52 +1,35 @@
 # Emils hus (Malmgatan 34) - referenskonfigurationen. Transkriberad från de hårdkodade
 # konstanterna/entitets-dictarna i smartbox/homeassistant.py, smartbox/decisions.py och
-# smartbox/pump.py som de såg ut 2026-10-30, INNAN Fas 1-6 kopplar in drivrutinslagret
-# på riktigt. Den här filen konsumeras ännu av ingenting (ren transkribering, Fas 0).
+# smartbox/pump.py. Drivrutinerna (Fas 1) kan nu instansieras riktigt från den här filen
+# (se tests/test_config_loader.py), men main.py/gpm.py:s faktiska styrning använder dem
+# ännu inte - det är Fas 2-3.
 
 house_id: "malmgatan-34"
 
 evs:
   - id: nissan
-    driver: tesla_or_nissan_specific   # blir generic_ev + NissanCarDriver i Fas 1
+    driver: nissan
     battery_kwh: 40
     entities:
       soc: sensor.leaf_battery_level
       plugged_in: binary_sensor.leaf_plugged_in
       climate: climate.leaf_climate
     charger:
-      id: easee_lite
       driver: easee
+      physical: lite                   # vilken av de två fysiska Easee-boxarna - ID:t kommer från EASEE_CHARGER_ID i .env
       phases: 1                        # Nissan Leaf 2018: endast 1-fas
-      entities:
-        status: sensor.easee_lite_status
-        current_a: sensor.easee_lite_strom
-        power_kw: sensor.easee_lite_effekt
-        online: binary_sensor.easee_lite_online
-        phases: select.easee_lite_allowed_charging_phases
-        current_l1: sensor.easee_lite_strom_l1
-        current_l2: sensor.easee_lite_strom_l2
-        current_l3: sensor.easee_lite_strom_l3
 
   - id: tesla
-    driver: tesla_or_nissan_specific   # blir generic_ev + TeslaCarDriver i Fas 1
+    driver: tesla
     battery_kwh: 75
     entities:
       soc: sensor.tesla_model_y_battery
       plugged_in: binary_sensor.tesla_model_y_charger
       charging: binary_sensor.tesla_model_y_charging
     charger:
-      id: easee_carport
       driver: easee
+      physical: carport                # ID:t kommer från EASEE_CARPORT_ID i .env
       phases: auto                     # kan fasväxla 1<->3
-      entities:
-        status: sensor.carport_status
-        current_a: sensor.carport_strom
-        power_kw: sensor.carport_effekt
-        online: binary_sensor.carport_online
-        phases: select.carport_allowed_charging_phases
-        current_l1: sensor.carport_strom_l1
-        current_l2: sensor.carport_strom_l2
-        current_l3: sensor.carport_strom_l3
 
 heat_pump:
   enabled: true
