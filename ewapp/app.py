@@ -377,22 +377,59 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
     return {"key": key, "name": c["name"], "soc": None if soc is None else round(soc), "soc_stale": soc_stale, "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
             "mode": mode, "amps": amps, "phases": phases, "eta": eta, "away": away, "online": (val(st, c["online"]) or "off") == "on", "default_phases": c["phases"],
             "climate_on": (val(st, c["climate"]) or "off") not in ("off", "unavailable"), "inside": num(st, c["inside"]),
-            "age_h": age_h(st, c["soc"] if key == "tesla" else "sensor.leaf_battery_level"), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "plan_all": plan_blocks_ui(key, soc, c["cap_kwh"]), "solar": solar_info(ov),
+            "age_h": age_h(st, c["soc"] if key == "tesla" else "sensor.leaf_battery_level"), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "plan_all": plan_blocks_ui(key, soc, c["cap_kwh"]), "plan_slots": plan_slots(key), "solar": solar_info(ov),
             "access": ({"locked": val(st, "lock.tesla_model_y_doors") == "locked", "trunk": val(st, "cover.tesla_model_y_trunk") == "open", "frunk": val(st, "cover.tesla_model_y_frunk") == "open"} if key == "tesla" else None)}
 
+
+PRICE_WINDOW_H = 24      # timmar framåt i pris- och laddplansgrafen (framtida dygnspriser finns först efter ca 13:00)
+
+def plan_slots(car: str) -> list:
+    """Planerade laddkvartar [{t, kw}] (t = epoch-ms) för laddplansgrafen, samma tidsaxel som prices().hours[].ts."""
+    now = dt.datetime.now(TZ).replace(tzinfo=None)
+    try:
+        with ENGINE.connect() as c:
+            rows = c.execute(text("SELECT t_slot, kw FROM ev_plan_slots WHERE car_id = :c AND t_slot >= :n AND kw > 0 ORDER BY t_slot"), {"c": car, "n": now - dt.timedelta(minutes=15)}).fetchall()
+    except Exception:
+        return []
+    return [{"t": int(t.replace(tzinfo=TZ).timestamp() * 1000), "kw": round(float(kw), 1)} for t, kw in rows]
+
+def solar_forecast_w(hours: list) -> dict:
+    """Prognosticerad solproduktion (W) per timme: husets inlärda klarhimmelsprofil (smartboxens solar_profile) x molnprognosen, samma formel som
+    smartboxens weather.get_smart_solar_w. {epoch-ms: W}; tom om profil eller väderprognos saknas."""
+    import pickle
+    try:
+        with ENGINE.connect() as c:
+            r = c.execute(text("SELECT solar_profile FROM system_settings WHERE id = 1")).fetchone()
+            prof = pickle.loads(bytes(r[0])) if r and r[0] else {}
+            if not prof or not hours:
+                return {}
+            rows = c.execute(text("SELECT timestamp, cloud_cover FROM weather_forecast WHERE timestamp >= :a AND timestamp <= :b"), {"a": hours[0], "b": hours[-1]}).fetchall()
+    except Exception:
+        return {}
+    cloud = {t.astimezone(TZ).replace(minute=0, second=0, microsecond=0): float(cc) for t, cc in rows if cc is not None}
+    out = {}
+    for h in hours:
+        cc, roof = cloud.get(h), prof.get((h.month, h.hour))
+        if cc is not None and roof is not None:
+            out[int(h.timestamp() * 1000)] = round(max(0.0, roof * (1.0 - cc / 100.0 * 0.85)))
+    return out
 
 def prices() -> dict:
     now = dt.datetime.now(TZ)
     h0 = now.replace(minute=0, second=0, microsecond=0)
     try:
         with ENGINE.connect() as c:
-            rows = c.execute(text("SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= :a AND time_start < :b ORDER BY time_start"), {"a": h0, "b": h0 + dt.timedelta(hours=14)}).fetchall()
+            rows = c.execute(text("SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= :a AND time_start < :b ORDER BY time_start"), {"a": h0, "b": h0 + dt.timedelta(hours=PRICE_WINDOW_H)}).fetchall()
     except Exception:
         rows = []
     byh: dict = {}
     for t, p in rows:
         byh.setdefault(t.astimezone(TZ).replace(minute=0, second=0, microsecond=0), []).append(float(p))
-    hours = [{"t": h.strftime("%H"), "p": round(sum(v) / len(v), 2), "now": h == h0} for h, v in sorted(byh.items())]
+    hours = [{"t": h.strftime("%H"), "p": round(sum(v) / len(v), 2), "now": h == h0, "ts": int(h.timestamp() * 1000)} for h, v in sorted(byh.items())]
+    sun = solar_forecast_w(sorted(byh))
+    for h in hours:
+        if h["ts"] in sun:
+            h["sun"] = sun[h["ts"]]
     cur = next((h["p"] for h in hours if h["now"]), None)
     allp = sorted(h["p"] for h in hours) or [0]
     lvl = None if cur is None else ("billigt" if cur <= allp[len(allp) // 3] else ("dyrt" if cur >= allp[2 * len(allp) // 3] else "normalt"))
@@ -1306,6 +1343,13 @@ def schedule_rows(car: str) -> list:
     return [rows[d] for d in range(7)]
 
 
+def solar_forecast_attr() -> list:
+    """Solprognos per timme kommande dygn [{start (ISO), w}] som valfritt attribut på laddplanssensorn (för grafen i Familjetavlan)."""
+    h0 = dt.datetime.now(TZ).replace(minute=0, second=0, microsecond=0)
+    hrs = [h0 + dt.timedelta(hours=i) for i in range(PRICE_WINDOW_H)]
+    sun = solar_forecast_w(hrs)
+    return [{"start": h.isoformat(), "w": sun[int(h.timestamp() * 1000)]} for h in hrs if int(h.timestamp() * 1000) in sun]
+
 def publish_plan(car: str, st: dict, ov: dict) -> tuple:
     c = CARS[car]
     soc = num(st, c["soc"])
@@ -1336,7 +1380,7 @@ def publish_plan(car: str, st: dict, ov: dict) -> tuple:
     kwh = round(sum(b["kw"] * (dt.datetime.fromisoformat(b["end"]) - dt.datetime.fromisoformat(b["start"])).total_seconds() / 3600 for b in blocks), 1)
     after = None if (soc is None or not blocks or not c["cap_kwh"]) else round(min(100.0, soc + kwh * 0.9 / c["cap_kwh"] * 100.0))      # 90 % verkningsgrad, som i appens plan
     attrs = {"friendly_name": f"{c['name']} laddplan", "icon": "mdi:ev-station", "slots": blocks, "mode": mode, "charging": charging, "soc": None if soc is None else round(soc),
-             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard",
+             "soc_after_plan": after, "planned_kwh": kwh, "source": "EnergyWizard", "solar_forecast": solar_forecast_attr(),
              "morning_check": ({"time": pa["floor"]["time"], "soc": pa["floor"]["soc"], "min": 50} if pa.get("floor") else None), "schedule": schedule_rows(car), "schedule_car": car, "updated": now.isoformat(timespec="seconds")}
     return f"sensor.{slug(car)}_laddplan", (state, attrs)
 
