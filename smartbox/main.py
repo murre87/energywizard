@@ -20,6 +20,7 @@ import ha_publisher      # Publicerar härledda värden (priser, effektfördelni
 import health            # Sensor-/länkövervakning (varnar när en sensor tystnat, sammanfattar HA-avbrott)
 import learning         # AI-modeller för temperatur och avsvalning
 import mpc               # Prediktiv förvärmnings-planerare (skuggläge + veckovis självvalidering)
+import house_config      # EnergyWizard Open: drivrutinsarkitektur (bil/laddare/värmepump/sol/spa)
 import os
 
 # Tidszon för Sverige
@@ -91,6 +92,28 @@ else:
 
 print("🤖 Säkerställer att spabadets smartplug (Shelly) är påslagen...")
 ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
+
+# ============================================================
+# 🔌 EnergyWizard Open: house_config.yaml + drivrutinsinstanser
+# ============================================================
+# Steg 3 av drivrutins-ihopkopplingen: laddar configen och bygger drivrutinsinstanserna
+# en gång vid uppstart. ANVÄNDS ÄNNU INTE av styrloopen nedan (main.py:s befintliga
+# homeassistant.py/pump.py-anrop är oförändrade) - det är nästa, separata steg, gjort
+# ett delsystem i taget med produktionsverifiering mellan varje. Fail-safe: om configen
+# saknas/är trasig byggs bara Null-drivrutiner, inget kraschar.
+HOUSE_CONFIG_PATH = os.environ.get("HOUSE_CONFIG_PATH", "/house_config.yaml")
+try:
+    house_cfg = house_config.load_house_config(HOUSE_CONFIG_PATH)
+except Exception as e:
+    print(f"⚠️ Kunde inte ladda house_config.yaml från {HOUSE_CONFIG_PATH} ({e}) - fortsätter med tomt hus (bara Null-drivrutiner).")
+    house_cfg = {}
+car_drivers = house_config.build_car_drivers(house_cfg)
+charger_drivers = house_config.build_charger_drivers(house_cfg)
+heat_pump_driver = house_config.build_heat_pump_driver(house_cfg)
+solar_driver = house_config.build_solar_driver(house_cfg)
+spa_driver = house_config.build_spa_driver(house_cfg)
+print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar), värmepump={type(heat_pump_driver).__name__}, "
+      f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}")
 
 # Tillståndsvariabler
 last_minute          = None

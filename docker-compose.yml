@@ -49,6 +49,11 @@ services:
     depends_on:
       postgres-smartbox:
         condition: service_healthy
+    volumes:
+      # EnergyWizard Open: husets drivrutins-config. Emil kör sin egna (emil_house.yaml,
+      # redan verifierad mot riktiga drivrutiner i tests/test_config_loader.py) - en annan
+      # installation pekar HOUSE_CONFIG_PATH mot sin egen kopia av house_config.example.yaml.
+      - ${HOUSE_CONFIG_HOST_PATH:-./config/examples/emil_house.yaml}:/house_config.yaml:ro
     environment:
       - PYTHONUNBUFFERED=1
       - POSTGRES_HOST=postgres-smartbox
@@ -60,6 +65,7 @@ services:
       - PUMP_IP=${PUMP_IP}
       - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
       - EASEE_CARPORT_ID=${EASEE_CARPORT_ID}
+      - HOUSE_CONFIG_PATH=/house_config.yaml
 
   ####################################################################
   # Dashboard: Streamlit (Den Visuella "Glassmorphism" Frontenden)
