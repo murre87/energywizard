@@ -26,6 +26,12 @@ class SolarDriver(ABC):
         """No-op om supports_curtailment() är False."""
         raise NotImplementedError
 
+    @abstractmethod
+    def get_export_limit_pct(self) -> float | None:
+        """Nuvarande exportgräns (%), None om supports_curtailment() är False eller
+        värdet inte går att läsa just nu."""
+        raise NotImplementedError
+
 
 class NullSolarDriver(SolarDriver):
     """Ingen solcellsanläggning konfigurerad."""
@@ -37,3 +43,6 @@ class NullSolarDriver(SolarDriver):
 
     def set_export_limit_pct(self, pct: int) -> None:
         pass
+
+    def get_export_limit_pct(self) -> float | None:
+        return None

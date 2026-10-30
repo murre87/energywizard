@@ -15,3 +15,6 @@ class SolarEdgeSolarDriver(SolarDriver):
 
     def set_export_limit_pct(self, pct: int) -> None:
         homeassistant.set_solaredge_limit(pct)
+
+    def get_export_limit_pct(self) -> float | None:
+        return homeassistant.get_solaredge_limit()

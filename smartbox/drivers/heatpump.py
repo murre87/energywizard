@@ -26,6 +26,17 @@ class HeatPumpDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def set_water_start_temp(self, target_c: float) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_heating_start_temp(self, target_c: float) -> None:
+        """Värmestopp / värmesäsong-tröskel (utetemperatur över vilken uppvärmning
+        pausas i auto-läge) - inte en del av det dagliga pris-/komfortflödet, men
+        används för säsongsjusteringar (sommar/höst)."""
+        raise NotImplementedError
+
+    @abstractmethod
     def set_operating_mode(self, mode) -> None:
         """Målbilden är en normaliserad enum-sträng (t.ex. 'heat'/'off'), inte ett råttal
         specifikt för en viss tillverkares register - men riktig normalisering väntar
@@ -44,6 +55,12 @@ class NullHeatPumpDriver(HeatPumpDriver):
         pass
 
     def set_water_stop_temp(self, target_c: float) -> None:
+        pass
+
+    def set_water_start_temp(self, target_c: float) -> None:
+        pass
+
+    def set_heating_start_temp(self, target_c: float) -> None:
         pass
 
     def set_operating_mode(self, mode) -> None:

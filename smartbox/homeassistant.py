@@ -650,6 +650,27 @@ def turn_on_lights(entity_ids: list):
         print(f"❌ Fel vid tändning av lampor i HA: {e}")
         return False
 
+def toggle_spa_plug(turn_on: bool):
+    """Slår på eller av strömmen till spabadets smartplug (Shelly, SPA_PLUG). Samma
+    mönster som toggle_mower_plug - main.py:s egen ha_toggle_switch() gör samma sak
+    men via sina egna råa env-anrop (bygger inte på _VERIFY/SUPERVISOR_TOKEN); den
+    här versionen används av SpaDriver istället, inte en ersättning för den befintliga."""
+    service = "turn_on" if turn_on else "turn_off"
+    try:
+        r = requests.post(
+            f"{_BASE}/services/switch/{service}",
+            headers=_HEADERS,
+            json={"entity_id": SPA_PLUG},
+            timeout=5,
+            verify=_VERIFY,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid styrning av spabadets plugg: {e}")
+        return False
+
+
 def toggle_mower_plug(turn_on: bool):
     """Slår på eller av strömmen till robotgräsklipparen."""
     service = "turn_on" if turn_on else "turn_off"
