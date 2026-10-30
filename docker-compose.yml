@@ -151,6 +151,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - HA_IP=${HA_IP}
       - HA_TOKEN=${HA_TOKEN}
+      # System-sidan frågar Watchtowers HTTP-API om nya versioner finns för ALLA
+      # containrar på NUC:en - watchtower delar docker-nät med den här stacken.
+      - WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN}
+      - WATCHTOWER_URL=http://watchtower:8080
 
 volumes:
   postgres_data:

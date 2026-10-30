@@ -13,6 +13,8 @@ import os
 import sys
 import time
 
+import requests
+
 sys.path.insert(0, "/smartbox")
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -20,6 +22,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
 
 import webauth
+
+WATCHTOWER_URL = os.environ.get("WATCHTOWER_URL", "http://host.docker.internal:8090")
+WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_API_TOKEN", "")
+# /v1/check gör en riktig registry-koll (tar ~5s) - cachas här så "System"-sidan
+# inte startar om den varje gång sidan öppnas.
+_wt_cache = {"ts": 0, "data": None}
+WT_CACHE_TTL = 600
 
 ENGINE = create_engine(
     f"postgresql+psycopg://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ.get('POSTGRES_HOST', 'postgres-smartbox')}/{os.environ['POSTGRES_DB']}",
@@ -141,6 +150,34 @@ async def overview(request: Request):
         "is_high_load": is_high_load,
         "sthlm_time": str(row["sthlm_time"]),
         "price_24h": [{"t": r[0].isoformat(), "p": float(r[1])} for r in price_hist],
+    }
+
+
+@app.get("/api/updates")
+async def updates(request: Request, force: bool = False):
+    """System-sidan: vilka containrar på hela NUC:en (inte bara EnergyWizard) har en
+    nyare image enligt Watchtower. Cachas 10 min - force=1 kollar om direkt."""
+    now = time.time()
+    if force or _wt_cache["data"] is None or now - _wt_cache["ts"] > WT_CACHE_TTL:
+        try:
+            r = requests.post(
+                f"{WATCHTOWER_URL}/v1/check",
+                headers={"Authorization": f"Bearer {WATCHTOWER_TOKEN}"},
+                timeout=30,
+            )
+            r.raise_for_status()
+            _wt_cache["data"] = r.json()
+            _wt_cache["ts"] = now
+        except requests.RequestException as e:
+            if _wt_cache["data"] is None:
+                return {"ok": False, "error": f"Kunde inte nå Watchtower: {e}"}
+    containers = _wt_cache["data"].get("containers", [])
+    pending = [c["name"] for c in containers if c.get("update_available")]
+    return {
+        "ok": True,
+        "checked_at": _wt_cache["ts"],
+        "total": len(containers),
+        "pending": sorted(pending),
     }
 
 
