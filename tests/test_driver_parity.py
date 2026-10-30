@@ -74,13 +74,15 @@ def test_solar_set_och_get_export_limit():
 
 # ---------- Spa (GeckoSpaDriver -> homeassistant.py) ----------
 
-def test_spa_read_state_heating_ar_inte_harledd():
-    """Medvetet beslut (se spa_gecko.py): heating härleds INTE från heater_state -
-    den gissningen fanns aldrig testad/körd live. None tills en riktig källa finns."""
+def test_spa_read_state_ger_radata_rakt_av():
+    """read_state() normaliserar INTE heater_state/economy_mode till booleans - main.py:s
+    egna villkor (str(heater_state).lower() in [...], economy_mode == 1.0) förblir i
+    main.py tills ett andra spamärke finns att verifiera en gemensam mappning mot
+    (samma princip som HeatPumpDriver.set_operating_mode, se heatpump.py)."""
     with patch("drivers.spa_gecko.homeassistant") as mock_ha:
-        mock_ha.read_gecko.return_value = {"current_temp": 36.5, "target_temp": 38.0, "heater_state": "heating"}
+        mock_ha.read_gecko.return_value = {"current_temp": 36.5, "target_temp": 38.0, "heater_state": "heating", "economy_mode": 1.0}
         result = GeckoSpaDriver().read_state()
-    assert result == {"current_temp": 36.5, "target_temp": 38.0, "heating": None}
+    assert result == {"current_temp": 36.5, "target_temp": 38.0, "heater_state": "heating", "economy_mode": 1.0}
 
 
 def test_spa_read_activities_vidarekopplar_samma_funktion_main_py_anvander():

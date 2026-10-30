@@ -47,7 +47,7 @@ def test_tomt_hus_null_drivrutiner_kraschar_inte_vid_anrop():
     assert sol.read_production() == {"pv_power_w": None, "today_kwh": None, "status": None}
     assert sol.supports_curtailment() is False
     sol.set_export_limit_pct(50)
-    assert spa.read_state() == {"current_temp": None, "target_temp": None, "heating": None}
+    assert spa.read_state() == {"current_temp": None, "target_temp": None, "heater_state": None, "economy_mode": None}
     assert spa.read_power_w() is None
     spa.set_target_temp(30.0); spa.set_economy(True)
 

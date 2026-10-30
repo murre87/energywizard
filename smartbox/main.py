@@ -75,6 +75,27 @@ gpm_engine = gpm.GlobalPriorityManager()
 last_heartbeat = datetime.now(SWE_TZ)
 
 # ============================================================
+# 🔌 EnergyWizard Open: house_config.yaml + drivrutinsinstanser
+# ============================================================
+# Steg 3-4 av drivrutins-ihopkopplingen: laddar configen och bygger drivrutinsinstanserna
+# tidigt vid uppstart (innan UPPSTARTSKONTROLL nedan, som redan behöver spa_driver) -
+# resten av styrloopen byts om ett delsystem i taget, med produktionsverifiering mellan
+# varje. Fail-safe: om configen saknas/är trasig byggs bara Null-drivrutiner, inget kraschar.
+HOUSE_CONFIG_PATH = os.environ.get("HOUSE_CONFIG_PATH", "/house_config.yaml")
+try:
+    house_cfg = house_config.load_house_config(HOUSE_CONFIG_PATH)
+except Exception as e:
+    print(f"⚠️ Kunde inte ladda house_config.yaml från {HOUSE_CONFIG_PATH} ({e}) - fortsätter med tomt hus (bara Null-drivrutiner).")
+    house_cfg = {}
+car_drivers = house_config.build_car_drivers(house_cfg)
+charger_drivers = house_config.build_charger_drivers(house_cfg)
+heat_pump_driver = house_config.build_heat_pump_driver(house_cfg)
+solar_driver = house_config.build_solar_driver(house_cfg)
+spa_driver = house_config.build_spa_driver(house_cfg)
+print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar), värmepump={type(heat_pump_driver).__name__}, "
+      f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}")
+
+# ============================================================
 # 🚀 UPPSTARTSKONTROLL
 # ============================================================
 print("🤖 Kontrollerar initialt tillstånd för värmepumpen...")
@@ -91,29 +112,7 @@ else:
     print("⚠️ UPPSTARTSKONTROLL: Kunde inte läsa värmepumpen vid uppstart.")
 
 print("🤖 Säkerställer att spabadets smartplug (Shelly) är påslagen...")
-ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
-
-# ============================================================
-# 🔌 EnergyWizard Open: house_config.yaml + drivrutinsinstanser
-# ============================================================
-# Steg 3 av drivrutins-ihopkopplingen: laddar configen och bygger drivrutinsinstanserna
-# en gång vid uppstart. ANVÄNDS ÄNNU INTE av styrloopen nedan (main.py:s befintliga
-# homeassistant.py/pump.py-anrop är oförändrade) - det är nästa, separata steg, gjort
-# ett delsystem i taget med produktionsverifiering mellan varje. Fail-safe: om configen
-# saknas/är trasig byggs bara Null-drivrutiner, inget kraschar.
-HOUSE_CONFIG_PATH = os.environ.get("HOUSE_CONFIG_PATH", "/house_config.yaml")
-try:
-    house_cfg = house_config.load_house_config(HOUSE_CONFIG_PATH)
-except Exception as e:
-    print(f"⚠️ Kunde inte ladda house_config.yaml från {HOUSE_CONFIG_PATH} ({e}) - fortsätter med tomt hus (bara Null-drivrutiner).")
-    house_cfg = {}
-car_drivers = house_config.build_car_drivers(house_cfg)
-charger_drivers = house_config.build_charger_drivers(house_cfg)
-heat_pump_driver = house_config.build_heat_pump_driver(house_cfg)
-solar_driver = house_config.build_solar_driver(house_cfg)
-spa_driver = house_config.build_spa_driver(house_cfg)
-print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar), värmepump={type(heat_pump_driver).__name__}, "
-      f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}")
+spa_driver.set_plug_power(True)
 
 # Tillståndsvariabler
 last_minute          = None
@@ -711,7 +710,7 @@ while True:
             ha_temps     = homeassistant.read_temperatures()
             ev_lite_data = homeassistant.read_easee_lite()
             ev_carport_data = homeassistant.read_easee_carport()
-            gecko_data   = homeassistant.read_gecko()
+            gecko_data   = spa_driver.read_state()
             spa_power_data = homeassistant.read_spa_power()
             spa_power_w  = spa_power_data.get('total_w')
             # Spa-säkerhet: larma (strypt 1/timme) om skyddssensorerna slår till.
@@ -832,9 +831,9 @@ while True:
                     spa_reboot_stage += 1
                     
                     def reboot_plug_async():
-                        ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=False)
+                        spa_driver.set_plug_power(False)
                         time.sleep(10)
-                        ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
+                        spa_driver.set_plug_power(True)
                     threading.Thread(target=reboot_plug_async).start()
             else:
                 if spa_offline_since is not None:
@@ -1609,9 +1608,9 @@ while True:
                 (actual_spa_target is not None and abs(actual_spa_target - new_spa_target) > 0.1) or
                 (actual_spa_eco is not None and actual_spa_eco != new_spa_eco)):
                 print(f"🛁 => SKICKAR NYA VÄRDEN TILL SPABADET! (Eco: {new_spa_eco}, Target: {new_spa_target}°C)")
-                homeassistant.set_gecko_economy(new_spa_eco)
+                spa_driver.set_economy(new_spa_eco)
                 time.sleep(0.5)
-                homeassistant.set_gecko_target(float(new_spa_target))
+                spa_driver.set_target_temp(float(new_spa_target))
                 last_sent_spa_target = new_spa_target
                 last_sent_spa_eco = new_spa_eco
 
@@ -1774,7 +1773,7 @@ while True:
                 print(f"{'='*55}")
                 
                 if spa_reboot_stage == 0:
-                    ha_toggle_switch(homeassistant.SPA_PLUG, turn_on=True)
+                    spa_driver.set_plug_power(True)
                 
                 for log_msg in gpm_actions["log"]:
                     print(f"  {log_msg}")
@@ -1857,7 +1856,7 @@ while True:
             # Fas-inlärning: logga per-fas-effekt + spabadets aktiviteter (1/min) → underlag för
             # learnern som lär sig vilken fas som driver värmare/pump/blåsare/…
             try:
-                _spa_act = homeassistant.read_spa_activities()
+                _spa_act = spa_driver.read_activities()
                 logger.log_spa_phase(spa_power_data.get('phase_a_w'), spa_power_data.get('phase_b_w'),
                                      spa_power_data.get('phase_c_w'), _spa_act)
             except Exception as _spe:
