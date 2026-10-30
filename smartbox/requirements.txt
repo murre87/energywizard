@@ -6,6 +6,7 @@ pymodbus
 scikit-learn
 numpy
 urllib3
+PyYAML
 psycopg[binary] 
 psycopg_pool
 SQLAlchemy>=2.0.0
