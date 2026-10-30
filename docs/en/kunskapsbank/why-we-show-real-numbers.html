@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why we show real numbers - EnergyWizard Open</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Knowledge base</a><span class="langswitch"><a href="../../kunskapsbank/varfor-riktiga-siffror.html">SV</a><a class="on" href="#">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Why we show real numbers, not a claim</h1>
+  <div class="meta">Methodology</div>
+
+  <p>Many smart energy control products advertise a generic saving - "up to 30%", often without explaining
+  how the number was calculated, which house it applies to, or over what period.</p>
+
+  <p>The numbers on this page are instead taken directly from a real house's own operational log, using a
+  formula simple enough to recompute by hand: for each day, the <em>power-weighted average price</em> the
+  system actually paid for purchased electricity is compared to that day's <em>unweighted average price</em>
+  - the difference, times the kWh bought, is that day's saving. Summed over every day since the system
+  started, that gives the total.</p>
+
+  <p>That also means the number can be small in some periods - for example early in the heating season,
+  before heat control has been running long enough for its effect to show clearly in the statistics. We'd
+  rather report that honestly (and label it "early season" when relevant) than show a promise that can't be
+  verified.</p>
+
+  <p>The export script that computes the numbers, and the tables they come from, are in the
+  <a href="https://github.com/murre87/energywizard">source code</a> - anyone can read exactly how the figures
+  were produced.</p>
+</article>
+</div>
+</body>
+</html>

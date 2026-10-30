@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controlling a heat pump by electricity price - EnergyWizard Open</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Knowledge base</a><span class="langswitch"><a href="../../kunskapsbank/styra-varmepump-efter-elpris.html">SV</a><a class="on" href="#">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Controlling a heat pump by electricity price</h1>
+  <div class="meta">Heat pump</div>
+
+  <p>EnergyWizard doesn't talk to the heat pump by guessing at its menus. Every supported heat pump has its
+  own <strong>driver</strong> - a small, clearly scoped code module that knows exactly how that brand accepts
+  commands (SG Ready contacts, Modbus, or a local web API, depending on the brand).</p>
+
+  <p>Today there's a finished driver for <strong>Thermia/Husdata</strong>, and the architecture is built so
+  new brands (NIBE, IVT, CTC, Mitsubishi) can be added as their own modules without touching the rest of the
+  control logic - the same pattern already used for cars (Nissan/Tesla/generic EV) and inverters (SolarEdge).</p>
+
+  <p>The actual decisions - <em>when</em> should the pump run hard, <em>when</em> should it rest - are made by
+  a shared priority engine, not by the driver. That means the whole control logic (electricity price, solar
+  surplus, demand tariffs, the thermal battery) is identical regardless of which brand is actually sitting in
+  the basement.</p>
+
+  <p>Missing a driver for your brand? That's exactly the kind of contribution this project is built to take -
+  see the <a href="https://github.com/murre87/energywizard">code on GitHub</a>.</p>
+</article>
+</div>
+</body>
+</html>

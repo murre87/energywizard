@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The house as a heat battery - EnergyWizard Open</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Knowledge base</a><span class="langswitch"><a href="../../kunskapsbank/huset-som-varmebatteri.html">SV</a><a class="on" href="#">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>The house as a heat battery</h1>
+  <div class="meta">Basics</div>
+
+  <p>A house with waterborne heating is sturdier than it looks. The floors, walls and the water in the hot
+  water tank all hold heat for hours - and that can be used to shift electricity use to the cheapest hours
+  without it being noticeable indoors.</p>
+
+  <p>EnergyWizard has a rule (<code>Priority 4.5</code> in the control engine) that raises the hot water tank
+  to 60°C as soon as the electricity price is low or the solar panels are producing a surplus - "charging the
+  battery". When electricity becomes expensive again, output is reduced, and the house "discharges" what was
+  stored: the water cools slowly, the floor heating releases the heat it already absorbed, and no compressor
+  needs to run right then.</p>
+
+  <p>There's also a predictive variant: if a price spike is known within the next few hours
+  (<code>MAX_COAST_HOURS</code> in the heating engine, set to 6 hours), the house is heated extra just before
+  - so it can coast straight through the expensive period without the compressor needing to start.</p>
+
+  <p>This isn't a guess - it's the same rule engine controlling real houses right now, and the same principle
+  shows up in the <a href="../#savings">heat battery numbers on the front page</a>, pulled straight from the
+  operational log.</p>
+</article>
+</div>
+</body>
+</html>
