@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EnergyWizard Open</title>
+<meta name="description" content="Öppen källkod för att styra värmepump, elbilsladdning och solel efter elpris - med riktiga siffror från vårt eget hus, inte påstådda procentsatser.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="."><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top">
+      <a href="kunskapsbank/">Kunskapsbank</a>
+      <a href="https://github.com/murre87/energywizard">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero" style="border-top:none">
+    <h1>Styr värmepump, elbil och solel efter elpriset - helt öppen källkod</h1>
+    <p class="lead">EnergyWizard är ett självbyggt, öppet styrsystem för hemmet: minut-för-minut-beslut om
+      värme, varmvatten, elbilsladdning och solöverskott, byggt på en prioritetsmotor och validerat mot
+      månader av verklig drift - inte en svart låda med påstådda procentsatser.</p>
+    <div class="btnrow">
+      <a class="btn primary" href="#besparing">Se riktiga siffror</a>
+      <a class="btn ghost" href="https://github.com/murre87/energywizard">Källkod på GitHub</a>
+    </div>
+  </section>
+
+  <section id="besparing">
+    <h2>Riktiga siffror från vårt eget hus</h2>
+    <p class="note">Ingen generisk kalkylator - det här är vad systemet faktiskt har sparat, mätt mot vad
+      samma el hade kostat till dygnets snittpris. Uppdateras automatiskt varje natt.
+      <a href="kunskapsbank/varfor-riktiga-siffror.html">Läs varför vi gör det så här.</a></p>
+    <div class="grid" id="stats"><div class="card"><div class="note">Laddar…</div></div></div>
+  </section>
+
+  <section>
+    <h2>Hur det fungerar</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>🧠 Prioritetsmotor</h3>
+        <div class="note">En regelmotor (inte en gissande AI) avgör i realtid: ladda varmvatten, flytta
+          elbilsladdning, lagra värme i huset, eller dra ner - beroende på elpris, solöverskott och
+          effekttariff.</div>
+      </div>
+      <div class="card">
+        <h3>🔋 Huset som värmebatteri</h3>
+        <div class="note">Varmvattenberedaren och husets egen värmetröghet används för att "ladda" när elen
+          är billig och "glida" på lagrad värme när den är dyr - upp till flera timmar.</div>
+      </div>
+      <div class="card">
+        <h3>✅ Validerat mot verklig historik</h3>
+        <div class="note">Nya styrregler körs först mot månader av riktig loggdata innan de går live - inte
+          bara testade i teorin.</div>
+      </div>
+      <div class="card">
+        <h3>🔌 Öppet och insticksbart</h3>
+        <div class="note">Drivrutiner för olika värmepumpsmärken, elbilar och växelriktare - byggt för att
+          andra ska kunna koppla in sin egen hårdvara, inte låst till ett märke.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Kunskapsbank</h2>
+    <p class="note">Artiklar grundade i den riktiga koden - ingen marknadstext utan underlag.</p>
+    <div class="articlelist">
+      <a href="kunskapsbank/huset-som-varmebatteri.html"><div class="cat">Grunderna</div>Huset som värmebatteri</a>
+      <a href="kunskapsbank/styra-varmepump-efter-elpris.html"><div class="cat">Värmepump</div>Så styrs värmepumpen efter elpris (NIBE, Thermia, IVT m.fl.)</a>
+      <a href="kunskapsbank/elbilsladdning-efter-elpris.html"><div class="cat">Elbil</div>Elbilsladdning efter elpris</a>
+      <a href="kunskapsbank/varfor-riktiga-siffror.html"><div class="cat">Metodik</div>Varför vi visar riktiga siffror, inte ett påstående</a>
+    </div>
+  </section>
+
+  <footer>
+    EnergyWizard Open är ett privat, öppet hobbyprojekt - inte en kommersiell produkt. Källkod på
+    <a href="https://github.com/murre87/energywizard">GitHub</a>.
+  </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

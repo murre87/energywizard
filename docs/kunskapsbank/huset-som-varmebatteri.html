@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huset som värmebatteri - EnergyWizard Open</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Kunskapsbank</a></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Huset som värmebatteri</h1>
+  <div class="meta">Grunderna</div>
+
+  <p>En villa med vattenburen värme är tröggare än den ser ut. Golv, väggar och vattnet i
+  varmvattenberedaren håller kvar värme i timmar - det går att utnyttja för att flytta
+  elanvändningen till de billigaste timmarna utan att det känns i huset.</p>
+
+  <p>EnergyWizard har en regel (<code>Prio 4.5</code> i styrmotorn) som höjer
+  varmvattenberedaren till 60°C så fort elpriset är lågt eller solcellerna producerar
+  överskott - att "ladda batteriet". När elen blir dyr igen sänks driften, och huset
+  "tömmer" det lagrade - vattnet svalnar långsamt, golvvärmen avger värmen den redan
+  fått, och ingen kompressor behöver gå just då.</p>
+
+  <p>Det finns även en prediktiv variant: om ett prisspik är känt inom de kommande
+  timmarna (<code>MAX_COAST_HOURS</code> i värmestyrningsmotorn, satt till 6 timmar),
+  värms huset extra just innan - så att det kan "glida" rakt igenom den dyra perioden
+  utan att kompressorn behöver starta.</p>
+
+  <p>Det här är inte en gissning - det är samma regelmotor som styr riktiga hus just
+  nu, och samma princip syns i <a href="../#besparing">värmebatteri-siffrorna på
+  startsidan</a>, hämtade direkt ur driftloggen.</p>
+</article>
+</div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Så styrs värmepumpen efter elpris - EnergyWizard Open</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Kunskapsbank</a></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Så styrs värmepumpen efter elpris</h1>
+  <div class="meta">Värmepump</div>
+
+  <p>EnergyWizard pratar inte med värmepumpen genom att gissa dess menyer. Varje
+  stödd värmepump har en egen <strong>drivrutin</strong> - en liten, tydligt avgränsad
+  kodmodul som vet exakt hur just det märket tar emot kommandon (SG Ready-kontakter,
+  Modbus, eller en lokal webb-API beroende på märke).</p>
+
+  <p>Idag finns en färdig drivrutin för <strong>Thermia/Husdata</strong>, och arkitekturen
+  är byggd för att nya märken (NIBE, IVT, CTC, Mitsubishi) ska gå att lägga till som
+  egna moduler utan att röra styrlogiken i övrigt - samma mönster som bilar
+  (Nissan/Tesla/generisk EV) och växelriktare (SolarEdge) redan använder.</p>
+
+  <p>Själva besluten - <em>när</em> ska pumpen gå hårt, <em>när</em> ska den vila - fattas
+  av en gemensam prioritetsmotor, inte av drivrutinen. Det betyder att hela
+  styrlogiken (elpris, solöverskott, effekttariff, termiskt batteri) är densamma
+  oavsett vilket märke som faktiskt sitter i källaren.</p>
+
+  <p>Saknas en drivrutin för ditt märke? Det är precis den typen av bidrag projektet
+  är byggt för att ta emot - se <a href="https://github.com/murre87/energywizard">koden
+  på GitHub</a>.</p>
+</article>
+</div>
+</body>
+</html>
