@@ -31,6 +31,11 @@ nav.top a:hover { color:var(--txt); }
 .beta h2 { margin-top:0; }
 .beta ul { margin:14px 0; padding-left:20px; color:#dbe3f0; }
 
+.monthtable { width:100%; border-collapse:collapse; margin-top:12px; font-size:.88rem; }
+.monthtable th, .monthtable td { text-align:right; padding:6px 10px; border-bottom:1px solid var(--line); }
+.monthtable th:first-child, .monthtable td:first-child { text-align:left; }
+.monthtable th { color:var(--mut); font-weight:500; }
+
 .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px; margin:28px 0; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:20px; }
 .card h2, .card h3 { margin:0 0 6px; }

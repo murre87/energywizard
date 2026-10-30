@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ - EnergyWizard Open</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Knowledge base</a><span class="langswitch"><a href="../../kunskapsbank/faq.html">SV</a><a class="on" href="#">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Frequently asked questions</h1>
+  <div class="meta">FAQ</div>
+
+  <h3>How do you account for solar irradiance?</h3>
+  <p>Cloud cover from the weather forecast (<code>cloud_cover_pct</code>) reduces the modeled production
+  by up to 85% compared to a clear sky - the more clouds, the lower the forecast. It's the same principle
+  as a sunny day giving full output and an overcast day giving a fraction of it, just expressed as a
+  formula instead of a guess.</p>
+
+  <h3>How do you build the solar surplus forecast?</h3>
+  <p>The base model is a clear-sky model: a sine curve between sunrise and sunset for the current month,
+  scaled by a monthly efficiency factor and the system's peak output - the same principle as June producing
+  more than December. But as soon as the house has built up its own history, a <strong>digital twin</strong>
+  takes over: a learned profile of what the roof actually tends to produce per month and hour, built from
+  the house's own logs instead of a generic formula. The longer the system runs, the more accurate the
+  forecast becomes for your specific roof.</p>
+
+  <h3>Can you choose your own priorities, or is it all fixed?</h3>
+  <p>The <em>order</em> between the different control rules is fixed - it's built so that safety and
+  economics always run in a defined, predictable order, not something every user should have to reason
+  through. What you control are the <em>parameters</em> within that order:</p>
+  <ul>
+    <li>Comfort temperature during cheap vs. expensive electricity (two separate setpoints)</li>
+    <li>Minimum level and time for each EV (e.g. at least 50% by 07:00)</li>
+    <li>Manual pause or forced charging, if you want to take over temporarily</li>
+  </ul>
+  <p>That lets you tune comfort against savings without needing to understand or risk disturbing the whole
+  decision logic.</p>
+
+  <h3>Do I need solar panels or an EV for the system to be useful?</h3>
+  <p>No. A heat pump alone is enough to get started - the heat control (the thermal battery) works
+  regardless. Solar, an EV and a battery add more things the system can optimize against, but aren't a
+  requirement.</p>
+
+  <h3>How do you make sure the house doesn't get cold while the system saves money?</h3>
+  <p>Price optimization must never come at the cost of basic comfort - minimum levels (for both indoor
+  temperature and EV charging) are a hard limit in the control logic, not a goal the system tries to
+  balance against. The system optimizes <em>within</em> that limit, never by lowering it.</p>
+</article>
+</div>
+</body>
+</html>
