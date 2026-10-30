@@ -148,6 +148,16 @@ last_valid_ha_temp_time = datetime.now(SWE_TZ)
 # och läses tillbaka vid start. Används max CAR_SOC_MAX_AGE_H timmar.
 CAR_SOC_MAX_AGE_H = 48
 _soc_mem = {"loaded": False, "tesla": (None, None), "nissan": (None, None), "last_wake": None}   # (värde, tid för senaste LIVE-värde)
+# Stalled-charging-vakt (2026-10-30): om ström beordras men laddaren inte faktiskt drar ström,
+# är "status" fastnad på ett ord turn_on-villkoret inte känner igen. Mäter verklig ström istället.
+_ev_stall = {"nissan": None, "tesla": None}   # bil -> tidpunkt sedan vi först sett 0A trots beordrad ström
+EV_STALL_RETRY_MIN = 8          # så länge väntar vi innan vi tvingar ett nytt turn_on
+EV_STALL_ALERT_MIN = 25         # så länge innan vi varnar Emil (annars tyst retry)
+EV_STALL_CURRENT_A = 2.0        # under detta anses laddaren inte dra ström alls
+# Morgongolv-larm (2026-10-30): varnar Emil i god tid om en bil riskerar missa 50%-golvet kl 06,
+# istället för att han upptäcker det när han redan sitter i bilen. Larmar max en gång/dag/bil.
+_morning_floor_alerted = {"nissan": None, "tesla": None}
+MORNING_FLOOR_WARN_MIN = 90     # varna när så här många minuter (eller färre) kvar till 06 och fortfarande under golvet
 # Kalibrerad kurva: (framledning °C, pumpens el W). Medianer per framledningsintervall från 60 nätter (sol ~0),
 # 1687 minuter med kompressorn på: husets last minus elbil, spa och grundlast (657 W).
 _PUMP_EL_CURVE = [(25.0, 2000.0), (32.5, 2480.0), (37.5, 2655.0), (42.5, 2865.0), (50.0, 3460.0), (60.0, 4180.0)]
@@ -206,6 +216,64 @@ def _load_last_known_soc():
         print(f"🔋 Senast kända batterinivåer inlästa: Tesla {_soc_mem['tesla'][0]} %, Nissan {_soc_mem['nissan'][0]} %")
     except Exception as _e:
         print(f"⚠️ Kunde inte läsa senast kända batterinivåer: {_e}")
+
+_last_logged_charger_status = {"nissan": None, "tesla": None}
+
+def _log_charger_status_if_changed(car_id, charger_data):
+    """Loggar laddarens råa status varje gång den ändras (inte varje loop), så vi kan se
+    exakt vilket statusord som gäller när laddningen fastnar - annars osynligt (main.py 2026-10-30)."""
+    status = charger_data.get("status") if charger_data else None
+    if status != _last_logged_charger_status.get(car_id):
+        print(f"🔌 {car_id.capitalize()}-laddare: status = {status!r}")
+        _last_logged_charger_status[car_id] = status
+
+def _check_ev_stall(car_id, amps, charger_data, charger_id, phase_switch_active, now_dt):
+    """Stalled-charging-vakt: om vi beordrat ström men laddaren mätbart inte drar någon,
+    tvingar vi fram ett nytt turn_on oavsett status-ord (se 2026-10-30, Leaf-incidenten natt
+    28/29 okt då bilen stod still hela natten trots 'Laddar enligt schema' i loggen)."""
+    if amps <= 0 or phase_switch_active:
+        _ev_stall[car_id] = None
+        return
+    actual_a = charger_data.get("current_a") if charger_data else None
+    if actual_a is not None and actual_a >= EV_STALL_CURRENT_A:
+        _ev_stall[car_id] = None
+        return
+    since = _ev_stall.get(car_id)
+    if since is None:
+        _ev_stall[car_id] = now_dt
+        return
+    stalled_min = (now_dt - since).total_seconds() / 60.0
+    if stalled_min >= EV_STALL_RETRY_MIN:
+        status = charger_data.get("status") if charger_data else None
+        print(f"⚠️ {car_id.capitalize()}: {amps}A beordrat men laddaren drar ~0A i {stalled_min:.0f} min (status={status!r}). Tvingar turn_on igen.")
+        homeassistant.turn_on_charger(charger_id)
+        _ev_stall[car_id] = now_dt - timedelta(minutes=EV_STALL_RETRY_MIN - 2)  # försök igen om ~2 min, inte varje loop
+        if stalled_min >= EV_STALL_ALERT_MIN:
+            notifier.send_emil(f"⚠️ {car_id.capitalize()} laddar inte", f"{amps}A beordrat i {stalled_min:.0f} minuter men laddaren drar ingen ström (status: {status}). Kolla kabeln/laddaren - det kan krävas manuell koll.", {"tag": f"ev_stall_{car_id}"})
+
+def _check_morning_floor(car_id, soc, plugged_in, now_dt):
+    """Oberoende larm-vakt: varnar Emil i god tid om en bil ser ut att missa 50%-golvet kl 06,
+    istället för att han upptäcker det när han redan sitter i bilen (Leaf-incidenten natt 28/29 okt).
+    Tar INTE över styrningen själv - planeraren (decisions.py) och stalled-vakten sköter det;
+    detta är enbart ett larm om de ändå inte räcker."""
+    if soc is None or not plugged_in or soc >= decisions.MORNING_MIN_SOC:
+        return
+    floor_today = now_dt.replace(hour=decisions.MORNING_HOUR, minute=0, second=0, microsecond=0)
+    if now_dt >= floor_today:
+        floor_today += timedelta(days=1)
+    minutes_left = (floor_today - now_dt).total_seconds() / 60.0
+    if minutes_left > MORNING_FLOOR_WARN_MIN:
+        return
+    today_key = floor_today.date()
+    if _morning_floor_alerted.get(car_id) == today_key:
+        return
+    _morning_floor_alerted[car_id] = today_key
+    print(f"🚨 Morgongolv-vakt: {car_id} på {soc:.0f}%, {minutes_left:.0f} min kvar till golvet (50% kl {decisions.MORNING_HOUR:02d}:00). Larmar.")
+    notifier.send_emil(
+        f"🚨 {car_id.capitalize()} riskerar missa 50%-golvet kl 06",
+        f"{soc:.0f}% nu, {minutes_left:.0f} min kvar till 06:00. Planen ska tvinga full ström, men kolla gärna att kabeln sitter i och att laddaren faktiskt drar ström.",
+        {"tag": f"morning_floor_{car_id}"}
+    )
 
 def _remember_soc(car, data, now_dt):
     """Ersätter saknad SOC (unknown) med senast kända värde. Returnerar True om värdet är föråldrat/ersatt."""
@@ -889,6 +957,14 @@ while True:
                 except Exception as e:
                     print(f"❌ Fel vid CSI-varians-koll: {e}")
 
+            # Morgongolv-vakt (2026-10-30): oberoende säkerhetsnät för "50% kl 06 varje dag".
+            # Körs VARJE loop (inte bara var 15:e min) så vi hinner larma/tvinga i tid om allt annat failat.
+            for _car_id, _soc, _plugged in (
+                ("nissan", nissan_soc, ev_connection_state['nissan']['connected'] or ev_gps_state['nissan']['approaching']),
+                ("tesla", tesla_soc, ev_connection_state['tesla']['connected'] or ev_gps_state['tesla']['approaching']),
+            ):
+                _check_morning_floor(_car_id, _soc, _plugged, now)
+
             # EV Plan
             if ev_charge_plan is None or now.minute % 15 == 0 or force_ev_plan_recalc:
                 last_ev_plan_time = now
@@ -1417,6 +1493,9 @@ while True:
             nissan_charger_connected = nissan_charger_data and nissan_charger_data.get("status") not in ["disconnected", "offline", "unknown", None]
             tesla_charger_connected = tesla_charger_data and tesla_charger_data.get("status") not in ["disconnected", "offline", "unknown", None]
 
+            _log_charger_status_if_changed("nissan", nissan_charger_data)
+            _log_charger_status_if_changed("tesla", tesla_charger_data)
+
             if nissan_charger_connected:
                 # FIX: hoppa över ström-sättning under pågående fasbyte (laddaren ska ligga på 0A)
                 if not nissan_phase_switch_active:
@@ -1425,9 +1504,10 @@ while True:
                             last_sent_ev_limit_nissan = nissan_amps
                     if nissan_amps > 0 and nissan_charger_data.get("status") in ["awaiting_start", "paused", "off"]:
                         homeassistant.turn_on_charger(nissan_charger_id)
+                    _check_ev_stall("nissan", nissan_amps, nissan_charger_data, nissan_charger_id, nissan_phase_switch_active, now)
             else:
                 last_sent_ev_limit_nissan = None
-                
+
             if tesla_charger_connected:
                 # FIX: hoppa över ström-sättning under pågående fasbyte (laddaren ska ligga på 0A)
                 if not tesla_phase_switch_active:
@@ -1436,6 +1516,7 @@ while True:
                             last_sent_ev_limit_tesla = tesla_amps
                     if tesla_amps > 0 and tesla_charger_data.get("status") in ["awaiting_start", "paused", "off"]:
                         homeassistant.turn_on_charger(tesla_charger_id)
+                    _check_ev_stall("tesla", tesla_amps, tesla_charger_data, tesla_charger_id, tesla_phase_switch_active, now)
             else:
                 last_sent_ev_limit_tesla = None
 
