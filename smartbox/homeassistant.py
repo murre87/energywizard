@@ -10,6 +10,13 @@ HA_IP    = os.environ.get("HA_IP")
 HA_PORT  = 8123
 HA_TOKEN = os.environ.get("HA_TOKEN", "").strip("\"'")
 
+# EnergyWizard Open, Spår B: körd som Home Assistant-tillägg (Supervisor) injicerar
+# SUPERVISOR_TOKEN automatiskt - då nås Core API lokalt via Supervisorns egen proxy
+# istället för HA_IP/HA_TOKEN, utan att användaren behöver klistra in en token alls.
+# Helt bakåtkompatibelt: docker-compose-driften sätter aldrig SUPERVISOR_TOKEN, så den
+# faller igenom till exakt samma HA_IP/HA_TOKEN-väg som innan, oförändrat.
+SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN")
+
 EASEE_LITE_ID = os.environ.get("EASEE_CHARGER_ID") # Nissan
 if not EASEE_LITE_ID: EASEE_LITE_ID = "EHLS9NVL"
 
@@ -114,11 +121,17 @@ MOWER_ENTITIES = {
     "energy":  "sensor.shellyb1_energi",
 }
 
-_BASE = f"https://{HA_IP}:{HA_PORT}/api"
-_HEADERS = {
-    "Authorization": f"Bearer {HA_TOKEN}",
-    "Content-Type": "application/json",
-}
+if SUPERVISOR_TOKEN:
+    _BASE = "http://supervisor/core/api"
+    _HEADERS = {"Authorization": f"Bearer {SUPERVISOR_TOKEN}", "Content-Type": "application/json"}
+    _VERIFY = True   # intern anslutning inom Supervisorns eget nät, ingen TLS-fråga
+else:
+    _BASE = f"https://{HA_IP}:{HA_PORT}/api"
+    _HEADERS = {
+        "Authorization": f"Bearer {HA_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    _VERIFY = False  # oförändrat: självsignerat/okänt cert mot HA_IP, som idag
 
 _states_cache = {}
 
@@ -131,7 +144,7 @@ def publish_states(entities: dict):
             continue
         try:
             r = requests.post(f"{_BASE}/states/{entity_id}", headers=_HEADERS,
-                              json={"state": state, "attributes": attrs}, timeout=3, verify=False)
+                              json={"state": state, "attributes": attrs}, timeout=3, verify=_VERIFY)
             r.raise_for_status()
         except Exception:
             return
@@ -142,7 +155,7 @@ def update_states():
     """Hämtar ALLA states från Home Assistant API:et i en enda effektiv request."""
     global _states_cache, last_update_ok
     try:
-        r = requests.get(f"{_BASE}/states", headers=_HEADERS, timeout=5, verify=False)
+        r = requests.get(f"{_BASE}/states", headers=_HEADERS, timeout=5, verify=_VERIFY)
         r.raise_for_status()
         _states_cache = {s["entity_id"]: s for s in r.json()}
         last_update_ok = True
@@ -366,7 +379,7 @@ def read_gecko():
     
     # Läs den sanna måltemperaturen direkt från climate-entitetens attribut om möjligt
     try:
-        r = requests.get(f"{_BASE}/states/climate.spabad_heater", headers=_HEADERS, timeout=5, verify=False)
+        r = requests.get(f"{_BASE}/states/climate.spabad_heater", headers=_HEADERS, timeout=5, verify=_VERIFY)
         if r.status_code == 200:
             attrs = r.json().get("attributes", {})
             if "temperature" in attrs and attrs["temperature"] is not None:
@@ -453,7 +466,7 @@ def set_gecko_economy(enable: bool):
             headers=_HEADERS,
             json={"entity_id": "switch.spabad_economy_mode"},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         print(f"🛁 Spabad: Economy Mode {'AKTIVERAT' if enable else 'AVAKTIVERAT'}")
@@ -470,7 +483,7 @@ def set_gecko_target(temp: float):
             headers=_HEADERS,
             json={"entity_id": "climate.spabad_heater", "temperature": float(temp)},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         print(f"🛁 Spabad: Måltemperatur satt till {temp}°C")
@@ -490,7 +503,7 @@ def set_ev_dynamic_limit(charger_id: str, ampere: int, reason: str = None):
             headers=_HEADERS,
             json={"charger_id": charger_id, "current": ampere},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         if ampere == 0 and reason:
@@ -517,7 +530,7 @@ def set_easee_phases(charger_id: str, phases: int):
             f"{_BASE}/services/easee/set_charger_phase_mode",
             headers=_HEADERS,
             json={"charger_id": charger_id, "phase_mode": mode},
-            timeout=10, verify=False)
+            timeout=10, verify=_VERIFY)
         r.raise_for_status()
         _PHASE_STATE[_phase_key(charger_id)] = "ThreePhase" if phases == 3 else "SinglePhase"
         print(f"⚡ Easee ({charger_id}): Fasläge satt till {phases}-fas (tjänst, {mode}).")
@@ -535,7 +548,7 @@ def turn_on_charger(charger_id: str):
             headers=_HEADERS,
             json={"entity_id": entity_id},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         print(f"⚡ Easee ({charger_id}): Skickade 'turn_on' för att tvinga igång laddningen.")
@@ -553,7 +566,7 @@ def turn_off_charger(charger_id: str):
             headers=_HEADERS,
             json={"entity_id": entity_id},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         print(f"⚡ Easee ({charger_id}): Skickade 'turn_off' för att stoppa laddningen.")
@@ -574,7 +587,7 @@ def set_solaredge_limit(limit: int):
             headers=_HEADERS,
             json={"entity_id": "number.solaredge_modbus_active_power_limit", "value": str(limit)},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         print(f"☀️ SolarEdge: Active Power Limit satt till {limit} %")
@@ -587,7 +600,7 @@ def press_button(entity_id: str):
     """Trycker på en knapp i HA (t.ex. button.tesla_model_y_wake_up). Returnerar True om anropet gick igenom."""
     try:
         r = requests.post(f"{_BASE}/services/button/press", headers=_HEADERS,
-                          json={"entity_id": entity_id}, timeout=5, verify=False)
+                          json={"entity_id": entity_id}, timeout=5, verify=_VERIFY)
         r.raise_for_status()
         return True
     except requests.exceptions.ReadTimeout:
@@ -603,13 +616,13 @@ def set_car_climate(entity_id: str, hvac_mode: str, temperature: float = None):
         url = f"{_BASE}/services/climate/set_hvac_mode"
         # FIX #7: fånga responsen och anropa raise_for_status så att HTTP 4xx/5xx
         # (t.ex. okänd entity) propageras och funktionen returnerar False vid fel.
-        r = requests.post(url, headers=_HEADERS, json={"entity_id": entity_id, "hvac_mode": hvac_mode}, verify=False, timeout=10)
+        r = requests.post(url, headers=_HEADERS, json={"entity_id": entity_id, "hvac_mode": hvac_mode}, verify=_VERIFY, timeout=10)
         r.raise_for_status()
 
         if temperature is not None and hvac_mode != "off":
             url_temp = f"{_BASE}/services/climate/set_temperature"
             # FIX #7: samma felkontroll för temperatur-anropet.
-            r_temp = requests.post(url_temp, headers=_HEADERS, json={"entity_id": entity_id, "temperature": temperature}, verify=False, timeout=10)
+            r_temp = requests.post(url_temp, headers=_HEADERS, json={"entity_id": entity_id, "temperature": temperature}, verify=_VERIFY, timeout=10)
             r_temp.raise_for_status()
 
         print(f"🚗 Klimat: {entity_id} satt till {hvac_mode} ({temperature}°C)")
@@ -628,7 +641,7 @@ def turn_on_lights(entity_ids: list):
             headers=_HEADERS,
             json={"entity_id": entity_ids},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         print(f"💡 Tände lampor: {', '.join(entity_ids)}")
@@ -646,7 +659,7 @@ def toggle_mower_plug(turn_on: bool):
             headers=_HEADERS,
             json={"entity_id": MOWER_ENTITIES["is_on"]},
             timeout=5,
-            verify=False,
+            verify=_VERIFY,
         )
         r.raise_for_status()
         return True
