@@ -121,5 +121,36 @@ services:
       - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
       - EASEE_CARPORT_ID=${EASEE_CARPORT_ID}
 
+  ####################################################################
+  # Webdashboard: ny dator-/surfplatte-dashboard (EnergyWizard Open Fas A-F),
+  # ersätter smartdashboard stegvis. profiles gör den valfri att starta - en
+  # vanlig "docker compose up -d" (utan --profile) rör den inte alls, så den
+  # kan utvecklas/testas utan att påverka den körande produktionen.
+  ####################################################################
+  webdashboard:
+    build: ./webdashboard
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: webdashboard
+    restart: unless-stopped
+    profiles: ["webdashboard"]
+    env_file:
+      - ${DASHBOARD_ENV_PATH:-./secrets/dashboard.env}
+    ports:
+      - "8503:8503"
+    volumes:
+      - ./smartbox:/smartbox:ro
+    depends_on:
+      postgres-smartbox:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_HOST=postgres-smartbox
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - HA_IP=${HA_IP}
+      - HA_TOKEN=${HA_TOKEN}
+
 volumes:
   postgres_data:

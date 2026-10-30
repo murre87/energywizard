@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EnergyWizard</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+<div id="login">
+  <form class="loginbox" id="loginform">
+    <h1 style="margin:0;font-size:1.3rem">⚡ EnergyWizard</h1>
+    <input type="text" id="user" placeholder="Användarnamn (lämna tomt som ägare)" autocomplete="username">
+    <input type="password" id="pw" placeholder="Lösenord" autocomplete="current-password" required>
+    <div class="err" id="loginerr"></div>
+    <button type="submit">Logga in</button>
+  </form>
+</div>
+
+<div id="shell">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> EnergyWizard</div>
+    <button class="icobtn" id="logoutbtn">Logga ut</button>
+  </div>
+  <nav class="sidebar" id="sidebar"></nav>
+  <main id="main"></main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
