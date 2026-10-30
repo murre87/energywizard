@@ -4,7 +4,7 @@ import pandas as pd
 from contextlib import contextmanager
 
 # Hämta inloggningsuppgifter från Docker-miljön
-DB_HOST = "postgres-smartbox"  # Namnet på databastjänsten i docker-compose.yml
+DB_HOST = os.environ.get("POSTGRES_HOST", "postgres-smartbox")  # Namnet på databastjänsten i docker-compose.yml
 DB_USER = os.environ.get("POSTGRES_USER")
 DB_PASS = os.environ.get("POSTGRES_PASSWORD")
 DB_NAME = os.environ.get("POSTGRES_DB")

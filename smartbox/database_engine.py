@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DB_HOST = "postgres-smartbox"
+DB_HOST = os.environ.get("POSTGRES_HOST", "postgres-smartbox")
 DB_USER = os.environ.get("POSTGRES_USER")
 DB_PASS = os.environ.get("POSTGRES_PASSWORD")
 DB_NAME = os.environ.get("POSTGRES_DB")

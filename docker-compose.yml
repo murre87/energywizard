@@ -55,7 +55,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - HA_IP=192.168.1.109
+      - HA_IP=${HA_IP}
       - HA_TOKEN=${HA_TOKEN}
       - PUMP_IP=${PUMP_IP}
       - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
@@ -72,7 +72,7 @@ services:
     container_name: smartdashboard
     restart: unless-stopped
     env_file:
-      - /home/emil/.dashboard.env   # gemensamt DASHBOARD_PASSWORD för alla dashboards
+      - ${DASHBOARD_ENV_PATH:-./secrets/dashboard.env}   # gemensamt DASHBOARD_PASSWORD för alla dashboards
     ports:
       - "8501:8501"
     volumes:
@@ -87,7 +87,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - HA_IP=192.168.1.109
+      - HA_IP=${HA_IP}
       - HA_TOKEN=${HA_TOKEN}
 
   ####################################################################
@@ -104,7 +104,7 @@ services:
     container_name: ewapp
     restart: unless-stopped
     env_file:
-      - /home/emil/.dashboard.env
+      - ${DASHBOARD_ENV_PATH:-./secrets/dashboard.env}
     volumes:
       - ./smartbox:/smartbox:ro
     depends_on:
@@ -116,7 +116,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - HA_IP=192.168.1.109
+      - HA_IP=${HA_IP}
       - HA_TOKEN=${HA_TOKEN}
       - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
       - EASEE_CARPORT_ID=${EASEE_CARPORT_ID}
