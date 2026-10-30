@@ -120,18 +120,21 @@ function planChart(p, cars) {
   const lanes = cars.map((c) => { const g = segs(c).filter((x) => x.e > t0 && x.s < t0 + span), col = c.key === "tesla" ? "var(--acc)" : "var(--acc2)";
     const bars = g.map((x) => `<i style="left:${(Math.max(x.s, t0) - t0) / span * 100}%;width:${(Math.min(x.e, t0 + span) - Math.max(x.s, t0)) / span * 100}%;background:${col}" title="${f1(x.kw / x.n)} kW"></i>`).join("");
     const pa = c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length ? c.plan_all : null;
-    const txt = !c.home ? "inte hemma" : !c.plugged ? "kabeln ej i" : pa ? `${pa.blocks[0].start}–${pa.blocks[pa.blocks.length - 1].end}${pa.summary && pa.summary.soc0 != null ? ` · ${pa.summary.soc0}→${pa.summary.soc1} %` : ""}` : c.soc != null && c.soc >= 98 ? "fulladdad" : sunTxt ? `ingen plan ännu · ${sunTxt} möjlig` : "ingen laddning planerad";
-    return `<div class="pc-lane"><span class="pc-name" style="color:${col}">${esc(c.name.split(" ")[0])}</span><div class="pc-track">${bars}</div><button class="pc-txt" data-a="cardata" data-c="${c.key}" title="Tryck för alla data">${esc(txt)}</button></div>`; }).join("");
+    const full = c.soc != null && c.soc >= 98;
+    const sunBar = (!pa && !full && sw && hs[sw.a]) ? `<i class="predicted" style="left:${(hs[sw.a].ts - t0) / span * 100}%;width:${((hs[sw.b].ts + H - hs[sw.a].ts)) / span * 100}%;background:${col}" title="Väntad solladdning, ej bekräftad ännu"></i>` : "";
+    const txt = !c.home ? "inte hemma" : !c.plugged ? "kabeln ej i" : pa ? `${pa.blocks[0].start}–${pa.blocks[pa.blocks.length - 1].end}${pa.summary && pa.summary.soc0 != null ? ` · ${pa.summary.soc0}→${pa.summary.soc1} %` : ""}` : full ? "fulladdad" : sunTxt ? `inget prisschema · solladdning väntas automatiskt ${sunTxt}` : "ingen laddning planerad";
+    return `<div class="pc-lane"><span class="pc-name" style="color:${col}">${esc(c.name.split(" ")[0])}</span><div class="pc-track">${bars}${sunBar}</div><button class="pc-txt" data-a="cardata" data-c="${c.key}" title="Tryck för alla data">${esc(txt)}</button></div>`; }).join("");
   const nowAt = hs.length ? (Date.now() - t0) / span * 100 : 0;
   return `<section class="card price pchart"><div class="head"><div><span class="note">Laddplan · elpris nu </span><span class="now">${f1(p.now, 2)} <small>kr/kWh</small></span></div><span class="chip ${p.level === "billigt" ? "ok" : p.level === "dyrt" ? "bad" : ""}">${esc(p.level || "")}</span></div>
   <div class="pc-plot">${hasSun ? `<div class="pc-bars pc-sun" aria-hidden="true">${hs.map((h, k) => `<span><i style="height:${Math.round(sunH[k] / sunMax * 100)}%"></i></span>`).join("")}</div>` : ""}<div class="pc-bars">${hs.map((h) => `<span class="${h.now ? "now" : h.p <= lowT ? "low" : ""}"><i style="height:${Math.max(10, (h.p / mx) * 100)}%"></i></span>`).join("")}</div>${nowAt >= 0 && nowAt <= 100 ? `<b class="pc-now" style="left:${nowAt}%"></b>` : ""}</div>
-  <div class="pc-lanes">${lanes}</div><div class="hrs pc-hrs">${hs.map((h, k) => `<span>${k % 4 === 0 ? h.t : ""}</span>`).join("")}</div></section>`;
+  <div class="pc-lanes">${lanes}</div><div class="hrs pc-hrs">${hs.map((h, k) => `<span>${k % 4 === 0 ? h.t : ""}</span>`).join("")}</div>
+  <div class="pc-legend"><span><i style="background:var(--line)"></i>elpris</span><span><i style="background:var(--acc)"></i>billig timme</span>${hasSun ? `<span><i style="background:rgba(251,191,36,.5)"></i>sol</span>` : ""}<span>· heldragen linje = bekräftad laddning</span><span>· randig linje = väntad solladdning, ej bekräftad</span></div></section>`;
 }
 function pageBil() {
   if (!S) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
   const p = primary(), main = S.cars.find((c) => c.key === p) || S.cars[0], other = S.cars.find((c) => c !== main), simple = LS.get("ew_simple", "") === "1";
   const carseg = `<div class="seg carseg">${S.cars.map((c) => `<button data-a="swap" data-c="${c.key}" class="${c.key === main.key ? "on" : ""}">${esc(c.name.split(" ")[0])} · ${c.soc ?? "–"} %</button>`).join("")}</div>`;
-  return `<div class="page">${carseg}${hero(main)}${simple ? "" : compact(other)}${planChart(S.price, simple ? [main] : S.cars)}</div>`;
+  return `<div class="page">${carseg}${hero(main)}${simple ? "" : compact(other)}${planChart(S.price, S.cars)}</div>`;
 }
 // ---- Hus -------------------------------------------------------------------------------------------------------------------------
 const MODE = { auto: "Auto", on: "Till", off: "Från" };
