@@ -1,0 +1,59 @@
+<svg viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Solceller, värmepump, elbil och batteri kopplade till ett hus som styrs efter elpriset">
+  <defs>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3a0"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- flödeslinje -->
+  <path d="M60 170 H700" stroke="url(#flow)" stroke-width="2" stroke-dasharray="2 6" fill="none" opacity=".55"/>
+
+  <!-- sol + solceller -->
+  <g transform="translate(40,20)">
+    <circle cx="30" cy="20" r="14" fill="#fbbf24"/>
+    <g stroke="#fbbf24" stroke-width="2" stroke-linecap="round">
+      <path d="M30 0 V-6"/><path d="M52 20 H58"/><path d="M8 20 H2"/>
+      <path d="M45 5 l4 -4"/><path d="M15 5 l-4 -4"/>
+    </g>
+    <rect x="4" y="60" width="52" height="30" rx="3" fill="#0f2740" stroke="#38bdf8" stroke-width="2"/>
+    <path d="M4 68 H56 M4 76 H56 M4 84 H56 M20 60 V90 M38 60 V90" stroke="#38bdf8" stroke-width="1" opacity=".6"/>
+    <path d="M30 90 V150" stroke="#38bdf8" stroke-width="2"/>
+    <circle cx="30" cy="150" r="5" fill="#38bdf8"/>
+    <text x="30" y="172" text-anchor="middle" font-size="12" fill="#93a0b8" font-family="sans-serif">Solceller</text>
+  </g>
+
+  <!-- hus -->
+  <g transform="translate(220,10)">
+    <path d="M0 70 L70 20 L140 70 V150 H0 Z" fill="#111a2e" stroke="#93a0b8" stroke-width="2"/>
+    <rect x="55" y="95" width="30" height="55" fill="#0b1220" stroke="#93a0b8" stroke-width="1.5"/>
+    <rect x="20" y="95" width="25" height="25" fill="#38bdf822" stroke="#38bdf8" stroke-width="1.5"/>
+    <rect x="95" y="95" width="25" height="25" fill="#22d3a022" stroke="#22d3a0" stroke-width="1.5"/>
+    <circle cx="70" cy="150" r="5" fill="#22d3a0"/>
+    <text x="70" y="172" text-anchor="middle" font-size="12" fill="#93a0b8" font-family="sans-serif">Huset som batteri</text>
+  </g>
+
+  <!-- värmepump -->
+  <g transform="translate(420,55)">
+    <rect x="0" y="0" width="50" height="70" rx="6" fill="#0f2740" stroke="#22d3a0" stroke-width="2"/>
+    <path d="M10 15 H40 M10 25 H40 M10 35 H40" stroke="#22d3a0" stroke-width="2" stroke-linecap="round"/>
+    <path d="M25 70 V105" stroke="#22d3a0" stroke-width="2"/>
+    <circle cx="25" cy="105" r="5" fill="#22d3a0"/>
+    <text x="25" y="127" text-anchor="middle" font-size="12" fill="#93a0b8" font-family="sans-serif">Värmepump</text>
+  </g>
+
+  <!-- elbil -->
+  <g transform="translate(560,70)">
+    <path d="M0 50 q0 -10 10 -10 h10 l12 -22 h46 l12 22 h10 q10 0 10 10 v14 H0 Z" fill="#0f2740" stroke="#38bdf8" stroke-width="2"/>
+    <circle cx="22" cy="64" r="8" fill="#0b1220" stroke="#38bdf8" stroke-width="2"/>
+    <circle cx="78" cy="64" r="8" fill="#0b1220" stroke="#38bdf8" stroke-width="2"/>
+    <path d="M50 20 V-5" stroke="#38bdf8" stroke-width="2"/>
+    <circle cx="50" cy="-5" r="5" fill="#38bdf8"/>
+    <text x="50" y="92" text-anchor="middle" font-size="12" fill="#93a0b8" font-family="sans-serif">Elbil</text>
+  </g>
+
+  <!-- blixt: styrs av elpris -->
+  <g transform="translate(345,160)">
+    <path d="M10 0 L0 16 H8 L2 32 L22 10 H13 L19 0 Z" fill="#fbbf24"/>
+  </g>
+</svg>
