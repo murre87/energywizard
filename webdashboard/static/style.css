@@ -31,6 +31,14 @@ main { grid-area:main; overflow-y:auto; padding:24px 28px 60px; }
 .icobtn { display:grid; place-items:center; min-width:36px; height:36px; padding:0 10px; border-radius:11px; border:1px solid var(--line); background:var(--card); color:var(--txt); font-size:.85rem; cursor:pointer; }
 .placeholder { color:var(--mut); font-size:.9rem; padding:40px; text-align:center; border:1px dashed var(--line); border-radius:var(--r); }
 
+/* -- värmebatteri: enkel fyllningsbalk, ingen chart-lib behövs -- */
+.heatbatt { display:flex; align-items:center; gap:14px; }
+.heatbatt .tank { position:relative; width:34px; height:80px; border-radius:10px; border:1px solid var(--line); background:rgba(255,255,255,.04); overflow:hidden; flex-shrink:0; }
+.heatbatt .tank .fill { position:absolute; left:0; right:0; bottom:0; background:linear-gradient(180deg, var(--acc2), var(--acc)); transition:height .5s; }
+.heatbatt.tomrer .tank .fill { background:linear-gradient(180deg, var(--warn), var(--acc2)); }
+.heatbatt .info b { font-size:1.2rem; }
+.heatbatt.compact { gap:10px; } .heatbatt.compact .tank { width:22px; height:48px; }
+
 /* -- inloggning -- */
 #login { display:flex; min-height:100dvh; align-items:center; justify-content:center; }
 #login.off { display:none; }

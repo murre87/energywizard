@@ -116,6 +116,26 @@ def _temp_target(conn, mode: str) -> float:
     return float(cheap if cheap is not None else 22.0) if mode == "CHEAP" else float(expensive if expensive is not None else 20.0)
 
 
+def _heat_battery(row) -> dict | None:
+    """Varmvattenberedaren som ett termiskt batteri: laddnivå = var water_temp ligger
+    mellan husets EGNA aktuella golv (water_start_temp) och tak (water_setpoint) -
+    samma gränser gpm.py Prio 4.5 redan styr mot, inte hårdkodade konstanter."""
+    water_temp = _n(row.get("water_temp"))
+    floor = _n(row.get("water_start_temp"))
+    ceiling = _n(row.get("water_setpoint"))
+    if water_temp is None or floor is None or ceiling is None or ceiling <= floor:
+        return None
+    charge_pct = max(0.0, min(100.0, (water_temp - floor) / (ceiling - floor) * 100.0))
+    compressor_running = bool(row.get("compressor_running"))
+    if compressor_running:
+        status = "Laddar"
+    elif charge_pct >= 95:
+        status = "Vilar"
+    else:
+        status = "Tömmer"
+    return {"charge_pct": round(charge_pct, 0), "status": status, "water_temp": water_temp, "floor": floor, "ceiling": ceiling}
+
+
 @app.get("/api/overview")
 async def overview(request: Request):
     """Fas B, sida 1 (Översikt): beslutsbanner + de åtta nyckeltalen, portade från
@@ -150,6 +170,7 @@ async def overview(request: Request):
         "is_high_load": is_high_load,
         "sthlm_time": str(row["sthlm_time"]),
         "price_24h": [{"t": r[0].isoformat(), "p": float(r[1])} for r in price_hist],
+        "heat_battery": _heat_battery(row),
     }
 
 

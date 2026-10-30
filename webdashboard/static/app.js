@@ -13,6 +13,20 @@ function metricCard(icon, label, value, sub) {
   return `<div class="card"><div class="note">${icon} ${label}</div><h2 style="margin-top:6px">${value}</h2>${sub ? `<div class="note">${sub}</div>` : ""}</div>`;
 }
 
+function heatBatteryHtml(hb, compact) {
+  if (!hb) return "";
+  const icon = hb.status === "Laddar" ? "🔥" : hb.status === "Vilar" ? "💤" : "🧊";
+  const cls = hb.status === "Tömmer" ? " tomrer" : "";
+  return `
+    <div class="heatbatt${compact ? " compact" : ""}${cls}">
+      <div class="tank"><div class="fill" style="height:${hb.charge_pct}%"></div></div>
+      <div class="info">
+        <div><b>${hb.charge_pct.toFixed(0)}%</b> <span class="note">${icon} ${hb.status}</span></div>
+        <div class="note">${hb.water_temp.toFixed(0)}°C (${hb.floor.toFixed(0)}–${hb.ceiling.toFixed(0)}°C)</div>
+      </div>
+    </div>`;
+}
+
 async function renderOversikt() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="placeholder">Laddar…</div>`;
@@ -35,6 +49,7 @@ async function renderOversikt() {
       ${metricCard("☀️", "PV-effekt", d.pv_power_w != null ? (d.pv_power_w / 1000).toFixed(2) + " kW" : "–")}
       ${metricCard("🛁", "Varmvatten", fmt(d.water_temp, 1, "°C"))}
       ${metricCard("🚗", "EV Laddning", d.ev_power_kw != null ? d.ev_power_kw.toFixed(1) + " kW" : "–")}
+      <div class="card"><div class="note">🔋 Värmebatteri</div><div style="margin-top:8px">${heatBatteryHtml(d.heat_battery, true)}</div></div>
     </div>
     <div class="card"><h2>Elpris</h2><div class="note">Senaste dygnet + kommande priser</div><div id="pricechart" style="height:240px;margin-top:10px"></div></div>
     <div class="note" style="margin-top:10px">Senast mätt: ${d.sthlm_time}</div>`;
@@ -75,6 +90,23 @@ function renderSidebar() {
   nav.querySelectorAll(".navitem").forEach(b => b.onclick = () => openPage(b.dataset.page));
 }
 
+async function renderVarmepump() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="placeholder">Laddar…</div>`;
+  const d = await api("api/overview");
+  if (!d.ok) { main.innerHTML = `<div class="placeholder">${d.error || "Kunde inte läsa data"}</div>`; return; }
+  main.innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:700">♨️ Värmepump</div>
+      <div class="note" style="margin-top:4px">Ute ${fmt(d.outdoor_temp, 1, "°C")} · Inne ${fmt(d.indoor_temp, 1, "°C")} (mål ${d.indoor_target.toFixed(0)}°C)</div>
+    </div>
+    <div class="card">
+      <h2>🔋 Varmvattenberedaren som värmebatteri</h2>
+      <div class="note">Laddas till ${d.heat_battery ? d.heat_battery.ceiling.toFixed(0) : "–"}°C när elen är billig eller solen räcker - töms (kompressorn vilar) när elen är dyr.</div>
+      <div style="margin-top:18px">${heatBatteryHtml(d.heat_battery, false)}</div>
+    </div>`;
+}
+
 async function renderSystem() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="placeholder">Laddar…</div>`;
@@ -104,6 +136,8 @@ function openPage(id) {
   renderSidebar();
   if (id === "oversikt") {
     renderOversikt();
+  } else if (id === "varmepump") {
+    renderVarmepump();
   } else if (id === "system") {
     renderSystem();
   } else {
