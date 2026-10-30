@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vanliga frågor - EnergyWizard Open</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Kunskapsbank</a><span class="langswitch"><a class="on" href="#">SV</a><a href="../en/kunskapsbank/faq.html">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Vanliga frågor</h1>
+  <div class="meta">FAQ</div>
+
+  <h3>Hur tar ni hänsyn till solinstrålning?</h3>
+  <p>Molntäcket från väderprognosen (<code>cloud_cover_pct</code>) minskar den modellerade
+  produktionen med upp till 85% jämfört med en klar himmel - ju mer moln, desto mer dras
+  prognosen ner. Det är samma princip som att en solig dag ger full effekt och en mulen dag
+  ger en bråkdel, bara uttryckt som en formel istället för en gissning.</p>
+
+  <h3>Hur bygger ni solcellsöverskottsprognosen?</h3>
+  <p>Grundmodellen är en klarvädersmodell: en sinuskurva mellan solens upp- och nedgång för
+  aktuell månad, skalad med en månadsvis verkningsgrad och anläggningens toppeffekt - samma
+  princip som att juni ger mer sol än december. Men så fort huset har samlat på sig egen
+  historik tar en <strong>digital tvilling</strong> över: en inlärd profil av vad taket
+  faktiskt brukar producera per månad och timme, byggd på husets egna loggar istället för en
+  generisk formel. Ju längre systemet kört, desto mer exakt blir prognosen för just ditt tak.</p>
+
+  <h3>Kan man själv välja prioritet, eller är allt låst?</h3>
+  <p>Själva <em>ordningen</em> mellan de olika styrreglerna är fast - den är byggd för att
+  säkerhet och ekonomi alltid ska gå i en bestämd, förutsägbar ordning, inte något varje
+  användare ska behöva resonera sig fram till. Det du styr är <em>parametrarna</em> inom den
+  ordningen:</p>
+  <ul>
+    <li>Komforttemperatur vid billig respektive dyr el (två separata börvärden)</li>
+    <li>Lägstanivå och klockslag för varje elbil (t.ex. minst 50% till 07:00)</li>
+    <li>Manuell paus eller tvingad laddning, om du vill ta över tillfälligt</li>
+  </ul>
+  <p>Det gör att du kan skruva på komfort kontra besparing utan att behöva förstå eller
+  riskera att rubba hela beslutslogiken.</p>
+
+  <h3>Behöver jag ha solceller eller elbil för att systemet ska vara till nytta?</h3>
+  <p>Nej. En värmepump räcker för att komma igång - värmestyrningen (det termiska batteriet)
+  fungerar oavsett. Solceller, elbil och batteri lägger till fler saker systemet kan optimera
+  mot, men är inte ett krav.</p>
+
+  <h3>Hur säkerställer ni att huset inte blir kallt när systemet sparar pengar?</h3>
+  <p>Prisoptimering får aldrig gå ut över grundkomforten - lägstanivåer (för både
+  inomhustemperatur och elbilars laddning) är en hård gräns i styrlogiken, inte ett mål
+  systemet försöker balansera mot. Systemet optimerar <em>inom</em> den gränsen, aldrig
+  genom att sänka den.</p>
+</article>
+</div>
+</body>
+</html>
