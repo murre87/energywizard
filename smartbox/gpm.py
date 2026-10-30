@@ -184,6 +184,11 @@ class GlobalPriorityManager:
             self.high_load_start_time = None
             self.high_load_notified = False
 
+        # --- EnergyWizard Open: generisk bil-lista, defaultar till dagens två bilar ---
+        # (samma "in state"-koll som i speglingen längre ner - en tom lista i state ska
+        # respekteras, inte tolkas som falsy och falla igenom till default)
+        car_ids = state['car_ids'] if 'car_ids' in state else ['nissan', 'tesla']
+
         # --- Läs in och sanera EV-status ---
         nissan_soc = state.get('nissan_soc')
         tesla_soc = state.get('tesla_soc')
@@ -536,7 +541,7 @@ class GlobalPriorityManager:
             actions["log"].append("🚗 Prio 3 (EV Plan): Schemalagd laddning ignoreras till förmån för Prio 3.5 (Sol-laddning aktiv).")
 
         # --- Prio 3.8: PREDIKTIV ELBILSLADDNING (AI Vanor) ---
-        for car_id in ['nissan', 'tesla']:
+        for car_id in car_ids:
             soc = state.get(f'{car_id}_soc')
             connected = state.get(f'{car_id}_connected', False)
             profile = state.get(f'{car_id}_habit_profile', {})
@@ -858,7 +863,7 @@ class GlobalPriorityManager:
             actions["log"].append(f"🥶 Prio 9 (FAILSAFE): Kritiskt låg köldbärartemperatur ({brine_out}°C). Risk för isbildning i borrhålet!")
 
         # --- EV 30-MINUTES BATTERY PROTECTION ---
-        for car_id in ['nissan', 'tesla']:
+        for car_id in car_ids:
             limit_key = f"{car_id}_limit_a"
             current_car_limit = actions.get(limit_key, 0)
             
@@ -882,30 +887,20 @@ class GlobalPriorityManager:
                             self.ev_charging_since[car_id] = None # 30 minuter uppnått
 
         # --- Prio 11.5: MANUELL TVÅNGSLADDNING ELBIL ---
-        n_force_amps = state.get('nissan_force_amps', 0)
-        if n_force_amps > 0:
-            actions["nissan_limit_a"] = n_force_amps
-            actions["log"].append(f"⚡ Prio 11.5 (MANUELL EV): Nissan tvingas till {n_force_amps}A. Ignorerar effektvakt och scheman.")
-            n_force_phase = state.get('nissan_force_phases', 0)
-            if n_force_phase in [1, 3]:
-                _cur = str(state.get('nissan_phases', ''))
-                _cur_ph = 3 if any(x in _cur for x in ['Three', '3']) else 1
-                if _cur_ph != n_force_phase:  # begär fasbyte BARA om det faktiskt skiljer (annars loop → laddaren fastnar på 0A)
-                    actions["nissan_set_phases"] = n_force_phase
-                
-        t_force_amps = state.get('tesla_force_amps', 0)
-        if t_force_amps > 0:
-            actions["tesla_limit_a"] = t_force_amps
-            actions["log"].append(f"⚡ Prio 11.5 (MANUELL EV): Tesla tvingas till {t_force_amps}A. Ignorerar effektvakt och scheman.")
-            t_force_phase = state.get('tesla_force_phases', 0)
-            if t_force_phase in [1, 3]:
-                _cur = str(state.get('tesla_phases', ''))
-                _cur_ph = 3 if any(x in _cur for x in ['Three', '3']) else 1
-                if _cur_ph != t_force_phase:  # begär fasbyte BARA om det faktiskt skiljer (annars loop → laddaren fastnar på 0A)
-                    actions["tesla_set_phases"] = t_force_phase
+        for car_id in car_ids:
+            force_amps = state.get(f'{car_id}_force_amps', 0)
+            if force_amps > 0:
+                actions[f"{car_id}_limit_a"] = force_amps
+                actions["log"].append(f"⚡ Prio 11.5 (MANUELL EV): {car_id.capitalize()} tvingas till {force_amps}A. Ignorerar effektvakt och scheman.")
+                force_phase = state.get(f'{car_id}_force_phases', 0)
+                if force_phase in [1, 3]:
+                    _cur = str(state.get(f'{car_id}_phases', ''))
+                    _cur_ph = 3 if any(x in _cur for x in ['Three', '3']) else 1
+                    if _cur_ph != force_phase:  # begär fasbyte BARA om det faktiskt skiljer (annars loop → laddaren fastnar på 0A)
+                        actions[f"{car_id}_set_phases"] = force_phase
 
         # --- Prio 11.6: MANUELL PAUS (EnergyWizard Mobil) --- stoppad av användaren: 0A tills Auto väljs. Manuell tvångsladdning (11.5) går före.
-        for _car in ("nissan", "tesla"):
+        for _car in car_ids:
             if state.get(f"{_car}_hold") and not (state.get(f"{_car}_force_amps", 0) or 0) > 0:
                 actions[f"{_car}_limit_a"] = 0
                 actions["log"].append(f"⏸️ Prio 11.6 (MANUELL PAUS): {_car.capitalize()} är stoppad av användaren. Håller 0A tills Auto väljs.")
@@ -1024,14 +1019,13 @@ class GlobalPriorityManager:
                 actions["log"].append(f"💧 Fukt: Luftfuktigheten är {indoor_hum:.0f}% (fuktig luft känns kallare). Höjer måltemperaturen +{hum_boost}°C.")
 
         # --- GENERISK SPEGLING (EnergyWizard Open, Fas 2) ---
-        # actions['nissan_limit_a']/['tesla_limit_a'] ovan är fortfarande sanningskällan - oförändrad
-        # algoritm, noll risk för den levande laddstyrningen. Detta speglar bara samma värden till en
-        # generisk, N-bils form (actions['ev'][car_id]) som Fas 3 kan börja konsumera istället för att
-        # känna till literal-namnen 'nissan'/'tesla'. car_ids kommer från config (Fas 3) men defaultar
-        # till dagens två bilar så inget i main.py behöver ändras för att detta ska fungera redan nu.
-        # OBS: "or" hade varit fel här - en tom lista är falsy i Python och hade gett
-        # tillbaka default-bilarna istället för att respektera ett medvetet tomt car_ids.
-        car_ids = state['car_ids'] if 'car_ids' in state else ['nissan', 'tesla']
+        # actions['nissan_limit_a']/['tesla_limit_a'] (Prio 3/3.5, satta ovan) är fortfarande
+        # sanningskällan för SJÄLVA allokeringsmatematiken - den är inte generaliserad till N
+        # bilar än (kräver att decisions.py:s nissan_kw/tesla_kw-kolumner också görs generiska,
+        # ett eget steg). Det som ÄR generaliserat här är alla delar som redan var oberoende
+        # per bil (Prio 3.8, 11.5, 11.6, batteriskyddet ovan) - de loopar nu över car_ids
+        # istället för en hårdkodad lista. Detta speglar bara slutresultatet till en generisk
+        # form (actions['ev'][car_id]) som Fas 3 kan börja konsumera.
         actions['ev'] = {
             cid: {
                 'limit_a': actions.get(f'{cid}_limit_a', 0),
