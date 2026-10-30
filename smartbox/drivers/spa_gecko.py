@@ -2,10 +2,10 @@
 tillstånd över climate.*/water_heater.*-domänerna och CT-klämmans teckenvändning hanteras
 redan av read_gecko()/read_spa_power() - rörs inte, bara nås via gränssnittet här.
 
-read_state()['heating'] härleds INTE härifrån (ingen etablerad mappning från
-heater_state finns verifierad någon annanstans i koden) - läs read_activities()
-istället, som är samma 'heating'-signal (binary_sensor.spa_malmgatan_34_heating)
-som redan användes direkt i main.py innan den här drivrutinen fanns."""
+read_state() returnerar homeassistant.read_gecko()s fält rakt av (current_temp,
+target_temp, heater_state, economy_mode) - main.py:s egna villkor (t.ex.
+str(heater_state).lower() in ["heating","heat"]) flyttas INTE hit, de bor kvar i
+main.py tills ett andra spamärke finns att verifiera en gemensam normalisering mot."""
 import homeassistant
 from drivers.spa import SpaDriver
 
@@ -16,7 +16,8 @@ class GeckoSpaDriver(SpaDriver):
         return {
             "current_temp": d.get("current_temp"),
             "target_temp": d.get("target_temp"),
-            "heating": None,
+            "heater_state": d.get("heater_state"),
+            "economy_mode": d.get("economy_mode"),
         }
 
     def set_target_temp(self, temp_c: float) -> None:

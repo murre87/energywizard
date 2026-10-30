@@ -13,7 +13,12 @@ from abc import ABC, abstractmethod
 class SpaDriver(ABC):
     @abstractmethod
     def read_state(self) -> dict:
-        """{'current_temp': float|None, 'target_temp': float|None, 'heating': bool|None}."""
+        """{'current_temp': float|None, 'target_temp': float|None, 'heater_state': str|None,
+        'economy_mode': float|None}. Rådata, inte normaliserat till en gemensam
+        'heating'/'economy'-bool ännu - samma medvetna beslut som
+        HeatPumpDriver.set_operating_mode (se heatpump.py): en riktig normalisering
+        kräver ett andra spamärke att verifiera mappningen mot, annars gissas en
+        bugg in istället för att tas bort."""
         raise NotImplementedError
 
     @abstractmethod
@@ -48,7 +53,7 @@ class NullSpaDriver(SpaDriver):
     """Inget spa konfigurerat - spa-logiken (Prio 4, 5.5, 11, 11.2, 12 i gpm.py)
     blir overksam utan att krascha, precis som idag när sensordata saknas."""
     def read_state(self) -> dict:
-        return {"current_temp": None, "target_temp": None, "heating": None}
+        return {"current_temp": None, "target_temp": None, "heater_state": None, "economy_mode": None}
 
     def set_target_temp(self, temp_c: float) -> None:
         pass
