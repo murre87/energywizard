@@ -14,7 +14,9 @@ from abc import ABC, abstractmethod
 class SolarDriver(ABC):
     @abstractmethod
     def read_production(self) -> dict:
-        """{'pv_power_w': float|None, 'today_kwh': float|None}."""
+        """{'pv_power_w': float|None, 'today_kwh': float|None, 'status': str|None}.
+        status är växelriktarens råa statuskod/-ord (för fellarm) - betydelsen är
+        märkesspecifik, ingen fast uppsättning värden kan antas."""
         raise NotImplementedError
 
     @abstractmethod
@@ -22,8 +24,10 @@ class SolarDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def set_export_limit_pct(self, pct: int) -> None:
-        """No-op om supports_curtailment() är False."""
+    def set_export_limit_pct(self, pct: int) -> bool:
+        """No-op (False) om supports_curtailment() är False. Returnerar True om
+        kommandot skickades, annars False - main.py:s anropsmönster använder
+        returvärdet för att avgöra om senast-skickat-värdet ska uppdateras."""
         raise NotImplementedError
 
     @abstractmethod
@@ -36,13 +40,13 @@ class SolarDriver(ABC):
 class NullSolarDriver(SolarDriver):
     """Ingen solcellsanläggning konfigurerad."""
     def read_production(self) -> dict:
-        return {"pv_power_w": None, "today_kwh": None}
+        return {"pv_power_w": None, "today_kwh": None, "status": None}
 
     def supports_curtailment(self) -> bool:
         return False
 
-    def set_export_limit_pct(self, pct: int) -> None:
-        pass
+    def set_export_limit_pct(self, pct: int) -> bool:
+        return False
 
     def get_export_limit_pct(self) -> float | None:
         return None
