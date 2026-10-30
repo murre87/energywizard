@@ -4,8 +4,9 @@ det är den konkreta bevisningen att "funkar utan något" håller, inte bara en 
 from pathlib import Path
 
 from house_config import (
-    build_car_drivers, build_charger_drivers, build_heat_pump_driver,
-    build_solar_driver, build_spa_driver, load_house_config,
+    build_car_drivers, build_charger_drivers, build_default_car_per_charger,
+    build_heat_pump_driver, build_physical_charger_drivers, build_solar_driver,
+    build_spa_driver, load_house_config,
 )
 from drivers.car import NullCarDriver
 from drivers.car_generic import NissanCarDriver, TeslaCarDriver
@@ -69,6 +70,15 @@ def test_emils_hus_bygger_riktiga_drivrutiner():
     assert isinstance(build_heat_pump_driver(cfg), ThermiaHusdataHeatPumpDriver)
     assert isinstance(build_solar_driver(cfg), SolarEdgeSolarDriver)
     assert isinstance(build_spa_driver(cfg), GeckoSpaDriver)
+
+    # Steg 4 (4/4): laddarpoolen nycklad på fysisk identitet, inte bil - samma två
+    # drivrutiner som chargers ovan, bara med laddarens eget id som nyckel.
+    physical = build_physical_charger_drivers(cfg)
+    assert len(physical) == 2
+    assert all(isinstance(c, EaseeChargerDriver) for c in physical.values())
+    default_car = build_default_car_per_charger(cfg)
+    assert set(default_car.values()) == {"nissan", "tesla"}
+    assert set(default_car.keys()) == set(physical.keys())
 
 
 def test_null_bil_och_laddare_kraschar_inte_vid_anrop():
