@@ -8,6 +8,7 @@ Fas A: bara inloggning (delad med ewapp via smartbox/webauth.py), sidomeny-skal 
 alla 13 planerade sidor, och en testgraf som bevisar att ECharts-pipen fungerar.
 Ingen sida har riktigt innehåll än - det är Fas B och framåt.
 """
+import math
 import os
 import sys
 import time
@@ -16,7 +17,7 @@ sys.path.insert(0, "/smartbox")
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 import webauth
 
@@ -85,13 +86,62 @@ async def ping():
     return {"ok": True, "ts": int(time.time())}
 
 
-@app.get("/api/testgraf")
-async def testgraf():
-    """Dummy-data i ECharts-format, bara för att bevisa att diagram-pipen (CDN-skript ->
-    JSON-data -> renderad graf) fungerar innan riktiga sidor byggs i Fas B."""
-    import random
-    hours = [f"{h:02d}:00" for h in range(24)]
-    return {"hours": hours, "values": [round(random.uniform(0.5, 3.0), 2) for _ in hours]}
+def _n(v, default=None):
+    """None/NaN-säker talkonvertering - sensor_log har gott om NULL/NaN."""
+    try:
+        f = float(v)
+        return default if math.isnan(f) else f
+    except (TypeError, ValueError):
+        return default
+
+
+def _is_high_load_time(dt):
+    """Samma regel som smartbox/settings.py:is_high_load_time - inlinad här hellre än att
+    dra in hela settings.py:s tunga importkedja (pandas/psycopg_pool/...) för en rad logik."""
+    return dt.month in (11, 12, 1, 2, 3) and dt.weekday() <= 4 and 7 <= dt.hour < 20
+
+
+def _temp_target(conn, mode: str) -> float:
+    row = conn.execute(text("SELECT temp_cheap, temp_expensive FROM system_settings WHERE id = 1")).fetchone()
+    cheap, expensive = (row[0], row[1]) if row else (None, None)
+    return float(cheap if cheap is not None else 22.0) if mode == "CHEAP" else float(expensive if expensive is not None else 20.0)
+
+
+@app.get("/api/overview")
+async def overview(request: Request):
+    """Fas B, sida 1 (Översikt): beslutsbanner + de åtta nyckeltalen, portade från
+    smartdashboard/app.py:s page_overview() (samma SQL, samma fält - bara flyttat
+    bakom ett JSON-API istället för Streamlit-rendering)."""
+    with ENGINE.connect() as c:
+        row = c.execute(text(
+            "SELECT *, timestamp AT TIME ZONE 'Europe/Stockholm' AS sthlm_time FROM sensor_log ORDER BY timestamp DESC LIMIT 1"
+        )).mappings().first()
+        price_hist = c.execute(text(
+            "SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= now() - interval '24 hours' ORDER BY time_start"
+        )).fetchall()
+        if row is None:
+            return {"ok": False, "error": "Ingen data i sensor_log än"}
+        mode = str(row.get("active_mode") or "").upper()
+        target_room = _temp_target(c, mode)
+    is_high_load = _is_high_load_time(row["sthlm_time"])
+
+    return {
+        "ok": True,
+        "mode": mode,
+        "decision": row.get("active_decision") or "Utvärderar…",
+        "price": _n(row.get("price")),
+        "indoor_temp": _n(row.get("indoor_temp")),
+        "indoor_target": target_room,
+        "indoor_humidity": _n(row.get("indoor_humidity")),
+        "outdoor_temp": _n(row.get("outdoor_temp")),
+        "net_power_w": _n(row.get("net_power")),
+        "pv_power_w": _n(row.get("pv_power_w")),
+        "water_temp": _n(row.get("water_temp")),
+        "ev_power_kw": _n(row.get("ev_power_kw")),
+        "is_high_load": is_high_load,
+        "sthlm_time": str(row["sthlm_time"]),
+        "price_24h": [{"t": r[0].isoformat(), "p": float(r[1])} for r in price_hist],
+    }
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
