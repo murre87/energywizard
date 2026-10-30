@@ -15,17 +15,17 @@ class ThermiaHusdataHeatPumpDriver(HeatPumpDriver):
     def read_sensors(self) -> dict:
         return pump.read_sensors() or {}
 
-    def set_room_temp(self, target_c: float) -> None:
-        pump.set_room_temp(target_c)
+    def set_room_temp(self, target_c: float) -> bool:
+        return bool(pump.set_room_temp(target_c))
 
-    def set_water_stop_temp(self, target_c: float) -> None:
-        pump.set_water_stop_temp(target_c)
+    def set_water_stop_temp(self, target_c: float) -> bool:
+        return bool(pump.set_water_stop_temp(target_c))
 
-    def set_water_start_temp(self, target_c: float) -> None:
-        pump.set_water_start_temp(target_c)
+    def set_water_start_temp(self, target_c: float) -> bool:
+        return bool(pump.set_water_start_temp(target_c))
 
-    def set_heating_start_temp(self, target_c: float) -> None:
-        pump.set_heating_start_temp(target_c)
+    def set_heating_start_temp(self, target_c: float) -> bool:
+        return bool(pump.set_heating_start_temp(target_c))
 
-    def set_operating_mode(self, mode) -> None:
-        pump.set_operating_mode(mode)
+    def set_operating_mode(self, mode) -> bool:
+        return bool(pump.set_operating_mode(mode))

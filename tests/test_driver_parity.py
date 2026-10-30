@@ -41,11 +41,15 @@ def test_heatpump_read_sensors_none_blir_tomt_dict():
     ("set_operating_mode", (1,), "set_operating_mode"),
 ])
 def test_heatpump_skrivmetoder_vidarekopplar_ratt_pump_funktion(method, args, pump_func):
-    """Samma funktioner, samma argument, som main.py:1539/1762/1764/1150/1109 anropar
-    direkt - annars är bytet i main.py en riktig beteendeändring, inte en vidarekoppling."""
+    """Samma funktioner, samma argument, som main.py:1131/1155/1172/1181/1561/1568/1784/
+    1786 anropar - annars är bytet i main.py en riktig beteendeändring, inte en
+    vidarekoppling. Returnerar också bool (pump.py:s _write_holding gör det, och
+    main.py:s anropsmönster if driver.set_X(...): läser returvärdet)."""
     with patch("drivers.heatpump_thermia.pump") as mock_pump:
-        getattr(ThermiaHusdataHeatPumpDriver(), method)(*args)
+        getattr(mock_pump, pump_func).return_value = True
+        result = getattr(ThermiaHusdataHeatPumpDriver(), method)(*args)
         getattr(mock_pump, pump_func).assert_called_once_with(*args)
+        assert result is True
 
 
 # ---------- Sol (SolarEdgeSolarDriver -> homeassistant.py) ----------

@@ -99,12 +99,12 @@ print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar), värmepump={type(heat
 # 🚀 UPPSTARTSKONTROLL
 # ============================================================
 print("🤖 Kontrollerar initialt tillstånd för värmepumpen...")
-initial_pump_data = pump.read_sensors()
+initial_pump_data = heat_pump_driver.read_sensors()
 if initial_pump_data:
     if initial_pump_data.get("operating_mode") == 0:
         print("🚨 UPPSTARTSKONTROLL: Pumpen är i läge 0 (Av). Tvingar omedelbart till 1 (Auto)!")
         notifier.send_emil("🚨 Värmepump i läge 0!", "EnergyWizard upptäckte att pumpen var avstängd vid uppstart. Tvingar igång den till Auto.")
-        pump.set_operating_mode(1)
+        heat_pump_driver.set_operating_mode(1)
         logger.set_override("pump_operating_mode", "auto")
     else:
         print(f"✅ UPPSTARTSKONTROLL: Pumpen är i läge {initial_pump_data.get('operating_mode')} (OK).")
@@ -662,7 +662,7 @@ while True:
             # Asynkron inhämtning av pump och pris
             async def fetch_heavy_data():
                 return await asyncio.gather(
-                    asyncio.to_thread(pump.read_sensors),
+                    asyncio.to_thread(heat_pump_driver.read_sensors),
                     asyncio.to_thread(nordpool.get_price_info, cfg["cheap_hours_count"])
                 )
             pump_data, price_tuple = asyncio.run(fetch_heavy_data())
@@ -1128,7 +1128,7 @@ while True:
                         _rn = notifier.PUMP_MODE_MAP.get(_recover_mode, str(_recover_mode))
                         notifier.send_emil("🚨 Värmepump i läge 0!", f"EnergyWizard upptäckte att pumpen var avstängd. Tvingar igång ({_rn}).")
                         last_pump_zero_notify_time = now
-                    if pump.set_operating_mode(_recover_mode):
+                    if heat_pump_driver.set_operating_mode(_recover_mode):
                         pump_operating_mode_from_pump = _recover_mode
                         last_sent_operating_mode = _recover_mode
                         logger.set_override("pump_operating_mode", "auto")
@@ -1152,7 +1152,7 @@ while True:
                 # A: Sommar → Endast varmvatten (läge 4). Ej sommar → Auto (läge 1).
                 _target_mode = 4 if is_summer_now else 1
                 if pump_operating_mode_from_pump != _target_mode:
-                    if pump.set_operating_mode(_target_mode):
+                    if heat_pump_driver.set_operating_mode(_target_mode):
                         _mn = notifier.PUMP_MODE_MAP.get(_target_mode, str(_target_mode))
                         ai_thoughts.append(f"🌞 Sommarläge: växlar pump till '{_mn}' (5-dygnsmedel ute {_cached_outdoor_avg_5d:.1f}°C, tröskel {_summer_thr:.1f}°C).")
                         pump_operating_mode_from_pump = _target_mode
@@ -1169,7 +1169,7 @@ while True:
                         # Spara vinterns värde första gången vi sänker, sänk sedan tröskeln.
                         if all_overrides.get("winter_heat_stop", "auto") in ("auto", ""):
                             logger.set_override("winter_heat_stop", f"{_heat_stop_reg:.1f}")
-                        if pump.set_heating_start_temp(_summer_stop):
+                        if heat_pump_driver.set_heating_start_temp(_summer_stop):
                             ai_thoughts.append(f"🌞 Sommarläge (Auto): sänker värmestopp {_heat_stop_reg:.1f}→{_summer_stop:.1f}°C.")
                 else:
                     # Höst: återställ vinterns sparade värde om vi tidigare sänkt det.
@@ -1178,7 +1178,7 @@ while True:
                         try:
                             _wv = float(_saved)
                             if _heat_stop_reg is not None and abs(_heat_stop_reg - _wv) > 0.05:
-                                if pump.set_heating_start_temp(_wv):
+                                if heat_pump_driver.set_heating_start_temp(_wv):
                                     ai_thoughts.append(f"❄️ Höst: återställer värmestopp till {_wv:.1f}°C.")
                         except ValueError:
                             pass
@@ -1558,14 +1558,14 @@ while True:
                 
                 if needs_update:
                     print(f"🔧 Sätter pumpens måltemp till {current_chosen_temp/10.0}°C...")
-                    if pump.set_room_temp(current_chosen_temp): last_sent_temp = current_chosen_temp
+                    if heat_pump_driver.set_room_temp(current_chosen_temp): last_sent_temp = current_chosen_temp
             else:
                 ov_pump_mode = all_overrides.get("pump_operating_mode", "auto")
                 try:
                     manual_mode = int(ov_pump_mode)
                     if manual_mode != last_sent_operating_mode:
                         print(f"🔧 Överstyrning: Sätter pump manuellt till {manual_mode}")
-                        if pump.set_operating_mode(manual_mode):
+                        if heat_pump_driver.set_operating_mode(manual_mode):
                             last_sent_operating_mode = manual_mode
                             pump_operating_mode_from_pump = manual_mode 
                 except (ValueError, TypeError):
@@ -1781,9 +1781,9 @@ while True:
                 if ov_smart_mode != "manual":
                     water_target = gpm_actions["water_target_temp"]
                     if last_sent_water_target != water_target:
-                        pump.set_water_stop_temp(water_target)
+                        heat_pump_driver.set_water_stop_temp(water_target)
                         time.sleep(2)
-                        pump.set_water_start_temp(water_target - 5)
+                        heat_pump_driver.set_water_start_temp(water_target - 5)
                         last_sent_water_target = water_target
                         
                     ov_water = all_overrides.get("hotwater", "auto")
