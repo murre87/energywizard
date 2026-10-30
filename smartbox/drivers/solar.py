@@ -1,0 +1,39 @@
+"""SolarDriver: gränssnitt för en solcellsanläggning, oavsett växelriktarmärke.
+
+Exportstyrning (set_export_limit_pct) är inte ett universellt standardiserat API:
+SolarEdges fungerande väg är märkesspecifik (egen SolarEdgeSolarDriver, Fas 1), medan
+andra märken bäst nås antingen via en redan existerande HA-entitet (number/switch som
+märkets egen integration redan exponerar - föredras när den finns) eller en generisk
+SunSpec Modbus-klient (Model 123, den öppna standarden - fallback när ingen bra
+HA-entitet finns). supports_curtailment() låter anroparen (Prio 2 i gpm.py) fråga
+innan den försöker, istället för att anta att alla växelriktare kan strypas.
+"""
+from abc import ABC, abstractmethod
+
+
+class SolarDriver(ABC):
+    @abstractmethod
+    def read_production(self) -> dict:
+        """{'pv_power_w': float|None, 'today_kwh': float|None}."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def supports_curtailment(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_export_limit_pct(self, pct: int) -> None:
+        """No-op om supports_curtailment() är False."""
+        raise NotImplementedError
+
+
+class NullSolarDriver(SolarDriver):
+    """Ingen solcellsanläggning konfigurerad."""
+    def read_production(self) -> dict:
+        return {"pv_power_w": None, "today_kwh": None}
+
+    def supports_curtailment(self) -> bool:
+        return False
+
+    def set_export_limit_pct(self, pct: int) -> None:
+        pass

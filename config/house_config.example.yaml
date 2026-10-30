@@ -1,0 +1,67 @@
+# house_config.yaml - en per installation. Kopiera denna fil, döp om till house_config.yaml
+# (eller peka ut en egen sökväg), och fyll i det du faktiskt har. Allt nedan är valfritt -
+# en helt tom fil (bara house_id) är ett giltigt, testat tillstånd: alla delsystem blir Null-
+# drivrutiner och systemet kör vidare utan dem.
+#
+# Varje enskild entitet under en drivrutin är ÄVEN DEN valfri - har du t.ex. ett spa men
+# saknar effekt-/säkerhetssensorerna, utelämna bara de nycklarna. Resten av systemet
+# behandlar saknade värden som None, inte som fel.
+
+house_id: "mitt-hus"   # fri text, används bara i loggar/UI
+
+# --- Elbilar (0 eller flera) ---
+evs: []
+# evs:
+#   - id: min_bil                    # fri sträng, används som nyckel i scheman/loggar
+#     driver: generic_ev             # generic_ev funkar för praktiskt taget alla märken
+#     battery_kwh: 60
+#     entities:
+#       soc: sensor.min_bil_batteri        # valfri - saknas den, mata in SOC manuellt i appen istället
+#       plugged_in: binary_sensor.min_bil_kabel
+#       climate: climate.min_bil            # valfri
+#     charger:
+#       id: min_laddare
+#       driver: generic_charger      # eller t.ex. easee om du har en Easee-box
+#       phases: 1                    # 1, 3, eller "auto" om laddaren kan fasväxla
+#       entities:
+#         status: sensor.min_laddare_status
+#         current_a: sensor.min_laddare_strom
+
+# --- Värmepump (valfri) ---
+heat_pump:
+  enabled: false
+# heat_pump:
+#   enabled: true
+#   driver: thermia_husdata          # eller t.ex. nibe_modbus (kräver egen research/drivrutin)
+#   connection:
+#     modbus_host: 192.168.1.50
+#     modbus_port: 502
+#     unit_id: 1
+
+# --- Solceller (valfri) ---
+solar:
+  enabled: false
+# solar:
+#   enabled: true
+#   driver: solaredge                # eller sunspec_generic / ha_entity_passthrough
+#   entities:
+#     pv_power_w: sensor.min_vaxelriktare_effekt
+#     today_kwh: sensor.min_vaxelriktare_idag
+#   curtailment:
+#     mode: ha_entity                # "ha_entity" om din integration redan har en number/switch
+#     entity: number.min_vaxelriktare_exportgrans
+
+# --- Spa (valfri) ---
+spa:
+  enabled: false
+# spa:
+#   enabled: true
+#   driver: generic_spa              # eller t.ex. gecko / balboa
+#   entities:
+#     current_temp: sensor.mitt_spa_temperatur    # valfri
+#     target_temp: sensor.mitt_spa_maltemp         # valfri
+#     power_w: sensor.mitt_spa_effekt              # valfri - utelämna om du saknar en effektsensor
+
+# --- Huvudsäkring ---
+fuse:
+  main_fuse_a: 25

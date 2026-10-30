@@ -1,0 +1,90 @@
+# Emils hus (Malmgatan 34) - referenskonfigurationen. Transkriberad från de hårdkodade
+# konstanterna/entitets-dictarna i smartbox/homeassistant.py, smartbox/decisions.py och
+# smartbox/pump.py som de såg ut 2026-10-30, INNAN Fas 1-6 kopplar in drivrutinslagret
+# på riktigt. Den här filen konsumeras ännu av ingenting (ren transkribering, Fas 0).
+
+house_id: "malmgatan-34"
+
+evs:
+  - id: nissan
+    driver: tesla_or_nissan_specific   # blir generic_ev + NissanCarDriver i Fas 1
+    battery_kwh: 40
+    entities:
+      soc: sensor.leaf_battery_level
+      plugged_in: binary_sensor.leaf_plugged_in
+      climate: climate.leaf_climate
+    charger:
+      id: easee_lite
+      driver: easee
+      phases: 1                        # Nissan Leaf 2018: endast 1-fas
+      entities:
+        status: sensor.easee_lite_status
+        current_a: sensor.easee_lite_strom
+        power_kw: sensor.easee_lite_effekt
+        online: binary_sensor.easee_lite_online
+        phases: select.easee_lite_allowed_charging_phases
+        current_l1: sensor.easee_lite_strom_l1
+        current_l2: sensor.easee_lite_strom_l2
+        current_l3: sensor.easee_lite_strom_l3
+
+  - id: tesla
+    driver: tesla_or_nissan_specific   # blir generic_ev + TeslaCarDriver i Fas 1
+    battery_kwh: 75
+    entities:
+      soc: sensor.tesla_model_y_battery
+      plugged_in: binary_sensor.tesla_model_y_charger
+      charging: binary_sensor.tesla_model_y_charging
+    charger:
+      id: easee_carport
+      driver: easee
+      phases: auto                     # kan fasväxla 1<->3
+      entities:
+        status: sensor.carport_status
+        current_a: sensor.carport_strom
+        power_kw: sensor.carport_effekt
+        online: binary_sensor.carport_online
+        phases: select.carport_allowed_charging_phases
+        current_l1: sensor.carport_strom_l1
+        current_l2: sensor.carport_strom_l2
+        current_l3: sensor.carport_strom_l3
+
+heat_pump:
+  enabled: true
+  driver: thermia_husdata              # Thermia Diplomat Optimum G3 via Husdata H66-gateway
+  connection:
+    modbus_port: 502
+    unit_id: 1
+    # modbus_host sätts via PUMP_IP i .env, inte här (driftsspecifikt, inte topologi)
+
+solar:
+  enabled: true
+  driver: solaredge
+  entities:
+    pv_power_w: sensor.solaredge_aktuell_effekt
+    today_kwh: sensor.solaredge_el_i_dag
+  curtailment:
+    mode: solaredge_modbus_proprietary
+    entity: number.solaredge_modbus_active_power_limit
+
+spa:
+  enabled: true
+  driver: gecko
+  entities:
+    current_temp: sensor.spa_malmgatan_34_current_temperature
+    target_temp: sensor.spa_malmgatan_34_target_temperature
+    economy_mode: switch.spabad_economy_mode
+    power_w: sensor.spabad_pahsemeter_effekt   # tecknet vänds internt i drivrutinen (CT-klämmans riktning)
+    smart_plug: switch.shelly2
+
+power_meter:
+  driver: tibber_pulse
+  entities:
+    voltage_l1: sensor.tibber_pulse_malmgatan_34_spanning_fas1
+    voltage_l2: sensor.tibber_pulse_malmgatan_34_spanning_fas2
+    voltage_l3: sensor.tibber_pulse_malmgatan_34_spanning_fas3
+    current_l1: sensor.tibber_pulse_malmgatan_34_strom_fas1
+    current_l2: sensor.tibber_pulse_malmgatan_34_strom_fas2
+    current_l3: sensor.tibber_pulse_malmgatan_34_strom_fas3
+
+fuse:
+  main_fuse_a: 25   # standardvärde (MAX_FUSE_A i decisions.py); överstyrs i drift av fuse_size_a i system_settings
