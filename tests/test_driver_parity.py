@@ -51,17 +51,23 @@ def test_heatpump_skrivmetoder_vidarekopplar_ratt_pump_funktion(method, args, pu
 # ---------- Sol (SolarEdgeSolarDriver -> homeassistant.py) ----------
 
 def test_solar_read_production_vidarekopplar_homeassistant():
+    """Inkluderar 'status' - main.py:1674 läser solar_data.get('status') för att larma
+    vid växelriktarfel (statuskod 3); tappades nästan bort i Steg 4:s ihopkoppling."""
     with patch("drivers.solar_solaredge.homeassistant") as mock_ha:
-        mock_ha.read_solaredge.return_value = {"pv_power_w": 2380.0, "today_kwh": 14.2}
+        mock_ha.read_solaredge.return_value = {"pv_power_w": 2380.0, "today_kwh": 14.2, "status": 3}
         result = SolarEdgeSolarDriver().read_production()
-    assert result == {"pv_power_w": 2380.0, "today_kwh": 14.2}
+    assert result == {"pv_power_w": 2380.0, "today_kwh": 14.2, "status": 3}
 
 
 def test_solar_set_och_get_export_limit():
+    """set_export_limit_pct returnerar True/False (main.py:s anropsmönster använder
+    det för att avgöra om senast-skickat-värdet ska uppdateras - förlorades nästan
+    i Steg 4:s ihopkoppling, täppt innan main.py byttes om)."""
     with patch("drivers.solar_solaredge.homeassistant") as mock_ha:
         mock_ha.get_solaredge_limit.return_value = 77
+        mock_ha.set_solaredge_limit.return_value = True
         driver = SolarEdgeSolarDriver()
-        driver.set_export_limit_pct(50)
+        assert driver.set_export_limit_pct(50) is True
         mock_ha.set_solaredge_limit.assert_called_once_with(50)
         assert driver.get_export_limit_pct() == 77
 

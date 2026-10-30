@@ -615,7 +615,7 @@ while True:
                         weather_update_alerted = True
 
             # Solcellsgräns Watchdog
-            raw_solar_limit = homeassistant.get_solaredge_limit()
+            raw_solar_limit = solar_driver.get_export_limit_pct()
             if raw_solar_limit is None:
                 current_solar_limit_pct = 100.0
                 if solar_modbus_offline_since is None:
@@ -707,7 +707,7 @@ while True:
                 if roof_max_next is not None:
                     solar_next = max(0.0, roof_max_next * (1.0 - (cloud_cover / 100.0) * 0.85))
             
-            solar_data   = homeassistant.read_solaredge()
+            solar_data   = solar_driver.read_production()
             ha_temps     = homeassistant.read_temperatures()
             ev_lite_data = homeassistant.read_easee_lite()
             ev_carport_data = homeassistant.read_easee_carport()
@@ -1575,7 +1575,7 @@ while True:
             # Solar Limit
             new_solar_limit = gpm_actions.get("solar_limit_pct")
             if new_solar_limit is not None and new_solar_limit != last_sent_solar_limit and isinstance(new_solar_limit, (int, float)):
-                if homeassistant.set_solaredge_limit(int(new_solar_limit)):
+                if solar_driver.set_export_limit_pct(int(new_solar_limit)):
                     last_sent_solar_limit = new_solar_limit
                     
             if new_solar_limit is not None:

@@ -44,7 +44,7 @@ def test_tomt_hus_null_drivrutiner_kraschar_inte_vid_anrop():
     hp, sol, spa = build_heat_pump_driver(cfg), build_solar_driver(cfg), build_spa_driver(cfg)
     assert hp.read_sensors() == {}
     hp.set_room_temp(21.0); hp.set_water_stop_temp(55.0); hp.set_operating_mode("heat")
-    assert sol.read_production() == {"pv_power_w": None, "today_kwh": None}
+    assert sol.read_production() == {"pv_power_w": None, "today_kwh": None, "status": None}
     assert sol.supports_curtailment() is False
     sol.set_export_limit_pct(50)
     assert spa.read_state() == {"current_temp": None, "target_temp": None, "heating": None}
