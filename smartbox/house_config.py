@@ -52,6 +52,8 @@ def load_house_config(path: str) -> dict:
     cfg.setdefault("solar", {"enabled": False})
     cfg.setdefault("spa", {"enabled": False})
     cfg.setdefault("fuse", {"main_fuse_a": 25})
+    cfg.setdefault("telemetry", {"enabled": True})
+    cfg.setdefault("elomrade", None)
     return cfg
 
 

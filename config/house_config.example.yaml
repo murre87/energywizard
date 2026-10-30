@@ -65,3 +65,19 @@ spa:
 # --- Huvudsäkring ---
 fuse:
   main_fuse_a: 25
+
+# --- Elområde (valfri, bara för telemetrin nedan - påverkar ingen styrning) ---
+elomrade: null   # "SE1", "SE2", "SE3" eller "SE4"
+
+# --- Telemetri (på som standard) ---
+# En gång i veckan skickas ett litet, ANONYMT aggregat till projektets samlare:
+# ett slumpat installations-id (ingen koppling till dig om du inte separat anmält
+# dig som betatestare), elområde, vilka drivrutiner du kör (kategoriskt, t.ex.
+# "heatpump:thermia_husdata" - inga serienummer), och samma besparingsformel som
+# visas öppet på energywizzard-sidan, skalad till senaste 7 dagarna. Vid fel i
+# systemet skickas även en saniterad felrapport (feltyp + modul, aldrig rå
+# loggtext eller sensorvärden) så att buggar som drabbar andra hus går att
+# upptäcka och rätta. INGEN rådata (sensorloggar, adress, namn) skickas någonsin.
+# Fullständig fältlista: https://murre87.github.io/energywizard/integritet.html
+telemetry:
+  enabled: true   # sätt till false för att stänga av helt
