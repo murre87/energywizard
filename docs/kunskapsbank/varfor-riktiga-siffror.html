@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Varför vi visar riktiga siffror - EnergyWizard Open</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Kunskapsbank</a></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Varför vi visar riktiga siffror, inte ett påstående</h1>
+  <div class="meta">Metodik</div>
+
+  <p>Många produkter inom smart energistyrning marknadsför en generisk besparing -
+  "upp till 30%", ofta utan att förklara hur siffran räknats fram, vilket hus den
+  gäller, eller över vilken period.</p>
+
+  <p>Siffrorna på denna sida är istället hämtade direkt ur ett riktigt hus' egen
+  driftlogg, med en formel som är så enkel att den går att räkna om för hand: för
+  varje dag jämförs det <em>effektviktade snittpriset</em> systemet faktiskt betalade
+  för köpt el mot dagens <em>oviktade snittpris</em> - skillnaden, gånger antal köpta
+  kWh, är dagens besparing. Summerat över alla dagar sedan systemet startade ger
+  totalen.</p>
+
+  <p>Det betyder också att siffran kan vara liten i perioder - till exempel tidigt på
+  säsongen, innan värmestyrningen har kört länge nog för att dess effekt ska synas
+  tydligt i statistiken. Vi redovisar det hellre ärligt (och märker det som "tidig
+  säsong" när det är relevant) än att visa upp ett löfte som inte går att verifiera.</p>
+
+  <p>Exportskriptet som räknar fram siffrorna, och tabellerna de kommer från, finns i
+  <a href="https://github.com/murre87/energywizard">källkoden</a> - vem som vill kan
+  läsa exakt hur talen tagits fram.</p>
+</article>
+</div>
+</body>
+</html>

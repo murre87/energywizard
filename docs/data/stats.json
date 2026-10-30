@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-10-30T14:51:37.394427Z",
+  "since": "2026-03-25",
+  "days_covered": 214,
+  "total_kwh_bought": 5225.0,
+  "total_saved_kr": 291.0,
+  "saved_kr_per_year_avg": 496.0,
+  "heating": {
+    "generated_at": "2026-10-25T17:32:07.001994+00:00",
+    "days_used": 21,
+    "saving_kr": 3.7,
+    "saving_pct": 16.2,
+    "saving_kr_year": 64.0,
+    "models_trained": false,
+    "early_season": true
+  }
+}
