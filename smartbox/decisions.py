@@ -455,7 +455,10 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
                 hourly_energy_allocated[hour_key] = already_allocated_this_hour + kwh_to_give_final
             
             # PASS 2: PANIC MODE (Ignorera Peak Shaving för att tvinga bilen full)
-            if kwh_rem > 0 and car['panic_mode']:
+            # Golvet (delmål 0, 50% kl 06) är ALLTID panic - oavsett schemats egen panic_mode-flagga.
+            # Garantin "golvet ska alltid nås" får annars inte hållas om användaren glömt kryssa i panic.
+            stage_is_panic = (stage_idx == 0) or car['panic_mode']
+            if kwh_rem > 0 and stage_is_panic:
                 for idx in charge_slots_indices:
                     if kwh_rem <= 0: break
                     current_allocated = df_plan.at[idx, f"{car['id']}_kw"]

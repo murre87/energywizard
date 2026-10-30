@@ -82,7 +82,7 @@ PUMP_MODE_MAP = {
 
 SWE_TZ = zoneinfo.ZoneInfo("Europe/Stockholm")
 
-DB_HOST = "postgres-smartbox"
+DB_HOST = os.environ.get("POSTGRES_HOST", "postgres-smartbox")
 DB_USER = os.environ.get("POSTGRES_USER")
 DB_PASS = os.environ.get("POSTGRES_PASSWORD")
 DB_NAME = os.environ.get("POSTGRES_DB")
