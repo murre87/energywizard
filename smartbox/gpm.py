@@ -1023,4 +1023,22 @@ class GlobalPriorityManager:
                 actions["pump_target_temp"] = min(actions["pump_target_temp"] + hum_boost, _cap)
                 actions["log"].append(f"💧 Fukt: Luftfuktigheten är {indoor_hum:.0f}% (fuktig luft känns kallare). Höjer måltemperaturen +{hum_boost}°C.")
 
+        # --- GENERISK SPEGLING (EnergyWizard Open, Fas 2) ---
+        # actions['nissan_limit_a']/['tesla_limit_a'] ovan är fortfarande sanningskällan - oförändrad
+        # algoritm, noll risk för den levande laddstyrningen. Detta speglar bara samma värden till en
+        # generisk, N-bils form (actions['ev'][car_id]) som Fas 3 kan börja konsumera istället för att
+        # känna till literal-namnen 'nissan'/'tesla'. car_ids kommer från config (Fas 3) men defaultar
+        # till dagens två bilar så inget i main.py behöver ändras för att detta ska fungera redan nu.
+        # OBS: "or" hade varit fel här - en tom lista är falsy i Python och hade gett
+        # tillbaka default-bilarna istället för att respektera ett medvetet tomt car_ids.
+        car_ids = state['car_ids'] if 'car_ids' in state else ['nissan', 'tesla']
+        actions['ev'] = {
+            cid: {
+                'limit_a': actions.get(f'{cid}_limit_a', 0),
+                'set_phases': actions.get(f'{cid}_set_phases'),
+                'panic': bool(actions.get(f'{cid}_panic', False)),
+            }
+            for cid in car_ids
+        }
+
         return actions
