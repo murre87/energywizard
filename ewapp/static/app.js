@@ -64,7 +64,8 @@ function statusInfo(c) {
   if (c.status === "completed") return { t: "Fulladdad" };
   if (c.mode === "hold") return { t: "Stoppad av dig" };
   const p = planText(c);
-  return { t: c.mode === "manual" ? "Väntar på start" : (p ? "Planerad: " + p : "Ingen laddning planerad") };
+  const sw = c.soc != null && c.soc >= 98 ? null : sunWindow(S && S.price);
+  return { t: c.mode === "manual" ? "Väntar på start" : (p ? "Planerad: " + p : sw ? `☀ Solladdning väntas ca ${sw.txt}` : "Ingen laddning planerad"), plan: true };
 }
 function ring(pct, color) { const r = 84, C = 2 * Math.PI * r, v = pct == null ? 0 : pct; return `<svg viewBox="0 0 190 190"><circle cx="95" cy="95" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/><circle cx="95" cy="95" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(C * v) / 100} ${C}"/></svg>`; }
 function actions(c, big) {
@@ -77,10 +78,10 @@ const staleChip = (c) => (c.age_h != null && c.age_h > 2 ? `<button class="chip 
 const heatChip = (c) => (c.climate_on ? `<span class="chip heat">🔥 Värmen är på${c.inside != null ? " · " + f1(c.inside) + " °" : ""}</span>` : "");
 const planPill = (c) => { const sm = c.plan_all && c.plan_all.summary; if (!sm) return null;
   return `<a class="plink pill" data-a="planlist" data-c="${c.key}" role="button" tabindex="0" title="Visa alla laddblock"><span class="pi">⚡</span><b>${sm.day === "idag" ? "" : esc(sm.day) + " "}${sm.start} → ${sm.end}</b>${sm.soc0 != null ? `<em>${sm.soc0} → ${sm.soc1} %</em>` : ""}<span class="pc">›</span></a>`; };
-const planLink = (c, t) => (c.home && t.startsWith("Planerad") && planPill(c) ? planPill(c) : c.home && c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length ? `<a class="plink" data-a="planlist" data-c="${c.key}" role="button" tabindex="0">${esc(t)} ›</a>` : esc(t));
+const planLink = (c, t) => (c.home && t.startsWith("Planerad") && planPill(c) ? planPill(c) : c.home && c.plugged && (t.startsWith("☀") || t.startsWith("Ingen laddning") || (c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length)) ? `<a class="plink" data-a="planlist" data-c="${c.key}" role="button" tabindex="0">${esc(t)} ›</a>` : esc(t));
 function planSheet(key) {
   const c = S.cars.find((x) => x.key === key); if (!c) return;
-  sheet(`<h3>Laddplan – ${esc(c.name)}</h3>${planList(c)}<button class="big" data-v="ok">Stäng</button>`);
+  sheet(`<h3>Laddplan – ${esc(c.name)}</h3>${planChart(S.price, [c])}${planList(c)}<button class="big" data-v="ok">Stäng</button>`);
   $("#sheet").onclick = (e) => { if (e.target.id === "sheet" || e.target.closest("[data-v]")) closeSheet(); };
 }
 function planList(c) {
@@ -102,17 +103,38 @@ function compact(c) {
   return `<section class="card${c.climate_on ? " heating" : ""}"><div class="chead"><div class="cname">${esc(c.name)} ${ER() === "family" ? "" : `<button class="link" data-a="cardata" data-c="${c.key}">Alla data</button>`}</div><div class="csoc" data-a="refreshsoc" data-c="${c.key}" title="Tryck för att uppdatera">${c.soc ?? "–"}<small>%</small>${c.age_h != null && c.age_h > 2 ? `<small style="color:var(--warn);display:block;font-size:.62rem;font-weight:500">${ageTxt(c.age_h)} gammal</small>` : ""}</div></div><div class="bar"><i style="width:${c.soc ?? 0}%"></i></div>
   <div class="note compact-note" style="margin-bottom:8px">${esc(si.t)}${c.climate_on ? " · 🔥 värmen är på" : ""}</div><div class="crow">${c.home ? actions(c, false) : ""}${c.home ? `<button class="mini" data-a="${c.climate_on ? "heat_off" : "heat_on"}" data-c="${c.key}">${c.climate_on ? "Stoppa värme" : "Starta värme"}</button>` : ""}${c.mode !== "auto" ? `<button class="mini" data-a="auto" data-c="${c.key}">Auto</button>` : ""}${c.access ? `<button class="mini" data-a="access">Lås</button>` : ""}</div></section>`;
 }
-function priceCard(p) {
+const SUN_MIN_W = 2500;                                   // ca 2,5 kW sol = över 1,4 kW överskott efter husets last (solladdningens startgräns)
+function sunWindow(p) {                                   // första sammanhängande soltimmarna från nu: {a, b} index i p.hours, eller null
+  const hs = (p && p.hours) || [], nowI = Math.max(0, hs.findIndex((h) => h.now)); let a = -1, b = -1;
+  for (let k = nowI; k < hs.length; k++) { if ((hs[k].sun || 0) >= SUN_MIN_W) { if (a < 0) a = k; b = k; } else if (a >= 0) break; }
+  return a < 0 ? null : { a, b, txt: `${hs[a].t}–${String((+hs[b].t + 1) % 24).padStart(2, "0")}` };
+}
+// Laddplan + elpris: prisstaplar över dygnet med en rad per bil som visar när den laddar (samma tidsaxel).
+function planChart(p, cars) {
   if (!p || p.now == null) return "";
-  const hs = p.hours || [], mx = Math.max(...hs.map((h) => h.p), 0.1), srt = hs.map((h) => h.p).sort((a, b) => a - b), lowT = srt[Math.floor(srt.length / 3)] ?? 0;
-  return `<section class="card price"><div class="head"><div><span class="note">Elpris nu </span><span class="now">${f1(p.now, 2)} <small>kr/kWh</small></span></div><span class="chip ${p.level === "billigt" ? "ok" : p.level === "dyrt" ? "bad" : ""}">${esc(p.level || "")}</span></div>
-  <div class="bars">${hs.map((h) => `<span class="${h.now ? "now" : h.p <= lowT ? "low" : ""}" style="height:${Math.max(10, (h.p / mx) * 100)}%"></span>`).join("")}</div><div class="hrs">${hs.map((h) => `<span>${h.t}</span>`).join("")}</div></section>`;
+  const hs = p.hours || [], H = 3600000, t0 = hs.length ? hs[0].ts : 0, span = Math.max(hs.length, 1) * H;
+  const mx = Math.max(...hs.map((h) => h.p), 0.1), srt = hs.map((h) => h.p).sort((a, b) => a - b), lowT = srt[Math.floor(srt.length / 3)] ?? 0;
+  const segs = (c) => { const out = []; (c.plan_slots || []).forEach((q) => { const l = out[out.length - 1]; if (l && q.t - l.e <= 60000) { l.e = q.t + 900000; l.kw += q.kw; l.n++; } else out.push({ s: q.t, e: q.t + 900000, kw: q.kw, n: 1 }); }); return out; };
+  const sunH = hs.map((h) => h.sun || 0), sunMax = Math.max(...sunH, 1), hasSun = sunH.some((v) => v > 0), sw = sunWindow(p);
+  const sunTxt = sw ? `☀ sol ca ${sw.txt}` : null;
+  const lanes = cars.map((c) => { const g = segs(c).filter((x) => x.e > t0 && x.s < t0 + span), col = c.key === "tesla" ? "var(--acc)" : "var(--acc2)";
+    const bars = g.map((x) => `<i style="left:${(Math.max(x.s, t0) - t0) / span * 100}%;width:${(Math.min(x.e, t0 + span) - Math.max(x.s, t0)) / span * 100}%;background:${col}" title="${f1(x.kw / x.n)} kW"></i>`).join("");
+    const pa = c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length ? c.plan_all : null;
+    const full = c.soc != null && c.soc >= 98;
+    const sunBar = (!pa && !full && sw && hs[sw.a]) ? `<i class="predicted" style="left:${(hs[sw.a].ts - t0) / span * 100}%;width:${((hs[sw.b].ts + H - hs[sw.a].ts)) / span * 100}%;background:${col}" title="Väntad solladdning, ej bekräftad ännu"></i>` : "";
+    const txt = !c.home ? "inte hemma" : !c.plugged ? "kabeln ej i" : pa ? `${pa.blocks[0].start}–${pa.blocks[pa.blocks.length - 1].end}${pa.summary && pa.summary.soc0 != null ? ` · ${pa.summary.soc0}→${pa.summary.soc1} %` : ""}` : full ? "fulladdad" : sunTxt ? `inget prisschema · solladdning väntas automatiskt ${sunTxt}` : "ingen laddning planerad";
+    return `<div class="pc-lane"><span class="pc-name" style="color:${col}">${esc(c.name.split(" ")[0])}</span><div class="pc-track">${bars}${sunBar}</div><button class="pc-txt" data-a="cardata" data-c="${c.key}" title="Tryck för alla data">${esc(txt)}</button></div>`; }).join("");
+  const nowAt = hs.length ? (Date.now() - t0) / span * 100 : 0;
+  return `<section class="card price pchart"><div class="head"><div><span class="note">Laddplan · elpris nu </span><span class="now">${f1(p.now, 2)} <small>kr/kWh</small></span></div><span class="chip ${p.level === "billigt" ? "ok" : p.level === "dyrt" ? "bad" : ""}">${esc(p.level || "")}</span></div>
+  <div class="pc-plot">${hasSun ? `<div class="pc-bars pc-sun" aria-hidden="true">${hs.map((h, k) => `<span><i style="height:${Math.round(sunH[k] / sunMax * 100)}%"></i></span>`).join("")}</div>` : ""}<div class="pc-bars">${hs.map((h) => `<span class="${h.now ? "now" : h.p <= lowT ? "low" : ""}"><i style="height:${Math.max(10, (h.p / mx) * 100)}%"></i></span>`).join("")}</div>${nowAt >= 0 && nowAt <= 100 ? `<b class="pc-now" style="left:${nowAt}%"></b>` : ""}</div>
+  <div class="pc-lanes">${lanes}</div><div class="hrs pc-hrs">${hs.map((h, k) => `<span>${k % 4 === 0 ? h.t : ""}</span>`).join("")}</div>
+  <div class="pc-legend"><span><i style="background:var(--line)"></i>elpris</span><span><i style="background:var(--acc)"></i>billig timme</span>${hasSun ? `<span><i style="background:rgba(251,191,36,.5)"></i>sol</span>` : ""}<span>· heldragen linje = bekräftad laddning</span><span>· randig linje = väntad solladdning, ej bekräftad</span></div></section>`;
 }
 function pageBil() {
   if (!S) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
   const p = primary(), main = S.cars.find((c) => c.key === p) || S.cars[0], other = S.cars.find((c) => c !== main), simple = LS.get("ew_simple", "") === "1";
   const carseg = `<div class="seg carseg">${S.cars.map((c) => `<button data-a="swap" data-c="${c.key}" class="${c.key === main.key ? "on" : ""}">${esc(c.name.split(" ")[0])} · ${c.soc ?? "–"} %</button>`).join("")}</div>`;
-  return `<div class="page">${carseg}${hero(main)}${simple ? "" : compact(other) + priceCard(S.price)}</div>`;
+  return `<div class="page">${carseg}${hero(main)}${simple ? "" : compact(other)}${planChart(S.price, S.cars)}</div>`;
 }
 // ---- Hus -------------------------------------------------------------------------------------------------------------------------
 const MODE = { auto: "Auto", on: "Till", off: "Från" };

@@ -189,3 +189,19 @@ html[data-ambient][data-tod=night] body { background: radial-gradient(900px 520p
 .chips.crowline { flex-wrap:nowrap; gap:6px; width:100%; justify-content:stretch; }
 .chips.crowline .mini { flex:1 1 0; min-width:0; padding:0 4px; font-size:clamp(.66rem, 3.1vw, .84rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mini.warnb { border-color:var(--warn); color:var(--warn); }
+
+/* Laddplan + elpris: staplar per timme, en rad per bil på samma tidsaxel */
+.pchart .pc-plot { position:relative; margin-top:8px; } .pc-bars { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; align-items:end; height:clamp(44px, calc(8 * var(--u)), 80px); }
+.pc-bars span { display:flex; align-items:flex-end; height:100%; padding:0 1px; } .pc-bars span i { display:block; width:100%; background:var(--line); border-radius:3px 3px 1px 1px; min-height:3px; }
+.pc-bars span.low i { background:var(--acc); opacity:.55; } .pc-bars span.now i { background:var(--bad); }
+.pc-now { position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; background:var(--txt); opacity:.5; border-radius:2px; }
+.pc-lanes { display:grid; gap:6px; margin-top:8px; } .pc-lane { display:grid; grid-template-columns:44px 1fr auto; gap:8px; align-items:center; font-size:.78rem; }
+.pc-name { font-weight:700; } .pc-track { position:relative; height:12px; border-radius:99px; background:rgba(127,127,127,.16); overflow:hidden; } .pc-track i { position:absolute; top:0; bottom:0; border-radius:99px; min-width:4px; }
+.pc-track i.predicted { opacity:.3; background-image:repeating-linear-gradient(135deg, currentColor 0 4px, transparent 4px 8px); background-blend-mode:overlay; }
+.pc-txt { color:var(--mut); font-size:.72rem; background:none; border:none; padding:0; font:inherit; cursor:pointer; text-align:right; max-width:38vw; overflow-wrap:break-word; }
+.pc-hrs { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; margin-top:4px; } .pc-hrs span { font-size:.66rem; color:var(--mut); overflow:visible; white-space:nowrap; }
+.page.t3 .pc-bars, .page.t4 .pc-bars { height:48px; }
+.pc-sun { position:absolute; inset:0; height:auto; pointer-events:none; } .pc-sun span i { background:rgba(251,191,36,.26); border-radius:6px 6px 0 0; animation:none; }
+.pchart .pc-plot > .pc-bars:not(.pc-sun) { position:relative; }
+.page.t2 .pchart .pc-plot, .page.t2 .pchart .pc-hrs { display:none; } #sheet .pchart { margin:4px 0 8px; } #sheet .pchart .pc-plot, #sheet .pchart .pc-hrs { display:block; } #sheet .pchart .pc-hrs { display:grid; }
+.pc-legend { display:flex; flex-wrap:wrap; gap:10px; font-size:.68rem; color:var(--mut); margin-top:6px; } .pc-legend span { display:inline-flex; align-items:center; gap:4px; } .pc-legend i { display:inline-block; width:9px; height:9px; border-radius:2px; }
