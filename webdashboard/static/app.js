@@ -36,7 +36,7 @@ function openPage(id) {
     main.innerHTML = `<div class="grid">
       <div class="card"><h2>Testgraf (ECharts)</h2><div class="note">Bevisar att diagram-pipen fungerar - riktiga sidor byggs i Fas B.</div><div id="testchart" style="height:280px;margin-top:10px"></div></div>
     </div>`;
-    api("/api/testgraf").then(d => {
+    api("api/testgraf").then(d => {
       const chart = echarts.init(document.getElementById("testchart"), null, { renderer: "svg" });
       chart.setOption({
         grid: { left: 40, right: 16, top: 16, bottom: 28 },
@@ -53,7 +53,7 @@ function openPage(id) {
 
 async function boot() {
   try {
-    const me = await api("/api/me");
+    const me = await api("api/me");
     if (!me.role) { showLogin(); return; }
     PAGES = me.pages;
     showShell();
@@ -66,11 +66,11 @@ document.getElementById("loginform").onsubmit = async (e) => {
   const err = document.getElementById("loginerr");
   err.textContent = "";
   try {
-    await api("/api/login", { method: "POST", body: JSON.stringify({ user: document.getElementById("user").value, password: document.getElementById("pw").value }) });
+    await api("api/login", { method: "POST", body: JSON.stringify({ user: document.getElementById("user").value, password: document.getElementById("pw").value }) });
     boot();
   } catch (e) { err.textContent = e.message || "Fel användarnamn eller lösenord"; }
 };
 
-document.getElementById("logoutbtn").onclick = async () => { await api("/api/logout", { method: "POST" }); showLogin(); };
+document.getElementById("logoutbtn").onclick = async () => { await api("api/logout", { method: "POST" }); showLogin(); };
 
 boot();
