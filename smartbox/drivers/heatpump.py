@@ -18,26 +18,28 @@ class HeatPumpDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def set_room_temp(self, target_c: float) -> None:
+    def set_room_temp(self, target_c: float) -> bool:
+        """Returnerar True om kommandot skickades - main.py:s anropsmönster
+        (if driver.set_room_temp(...):) använder returvärdet."""
         raise NotImplementedError
 
     @abstractmethod
-    def set_water_stop_temp(self, target_c: float) -> None:
+    def set_water_stop_temp(self, target_c: float) -> bool:
         raise NotImplementedError
 
     @abstractmethod
-    def set_water_start_temp(self, target_c: float) -> None:
+    def set_water_start_temp(self, target_c: float) -> bool:
         raise NotImplementedError
 
     @abstractmethod
-    def set_heating_start_temp(self, target_c: float) -> None:
+    def set_heating_start_temp(self, target_c: float) -> bool:
         """Värmestopp / värmesäsong-tröskel (utetemperatur över vilken uppvärmning
         pausas i auto-läge) - inte en del av det dagliga pris-/komfortflödet, men
         används för säsongsjusteringar (sommar/höst)."""
         raise NotImplementedError
 
     @abstractmethod
-    def set_operating_mode(self, mode) -> None:
+    def set_operating_mode(self, mode) -> bool:
         """Målbilden är en normaliserad enum-sträng (t.ex. 'heat'/'off'), inte ett råttal
         specifikt för en viss tillverkares register - men riktig normalisering väntar
         till Fas 5 (ett andra värmepumpsmärke) så mappningen går att verifiera mot något.
@@ -51,17 +53,17 @@ class NullHeatPumpDriver(HeatPumpDriver):
     def read_sensors(self) -> dict:
         return {}
 
-    def set_room_temp(self, target_c: float) -> None:
-        pass
+    def set_room_temp(self, target_c: float) -> bool:
+        return False
 
-    def set_water_stop_temp(self, target_c: float) -> None:
-        pass
+    def set_water_stop_temp(self, target_c: float) -> bool:
+        return False
 
-    def set_water_start_temp(self, target_c: float) -> None:
-        pass
+    def set_water_start_temp(self, target_c: float) -> bool:
+        return False
 
-    def set_heating_start_temp(self, target_c: float) -> None:
-        pass
+    def set_heating_start_temp(self, target_c: float) -> bool:
+        return False
 
-    def set_operating_mode(self, mode) -> None:
-        pass
+    def set_operating_mode(self, mode) -> bool:
+        return False
