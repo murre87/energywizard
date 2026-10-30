@@ -1780,7 +1780,7 @@ while True:
                 avg_hl1, avg_hl2, avg_hl3, avg_tot,  # Använder Tibber faser för loggning här
                 consumed_kwh, current_kwh,
                 cloud_cover, wind_speed, avg_net, wind_dir,
-                solar_now, pump_data, solar_data, ha_temps,
+                solar_now, pump_data, dict(solar_data or {}, limit_pct=current_solar_limit_pct), ha_temps,
                 nissan_charger_data, cop=cop, ev_carport=tesla_charger_data,
                 car_data={
                     "nissan_soc": nissan_data.get("soc") if nissan_data else None,
