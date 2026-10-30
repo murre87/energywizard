@@ -26,9 +26,11 @@ class HeatPumpDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def set_operating_mode(self, mode: str) -> None:
-        """mode är en normaliserad enum-sträng (t.ex. 'heat'/'off'), inte ett råttal
-        specifikt för en viss tillverkares register."""
+    def set_operating_mode(self, mode) -> None:
+        """Målbilden är en normaliserad enum-sträng (t.ex. 'heat'/'off'), inte ett råttal
+        specifikt för en viss tillverkares register - men riktig normalisering väntar
+        till Fas 5 (ett andra värmepumpsmärke) så mappningen går att verifiera mot något.
+        ThermiaHusdataHeatPumpDriver tar idag samma råa heltalskod som innan."""
         raise NotImplementedError
 
 
@@ -44,5 +46,5 @@ class NullHeatPumpDriver(HeatPumpDriver):
     def set_water_stop_temp(self, target_c: float) -> None:
         pass
 
-    def set_operating_mode(self, mode: str) -> None:
+    def set_operating_mode(self, mode) -> None:
         pass

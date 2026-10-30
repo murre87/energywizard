@@ -1,29 +1,46 @@
 """Laddar house_config.yaml och bygger upp drivrutinsregistret (smartbox/drivers/).
 
-Fas 0: bara inläsning + Null-drivrutiner. DRIVER_REGISTRY är tomt tills Fas 1 fyller i
-riktiga drivrutiner (easee, thermia_husdata, solaredge, gecko, ...) - fram tills dess
-faller ALLA namngivna drivrutiner tillbaka till Null, även om de nämns i configen
-(se emil_house.yaml, som redan listar riktiga entiteter men ännu inte konsumeras på
-riktigt). Det håller Fas 0 rent additiv: att lägga till den här filen och de nya
-YAML-exemplen ändrar inget i den befintliga körningen.
+Fas 1: registren pekar nu på riktiga drivrutiner (easee, thermia_husdata, solaredge,
+gecko, generic_ev, nissan, tesla) - tunna omslag kring homeassistant.py/pump.py:s
+befintliga funktioner, se respektive fil i smartbox/drivers/. Ett namn som inte finns i
+registret faller fortfarande tillbaka till Null, så en ofärdig/felstavad drivrutin i
+configen är overksam snarare än ett kraschande fel.
+
+main.py/gpm.py använder ÄNNU INTE de här drivrutinerna för den faktiska styrningen -
+det är ett separat, senare steg (Fas 2-3) som görs varsamt medan systemet kör live.
+Den här filen bygger bara upp och verifierar att drivrutinerna kan instansieras korrekt
+från en riktig config (se tests/test_config_loader.py).
 """
 from __future__ import annotations
 
 import yaml
 
+import homeassistant
 from drivers.car import NullCarDriver
+from drivers.car_generic import GenericEvCarDriver, NissanCarDriver, TeslaCarDriver
 from drivers.charger import NullChargerDriver
+from drivers.charger_easee import EaseeChargerDriver
 from drivers.heatpump import HeatPumpDriver, NullHeatPumpDriver
+from drivers.heatpump_thermia import ThermiaHusdataHeatPumpDriver
 from drivers.solar import NullSolarDriver, SolarDriver
+from drivers.solar_solaredge import SolarEdgeSolarDriver
 from drivers.spa import NullSpaDriver, SpaDriver
+from drivers.spa_gecko import GeckoSpaDriver
 
-# Fylls i allteftersom Fas 1 flyttar in konkreta drivrutiner, t.ex.
-# CAR_DRIVER_REGISTRY["generic_ev"] = GenericEvCarDriver
-CAR_DRIVER_REGISTRY: dict = {}
-CHARGER_DRIVER_REGISTRY: dict = {}
-HEAT_PUMP_DRIVER_REGISTRY: dict = {}
-SOLAR_DRIVER_REGISTRY: dict = {}
-SPA_DRIVER_REGISTRY: dict = {}
+CAR_DRIVER_REGISTRY = {"generic_ev": GenericEvCarDriver, "nissan": NissanCarDriver, "tesla": TeslaCarDriver}
+CHARGER_DRIVER_REGISTRY = {"easee": EaseeChargerDriver}
+HEAT_PUMP_DRIVER_REGISTRY = {"thermia_husdata": ThermiaHusdataHeatPumpDriver}
+SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver}
+SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver}
+
+# Easees två fysiska boxar har var sin läsfunktion i homeassistant.py (ingen generisk
+# "läs valfri Easee-box"-funktion finns) - charger-configen pekar ut vilken via
+# physical: lite|carport, och det faktiska Easee-ID:t kommer från .env (driftsspecifikt,
+# samma mönster som värmepumpens modbus_host) snarare än att hårdkodas i en checkad-in YAML.
+_EASEE_PHYSICAL = {
+    "lite": (lambda: homeassistant.EASEE_LITE_ID, homeassistant.read_easee_lite),
+    "carport": (lambda: homeassistant.EASEE_CARPORT_ID, homeassistant.read_easee_carport),
+}
 
 
 def load_house_config(path: str) -> dict:
@@ -44,7 +61,7 @@ def build_car_drivers(cfg: dict) -> list:
     out = []
     for ev in cfg.get("evs", []):
         driver_cls = CAR_DRIVER_REGISTRY.get(ev.get("driver"), NullCarDriver)
-        out.append(driver_cls(id=ev.get("id", ""), battery_kwh=ev.get("battery_kwh", 0.0)))
+        out.append(driver_cls(id=ev.get("id", ""), battery_kwh=ev.get("battery_kwh", 0.0), entities=ev.get("entities", {})))
     return out
 
 
@@ -57,8 +74,13 @@ def build_charger_drivers(cfg: dict) -> dict:
         if not charger_cfg:
             out[car_id] = NullChargerDriver(id="")
             continue
-        driver_cls = CHARGER_DRIVER_REGISTRY.get(charger_cfg.get("driver"), NullChargerDriver)
-        out[car_id] = driver_cls(id=charger_cfg.get("id", ""))
+        driver_name = charger_cfg.get("driver")
+        driver_cls = CHARGER_DRIVER_REGISTRY.get(driver_name, NullChargerDriver)
+        if driver_cls is EaseeChargerDriver:
+            get_id, reader = _EASEE_PHYSICAL.get(charger_cfg.get("physical"), (lambda: charger_cfg.get("id", ""), lambda: {}))
+            out[car_id] = EaseeChargerDriver(id=get_id(), reader=reader)
+        else:
+            out[car_id] = driver_cls(id=charger_cfg.get("id", ""))
     return out
 
 
