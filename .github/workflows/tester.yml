@@ -28,3 +28,9 @@ jobs:
           cache-dependency-path: smartbox/requirements.txt
       - run: pip install -r smartbox/requirements.txt pytest
       - run: python -m pytest -q
+        env:
+          # Utan denna försöker gpm.py:s GlobalPriorityManager() ansluta till hostnamnet
+          # "postgres-smartbox" (docker-compose-tjänstens namn), som inte finns i CI -
+          # 30 sekunders DNS-timeout per instansiering innan den ger upp (fångas, kraschar
+          # inte, men gör körningen onödigt långsam). Postgres-tjänsten ovan nås på localhost.
+          POSTGRES_HOST: localhost
