@@ -60,6 +60,7 @@ def init_log_db():
                         ADD COLUMN IF NOT EXISTS net_power             NUMERIC,
                         ADD COLUMN IF NOT EXISTS wind_dir              NUMERIC,
                         ADD COLUMN IF NOT EXISTS solar_forecast_w      NUMERIC,
+                        ADD COLUMN IF NOT EXISTS solar_limit_pct       NUMERIC,
                         ADD COLUMN IF NOT EXISTS water_temp_mid        NUMERIC,
                         ADD COLUMN IF NOT EXISTS hc_forward_temp       NUMERIC,
                         ADD COLUMN IF NOT EXISTS brine_in_temp         NUMERIC,
@@ -317,6 +318,7 @@ def log_status(
             "compressor_runtime_h": p.get("compressor_runtime_h"),
             "compressor_starts": p.get("compressor_starts"),
             "pv_power_w": s.get("pv_power_w"),
+            "solar_limit_pct": s.get("limit_pct"),       # SolarEdges exportgräns (%), för PI-autotuningen i learning.get_optimal_pi_params
             "battery_soc": s.get("battery_soc"),
             "battery_power_w": s.get("battery_power_w"),
             "inverter_status": inv_status,
