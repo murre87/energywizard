@@ -23,16 +23,18 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   sortens skyddsnät ett framtida batteribeslut i `gpm.py` behöver, oavsett om
   vi återanvänder FTW:s kod eller bara mönstret.
 
-- **Egen OCPP-server för laddare, istället för en drivrutin per märke.**
-  [FTW](https://github.com/srcfl/ftw) har en inbyggd OCPP 1.6J/2.0.1-server -
-  vilken OCPP-kompatibel laddare som helst fungerar direkt, ingen
-  märkesspecifik drivrutin behövs. Vår `ChargerDriver`-arkitektur
-  (`smartbox/drivers/charger*.py`) kräver idag en drivrutin per märke (Easee,
-  generisk HA-switch/number) - en OCPP-server skulle täcka betydligt fler
-  laddare på en gång. Inget påbörjat, men värt en egen utredning: hur mycket
-  jobb är en minimal OCPP 1.6J-server jämfört med nästa märkesspecifika
-  drivrutin, och hamnar den bättre eller sämre placerad än att luta sig mot
-  HA:s egna OCPP-integrationer (om sådana finns och är tillräckligt generiska)?
+- **OCPP-laddare via Home Assistants egen OCPP-integration, ingen egen
+  server.** [FTW](https://github.com/srcfl/ftw) kör en egen inbyggd
+  OCPP 1.6J/2.0.1-server, men vi behöver inte bygga om det - det finns redan
+  en mogen, aktivt underhållen HA-integration som gör exakt samma sak:
+  [lbbrhzn/ocpp](https://github.com/lbbrhzn/ocpp) (HACS, stödjer
+  1.6J/2.0.1/2.1) kör OCPP-servern inuti Home Assistant och exponerar en
+  `switch` ("Charge Control") + `number` (`number.<cpid>_maximum_current`) -
+  samma entitetsformer som vår befintliga `GenericChargerDriver` redan läser/
+  skriver. Borde alltså redan fungera mot vilken OCPP-laddare som helst utan
+  ny drivrutinskod - återstår bara att verifiera mot en riktig OCPP-laddare,
+  och eventuellt lägga till entitetsnamnet i `discovery.py` så
+  entitetsväljaren känner igen och föreslår den.
 
 - **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
   arkitekturen (`smartbox/drivers/heatpump.py`) är byggd för det, men varje
