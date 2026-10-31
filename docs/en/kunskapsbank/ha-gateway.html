@@ -29,10 +29,23 @@
   <h3>What you get</h3>
   <p>A new, optional <code>ha-gateway</code> service in EnergyWizard's own
   <code>docker-compose.yml</code> that merges your Home Assistant and
-  EnergyWizard under the same address and port: everything else passes
-  through to your real HA, <code>/energywizard</code> goes to the web
-  dashboard, <code>/energywizard/mobil</code> and <code>/tablet</code> go to
-  the mobile app.</p>
+  EnergyWizard under the same address: everything else passes through to
+  your real HA, <code>/energywizard</code> goes to the web dashboard,
+  <code>/energywizard/mobil</code> and <code>/tablet</code> go to the mobile
+  app.</p>
+  <p><strong>Two valid end states</strong> - pick whichever suits you:</p>
+  <ul>
+    <li><strong>Its own port (simplest, recommended for most):</strong> leave
+    the gateway on its own port (e.g. <code>8199</code>) next to your HA,
+    which always stays on 8123 - the same pattern as other standalone
+    services. Never touches HA's own configuration. Just go through Steps
+    1-2 below, skip Step 3.</li>
+    <li><strong>The exact same port as HA (Step 3, more work):</strong> move
+    HA's own port aside so the gateway can take over 8123 entirely - requires
+    you to change HA's own configuration and restart your home control
+    system yourself. Only worth it if you really want the EXACT same
+    address/port as HA, not just the same domain.</li>
+  </ul>
 
   <h3>Step 1 - configure</h3>
   <p>Add to your <code>.env</code> (example in <code>.env.example</code>):</p>

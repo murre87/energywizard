@@ -23,12 +23,22 @@ nedan). Fler märken är ett väntat, naturligt sätt att bidra.
 3. Peka `HOUSE_CONFIG_HOST_PATH` i din `.env` mot den filen (standard är annars
    `config/examples/emil_house.yaml`, som är mitt eget hus - bra som referens för
    hur en riktig, ifylld config ser ut).
-4. `docker compose up -d` - `smartbox` är huvudmotorn. `webdashboard` (dator/
-   surfplatta) och `ewapp` (mobil, PWA) är separata profiler:
+4. `docker compose up -d` - `smartbox` är huvudmotorn, syns bara i loggarna
+   (`docker compose logs -f smartbox`), inget gränssnitt. `webdashboard`
+   (dator/surfplatta) och `ewapp` (mobil, PWA) är separata profiler:
    `docker compose --profile webdashboard up -d webdashboard`.
-5. Valfritt, avancerat: kör EnergyWizard under samma adress som din egna Home
+5. Besök gränssnitten på din servers IP:
+   - `smartdashboard` (Streamlit-dashboarden): `http://din-server-ip:8501`
+   - `webdashboard` (ny dator/surfplatta-vy, kräver steg 4:s profil):
+     `http://din-server-ip:8503`
+   - `ewapp` (mobil/PWA) publicerar ingen egen port - nås via en reverse
+     proxy du själv sätter upp (t.ex. nginx under ett valfritt prefix), se
+     `docker-compose.yml`:s kommentarer för `ewapp`.
+6. Valfritt, avancerat: kör EnergyWizard under samma adress som din egna Home
    Assistant (för Container-installationer utan Supervisor) - se
    [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/ha-gateway.html).
+   Gatewayn skriver själv ut sin adress i loggarna
+   (`docker compose logs ha-gateway`) efter start.
 
 ## Vilka märken stöds idag
 
