@@ -16,12 +16,18 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   entitetsstyrning som [Predbat](https://github.com/springfall2008/batpred)
   själv bygger på. Kör gärna Predbat parallellt tills vidare - se
   [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/husbatteri.html).
-  **Säkerhetsmönster värt att återanvända när det väl byggs:** [FTW](https://github.com/srcfl/ftw)s
-  opt-in-skrivväg för batteri/solöverskott har en dead-man switch (slutar
-  skriva om den inte hör av sig), en tydlig återgång till standardläge, och
-  en uppstarts-sweep som städar bort gamla/föräldralösa kommandon - exakt den
-  sortens skyddsnät ett framtida batteribeslut i `gpm.py` behöver, oavsett om
-  vi återanvänder FTW:s kod eller bara mönstret.
+
+  **Predbat, inte [FTW](https://github.com/srcfl/ftw), är referensen för
+  själva batteribeslutslogiken** den dagen det byggs: Predbat kör inuti Home
+  Assistant (samma plattform vi redan kräver), har redan verifierat stöd för
+  GivEnergy/Solis/Huawei/SolarEdge/Sofar/Tesla Powerwall m.fl., och är
+  betydligt mer moget (365 stjärnor, 5 391 commits) än FTW (22 stjärnor,
+  övergivna 2.x/3.x-linjer). FTW:s enda bidrag hit är ett specifikt, smalt
+  mönster: dess opt-in-skrivväg för batteri/solöverskott har en dead-man
+  switch (slutar skriva om den inte hör av sig), en tydlig återgång till
+  standardläge, och en uppstarts-sweep som städar bort gamla/föräldralösa
+  kommandon - värt att återanvända som skyddsnät oavsett vems beslutslogik
+  `gpm.py` till slut bygger på.
 
 - **OCPP-laddare via Home Assistants egen OCPP-integration, ingen egen
   server.** [FTW](https://github.com/srcfl/ftw) kör en egen inbyggd
