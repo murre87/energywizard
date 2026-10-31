@@ -31,7 +31,19 @@ async function renderOversikt() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="placeholder">Laddar…</div>`;
   const d = await api("api/overview");
-  if (!d.ok) { main.innerHTML = `<div class="placeholder">${d.error || "Kunde inte läsa data"}</div>`; return; }
+  if (!d.ok) {
+    // "Ingen data i sensor_log än" = smartbox har inget house_config ännu, oftast en
+    // helt ny installation - en bar felrad ger ingen ledtråd om vad man ska göra.
+    main.innerHTML = `<div class="card" style="margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:700">👋 Välkommen till EnergyWizard!</div>
+      <div class="note" style="margin-top:6px">${d.error || "Ingen data än"} - troligen en ny installation. Gå till
+        <b>Inställningar</b> och kör entitetsväljaren för att hitta din värmepump, bilar, solceller m.m. i Home
+        Assistant, spara den genererade filen som din <code>house_config.yaml</code> och starta om smartbox.</div>
+      <button class="icobtn" id="gotosettings" style="margin-top:10px">Gå till Inställningar</button>
+    </div>`;
+    document.getElementById("gotosettings").onclick = () => openPage("installningar");
+    return;
+  }
   const emoji = d.mode === "CHEAP" ? "🟢" : d.mode === "EXPENSIVE" ? "🔴" : "⏸️";
   const netLabel = d.net_power_w != null && d.net_power_w < 0 ? "☀️ Netto (Säljer!)" : "🔌 Netto (Köper)";
   const tariff = d.is_high_load ? "🔴 Höglast" : "🟢 Baslast";
