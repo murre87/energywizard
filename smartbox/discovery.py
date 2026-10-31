@@ -49,7 +49,7 @@ GRID = re.compile(r"tibber pulse|p1\b|han\b|power ?meter|elmätare|smart ?meter|
 # drivrutin än" istället för att tyst väljas fel eller gömmas.
 _HEATPUMP_BRAND_TO_DRIVER = {"husdata": "thermia_husdata", "thermia": "thermia_husdata"}
 _SOLAR_BRAND_TO_DRIVER = {"solaredge": "solaredge"}
-_SPA_BRAND_TO_DRIVER = {"gecko": "gecko", "balboa": "gecko"}  # Gecko-drivrutinen är byggd mot Balboa-liknande styrsystem
+_SPA_BRAND_TO_DRIVER = {"gecko": "gecko", "balboa": "balboa"}
 _CHARGER_BRAND_TO_DRIVER = {"easee": "easee"}
 
 _TEMPLATE = """{% set ns = namespace(out=[]) %}

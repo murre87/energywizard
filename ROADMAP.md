@@ -28,14 +28,13 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   en helt annan registerkarta än Husdata/Thermia - kräver verifiering mot en
   riktig pump av varje typ, inte gissad kod.
 
-- **Balboa-spabad som egen, verifierad drivrutin.** `discovery.py` pekar redan
-  "balboa" mot `GeckoSpaDriver` (kommentar: "byggd mot Balboa-liknande
-  styrsystem") - men det är ett ANTAGANDE, aldrig verifierat mot ett riktigt
-  Balboa-system (bara Gecko). HA:s officiella `balboa`-integration exponerar
-  sannolikt en annan entitetsform än Gecko in.touch2 - samma risk som
-  Gecko-drivrutinens två tidigare misslyckade generaliseringsförsök denna
-  session. Byggs separat, verifierat, den dag en riktig Balboa-testare finns
-  - inte en snabb omskrivning av antagandet.
+- **Balboa-spabad: drivrutin byggd, väntar på verifiering mot riktig
+  hårdvara.** `drivers/spa_balboa.py` finns nu - byggd mot HA:s officiella
+  `balboa`-integrations DOKUMENTERADE entitetsformer (climate/select/switch/
+  fan), inte en gissad protokolltolkning som den tidigare Gecko-genvägen var.
+  Fortfarande aldrig körd mot ett riktigt Balboa-system (bara mockade
+  tester) - har du ett Balboa-spabad? Hör av dig, det är precis den sortens
+  verkliga installation som behövs för att bekräfta den.
 
 - **Delad ML-modellträning på poolad data** från flera hus (bättre solprognoser,
   prismönster) - kräver den opt-in-telemetritjänst som redan är designad

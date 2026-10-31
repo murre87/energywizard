@@ -30,13 +30,14 @@ from drivers.solar import NullSolarDriver, SolarDriver
 from drivers.solar_generic import GenericNumberSolarDriver
 from drivers.solar_solaredge import SolarEdgeSolarDriver
 from drivers.spa import NullSpaDriver, SpaDriver
+from drivers.spa_balboa import BalboaSpaDriver
 from drivers.spa_gecko import GeckoSpaDriver
 
 CAR_DRIVER_REGISTRY = {"generic_ev": GenericEvCarDriver, "nissan": NissanCarDriver, "tesla": TeslaCarDriver}
 CHARGER_DRIVER_REGISTRY = {"easee": EaseeChargerDriver, "generic": GenericChargerDriver}
 HEAT_PUMP_DRIVER_REGISTRY = {"thermia_husdata": ThermiaHusdataHeatPumpDriver, "generic_climate": GenericClimateHeatPumpDriver}
 SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver, "generic_number": GenericNumberSolarDriver}
-SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver}
+SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver, "balboa": BalboaSpaDriver}
 BATTERY_DRIVER_REGISTRY = {"generic": GenericBatteryDriver}
 
 # Easees två fysiska boxar har var sin läsfunktion i homeassistant.py (ingen generisk
@@ -161,6 +162,8 @@ def build_spa_driver(cfg: dict) -> SpaDriver:
     if not spa.get("enabled"):
         return NullSpaDriver()
     driver_cls = SPA_DRIVER_REGISTRY.get(spa.get("driver"), NullSpaDriver)
+    if driver_cls is BalboaSpaDriver:
+        return BalboaSpaDriver(entities=spa.get("entities", {}))
     return driver_cls()
 
 
