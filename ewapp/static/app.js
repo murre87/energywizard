@@ -27,7 +27,7 @@ const ICON = {
 };
 function showLogin(msg) {
   clearInterval(timer);
-  app.innerHTML = `<form class="login card" id="lf"><div class="brand" style="justify-content:center"><span class="dot"></span>EnergyWizard</div><div class="note">Logga in för att styra hemmet.</div><input id="un" placeholder="Användarnamn (tomt = ägare)" autocomplete="username" autocapitalize="none"><input type="password" id="pw" placeholder="Lösenord" autocomplete="current-password" required><button class="big" type="submit">Logga in</button><div class="note" style="color:var(--bad)">${esc(msg || "")}</div></form>`;
+  app.innerHTML = `<form class="login card" id="lf"><div class="brand" style="justify-content:center"><span class="dot"></span>EnergyWizard</div><div class="note">Logga in för att styra hemmet.</div><input id="un" placeholder="Användarnamn (admin = ägare)" autocomplete="username" autocapitalize="none"><input type="password" id="pw" placeholder="Lösenord" autocomplete="current-password" required><button class="big" type="submit">Logga in</button><div class="note" style="color:var(--bad)">${esc(msg || "")}</div></form>`;
   $("#lf").onsubmit = async (e) => { e.preventDefault(); try { await api("login", { user: $("#un").value, password: $("#pw").value }); start(); } catch (er) { showLogin(er.message); } };
 }
 const ER = () => (ROLE === "owner" && VIEWAS) ? VIEWAS : ROLE;                    // effektiv roll: ägaren kan förhandsgranska Elins vy och gästläget
