@@ -156,9 +156,11 @@ async function renderElbil() {
       </div>`;
       }).join("")}
     </div>
-    <div class="note">Laddström: ${fmt(d.current_a, 0, " A")} · Dynamisk gräns: ${fmt(d.dynamic_limit_a, 0, " A")} · Målgräns just nu: ${fmt(d.current_target_limit, 0, " A")}</div>`);
+    <div class="note">Laddström: ${fmt(d.current_a, 0, " A")} · Dynamisk gräns: ${fmt(d.dynamic_limit_a, 0, " A")} · Målgräns just nu: ${fmt(d.current_target_limit, 0, " A")}</div>
+    <div id="tesla-access" style="margin-top:16px"></div>`);
   if (!d) return;
   document.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => postAction(`api/car/${b.dataset.car}/action`, { kind: b.dataset.kind }).then(renderElbil));
+  loadTeslaAccess();
   document.querySelectorAll(".sch-save").forEach(b => b.onclick = () => {
     const car = b.dataset.car;
     const time = document.querySelector(`.sch-time[data-car="${car}"]`).value;
@@ -166,6 +168,43 @@ async function renderElbil() {
     const enabled = document.querySelector(`.sch-enabled[data-car="${car}"]`).checked;
     postAction("api/schedule", { car, day: new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, time, soc, enabled }, "Schema sparat").then(renderElbil);
   });
+}
+
+// Lås/luckor - eget omverifieringssteg (samma princip som ewapp: lösenordet igen, 10 min)
+// innan själva kommandot går igenom. Se webdashboard/app.py:s /api/secure + /api/tesla/access.
+async function loadTeslaAccess() {
+  const box = document.getElementById("tesla-access");
+  if (!box) return;
+  let d;
+  try { d = await api("api/tesla/access-state"); } catch { return; }
+  const a = d.access;
+  if (!a) return;
+  box.innerHTML = `<div class="card">
+    <div style="font-size:1.05rem;font-weight:700">🔒 Tesla – lås &amp; luckor</div>
+    <div class="note" style="margin-top:4px">Bilen är ${a.locked ? "<b>låst</b>" : "<b style='color:var(--warn,#e8973a)'>upplåst</b>"}. Upplåsning och luckor kräver lösenordet igen (gäller i 10 min).</div>
+    <div class="seg" style="margin-top:10px;flex-wrap:wrap">
+      <button data-access="${a.locked ? "unlock" : "lock"}">${a.locked ? "Lås upp" : "Lås"}</button>
+      <button data-access="trunk">${a.trunk ? "Stäng baklucka" : "Öppna baklucka"}</button>
+      <button data-access="frunk">${a.frunk ? "Stäng framlucka" : "Öppna framlucka"}</button>
+    </div>
+  </div>`;
+  box.querySelectorAll("[data-access]").forEach(b => b.onclick = () => teslaAccess(b.dataset.access));
+}
+
+async function teslaAccess(what) {
+  try {
+    const d = await api("api/tesla/access", { method: "POST", body: JSON.stringify({ what }) });
+    toast(d.msg || "Klart");
+    loadTeslaAccess();
+  } catch (e) {
+    if (e.message !== "secure") { toast("⚠️ " + e.message); return; }
+    const pw = prompt("För din säkerhet krävs lösenordet igen för att låsa upp bilen eller öppna luckor:");
+    if (!pw) return;
+    try {
+      await api("api/secure", { method: "POST", body: JSON.stringify({ password: pw }) });
+    } catch (e2) { toast("⚠️ " + e2.message); return; }
+    teslaAccess(what);
+  }
 }
 
 async function renderSolceller() {

@@ -130,16 +130,14 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   kodnivå-anpassning, inte paketering. Avsiktligt uppskjutet, inget beslutat
   datum.
 
-- **Bil-lås/luckor i webdashboard.** Finns i mobilappen `ewapp` (kräver en
-  separat lösenords-omverifiering, `ew2`-flödet, innan ett lås-/luckokommando
-  går igenom), men webdashboard fick INTE den kontrollen när resten av sidorna
-  byggdes klara - en säkerhetsgräns av den här sorten förtjänar en egen, noga
-  testad implementation i webdashboard, inte något som hastas in i samma
-  omgång som vanliga skrivkontroller. Avsiktligt uppskjutet.
-
 ## Redan klart
 
 - Drivrutinsarkitektur kopplad till huvudstyrloopen (bil/laddare/värmepump/sol/spa)
   - genuint insticksbart, inte bara ett löfte.
 - Entitetsväljare med auto-discovery (`webdashboard`, Inställningar-sidan).
 - Publik sida med riktiga, verifierbara besparingssiffror.
+- Bil-lås/luckor i webdashboard, med samma säkerhetsgräns som `ewapp`: ett eget
+  `ew2`-omverifieringsflöde (lösenordet igen, 10 minuters fönster) innan
+  ett lås-/luckokommando proxas vidare till `ewapp`:s riktiga Tesla-hantering
+  (samma `_secure_ok`/`_unlock_fails`-spärr körs fortfarande där, bara anropad
+  härifrån också) - inte en genväg runt säkerhetslagret.

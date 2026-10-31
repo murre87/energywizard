@@ -66,9 +66,11 @@ def _ewapp_cookie() -> str:
     return f"{payload}.{hmac.new(_EWAPP_SECRET, payload.encode(), hashlib.sha256).hexdigest()}"
 
 
-async def _ewapp_proxy(path: str, body: dict) -> JSONResponse:
+async def _ewapp_proxy(path: str, body: dict, extra_cookies: dict | None = None) -> JSONResponse:
     try:
-        r = requests.post(f"{EWAPP_URL}{path}", cookies={"ew": _ewapp_cookie()}, json=body, timeout=25)
+        cookies = {"ew": _ewapp_cookie()}
+        cookies.update(extra_cookies or {})
+        r = requests.post(f"{EWAPP_URL}{path}", cookies=cookies, json=body, timeout=25)
     except requests.RequestException as e:
         return JSONResponse({"detail": f"Nådde inte ewapp: {e}"}, status_code=502)
     try:
@@ -76,6 +78,25 @@ async def _ewapp_proxy(path: str, body: dict) -> JSONResponse:
     except ValueError:
         data = {"detail": r.text}
     return JSONResponse(data, status_code=r.status_code)
+
+
+# -- Bil-lås/luckor: eget, separat omverifieringsflöde (ew2), inte bara proxat rakt av ----
+# Lås upp/luckor kräver lösenordet igen (10 min) precis som i ewapp - webdashboard har sin
+# EGEN ew2-kaka (samma hemlighet/formel som ewapp:s _secure_ok(), eftersom bägge delar
+# PASSWORD) så den kan vidareskickas till ewapp:s /api/tesla/access och godkännas där utan
+# att webdashboard behöver duplicera Tesla-hanteringen eller spärrlogiken - ewapp:s egen
+# _secure_ok()/_unlock_fails kör fortfarande på riktigt, bara anropad härifrån också.
+_secure_fails: dict = {}
+
+
+def _secure_ok(request: Request) -> bool:
+    v = request.cookies.get("ew2", "")
+    try:
+        exp, sig = v.split(".", 1)
+        return int(exp) > time.time() and hmac.compare_digest(sig, hmac.new(_EWAPP_SECRET, ("sec" + exp).encode(), hashlib.sha256).hexdigest())
+    except Exception:
+        return False
+
 
 # De 13 sidorna enligt inventeringen av smartdashboard (se planfilen) - tomma till Fas B+.
 # "built": False döljs i menyn (se /api/me) tills sidan faktiskt har eget innehåll i
@@ -545,6 +566,57 @@ async def proxy_setting(request: Request):
     if body.get("key") not in ("peak_shaving_enabled", "power_limit_kw", "temp_cheap", "temp_expensive"):
         return JSONResponse({"detail": "Okänd inställning"}, status_code=400)
     return await _ewapp_proxy("/api/settings", body)
+
+
+@app.post("/api/secure")
+async def secure(request: Request):
+    """Lösenordet igen innan ett lås-/luckokommando går igenom - samma 10-minutersfönster
+    som ewapp:s /api/secure, men verifierat lokalt (delad PASSWORD) istället för proxat,
+    så webdashboard kan sätta sin egen ew2-kaka utan en extra nätverksrunda."""
+    ip = AUTH.client_ip(request)
+    if _secure_fails.get(ip, (0, 0))[0] >= 5 and time.time() - _secure_fails[ip][1] < 900:
+        return JSONResponse({"detail": "För många försök – vänta en stund"}, status_code=429)
+    body = await request.json()
+    role, user = AUTH.session(request)
+    expected = AUTH.user_password(user or "")
+    if not expected or not hmac.compare_digest(str(body.get("password", "")), expected):
+        _secure_fails[ip] = (_secure_fails.get(ip, (0, 0))[0] + 1, time.time())
+        return JSONResponse({"detail": "Fel lösenord"}, status_code=401)
+    _secure_fails.pop(ip, None)
+    exp = int(time.time()) + 600
+    r = JSONResponse({"ok": True, "until": exp})
+    r.set_cookie("ew2", f"{exp}." + hmac.new(_EWAPP_SECRET, ("sec" + str(exp)).encode(), hashlib.sha256).hexdigest(), max_age=600, httponly=True, secure=True, samesite="lax", path="/")
+    return r
+
+
+@app.post("/api/tesla/access")
+async def proxy_tesla_access(request: Request):
+    """Lås/lås upp bilen, öppna/stäng luckor - ewapp:s /api/tesla/access. Allt utom 'lock'
+    kräver en färsk /api/secure härifrån (INTE bara ewapp:s egen, se ovan) innan vi ens
+    försöker proxa - annars kunde vem som helst med ett inloggat webdashboard-fönster
+    låsa upp bilen utan att ange lösenordet igen."""
+    body = await request.json()
+    what = body.get("what")
+    if what not in ("lock", "unlock", "trunk", "frunk"):
+        return JSONResponse({"detail": "Okänd åtgärd"}, status_code=400)
+    if what != "lock" and not _secure_ok(request):
+        return JSONResponse({"detail": "secure"}, status_code=403)
+    return await _ewapp_proxy("/api/tesla/access", body, extra_cookies={"ew2": request.cookies.get("ew2", "")})
+
+
+@app.get("/api/tesla/access-state")
+async def tesla_access_state():
+    """Lås-/luckostatus (låst/upplåst, bak-/frontlucka öppen) för Elbil-sidan - ewapp:s
+    egen /api/state beräknar redan det här (live HA-läsning), vi plockar bara ut biten för
+    Tesla istället för att läsa HA-entiteterna en gång till här."""
+    try:
+        r = requests.get(f"{EWAPP_URL}/api/state", cookies={"ew": _ewapp_cookie()}, timeout=25)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        return JSONResponse({"detail": f"Nådde inte ewapp: {e}"}, status_code=502)
+    tesla = next((c for c in data.get("cars", []) if c.get("key") == "tesla"), None)
+    return {"ok": True, "access": tesla.get("access") if tesla else None}
 
 
 @app.post("/api/discover")
