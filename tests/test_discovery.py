@@ -3,6 +3,10 @@ TYP av entitet i ett syntetiskt Home Assistant-svar (samma form som
 /api/template ger) - inte bara att koden kör utan att krascha. Rör aldrig
 riktig hårdvara/nätverk - entities skickas in direkt, read_all_entities()
 anropas aldrig här."""
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
+
+import discovery
 from discovery import discover_house
 
 SYNTHETIC_ENTITIES = [
@@ -132,8 +136,55 @@ def test_okant_varmepumpsmarke_flaggas_utan_drivrutin_inte_tyst_fel_eller_krasch
 
 
 def test_tomt_hus_ger_inga_fynd_kraschar_inte():
-    result = discover_house([])
+    with patch("discovery._check_configured_heat_pump", return_value=None):
+        result = discover_house([])
     assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": []}
+
+
+def test_ha_fynd_vinner_over_serverchecken_inte_overskrivs():
+    """Om HA-sökningen redan hittade en pump (t.ex. NIBE utan drivrutin) ska servercheckens
+    Husdata-gissning inte tränga undan ett RIKTIGT HA-fynd."""
+    only_nibe = [e for e in SYNTHETIC_ENTITIES if e["d"] in ("dev_nibe",)]
+    with patch("discovery._check_configured_heat_pump", return_value={"maker": "Husdata"}) as mock_check:
+        result = discover_house(only_nibe)
+    assert result["heat_pump"]["maker"] == "NIBE"
+    mock_check.assert_not_called()
+
+
+# ---------- _check_configured_heat_pump: pumpen svarar redan via Modbus på servern ----------
+
+def test_check_configured_heat_pump_ingen_fardsk_rad_ger_none(smartbox):
+    with smartbox.get_db() as conn:
+        conn.execute("TRUNCATE sensor_log")
+        conn.commit()
+    assert discovery._check_configured_heat_pump() is None
+
+
+def test_check_configured_heat_pump_fardsk_rad_hittas(smartbox):
+    with smartbox.get_db() as conn, conn.cursor() as cur:
+        cur.execute("TRUNCATE sensor_log")
+        cur.execute(
+            "INSERT INTO sensor_log (timestamp, indoor_temp) VALUES (%s, %s)",
+            (datetime.now(timezone.utc), 21.3),
+        )
+        conn.commit()
+
+    result = discovery._check_configured_heat_pump()
+    assert result is not None
+    assert result["driver"] == "thermia_husdata" and result["driver_known"] is True
+    assert result["source"] == "modbus_configured_on_server"
+
+
+def test_check_configured_heat_pump_gammal_rad_raknas_inte(smartbox):
+    with smartbox.get_db() as conn, conn.cursor() as cur:
+        cur.execute("TRUNCATE sensor_log")
+        cur.execute(
+            "INSERT INTO sensor_log (timestamp, indoor_temp) VALUES (%s, %s)",
+            (datetime.now(timezone.utc) - timedelta(hours=2), 21.3),
+        )
+        conn.commit()
+
+    assert discovery._check_configured_heat_pump() is None
 
 
 def test_pulse_och_smartmatare_hittas_bada_inte_bara_en():

@@ -13,9 +13,16 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   [Predbat](https://github.com/springfall2008/batpred) parallellt - se
   [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/husbatteri.html).
 
-- **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi m.fl.) - arkitekturen
-  (`smartbox/drivers/heatpump.py`) är byggd för det, men varje märke kräver en
-  egen, verifierad implementation - bidrag välkomna.
+- **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
+  arkitekturen (`smartbox/drivers/heatpump.py`) är byggd för det, men varje
+  märke kräver en egen, verifierad implementation - bidrag välkomna.
+  NIBE är redan sökbar via Home Assistant-skanningen (`HEATPUMP`-regexen i
+  `smartbox/discovery.py` matchar den), flaggas bara `driver_known: False`
+  tills en riktig drivrutin finns. Anslutningssättet varierar med modell -
+  äldre pumpar pratar RS485 (t.ex. via [NibePi](https://energy.anerdins-iot.se/)
+  + MQTT till HA), nyare S-serie-pumpar har en inbyggd Modbus TCP-server med
+  en helt annan registerkarta än Husdata/Thermia - kräver verifiering mot en
+  riktig pump av varje typ, inte gissad kod.
 
 - **Delad ML-modellträning på poolad data** från flera hus (bättre solprognoser,
   prismönster) - kräver den opt-in-telemetritjänst som redan är designad

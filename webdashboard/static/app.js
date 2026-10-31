@@ -177,7 +177,7 @@ async function runDiscovery() {
       <label><input type="checkbox" class="pick" data-cat="${title}" checked> Använd detta fynd</label> ${driverTag(item)}
       <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div></div>`;
   };
-  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)` : "");
+  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? (d.heat_pump.note || `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)`) : "");
   html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `Effekt: ${d.solar.pv_power_entity || "-"} · Dagsenergi: ${d.solar.today_kwh_entity || "-"}` : "");
   html += simpleCard("🛁", "Spabad", d.spa, d.spa ? `Temp: ${d.spa.current_temp_entity || "-"} · Effekt: ${d.spa.power_entity || "-"}` : "");
 
