@@ -77,6 +77,179 @@ async function renderOversikt() {
   }
 }
 
+function badge(cls, text) { return `<span class="badge ${cls}">${text}</span>`; }
+
+function statTile(label, value, sub) {
+  return `<div class="stat"><div class="v">${value}</div><div class="l">${label}</div>${sub ? `<div class="l">${sub}</div>` : ""}</div>`;
+}
+
+function barRow(name, pct, valueLabel) {
+  const p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  return `<div class="barrow"><div class="name">${name}</div><div class="track"><div class="fill" style="width:${p}%"></div></div><div class="val">${valueLabel}</div></div>`;
+}
+
+function lineChart(elId, series, opts) {
+  const el = document.getElementById(elId);
+  if (!el || !series.length) return;
+  const chart = echarts.init(el, null, { renderer: "svg" });
+  chart.setOption({
+    grid: { left: 46, right: 16, top: 16, bottom: 36 },
+    xAxis: { type: "category", data: series.map(p => p.t.slice(11, 16)), axisLabel: { interval: Math.ceil(series.length / 8) }, axisLine: { lineStyle: { color: "#93a0b8" } } },
+    yAxis: { type: "value", axisLine: { lineStyle: { color: "#93a0b8" } }, splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } }, ...(opts && opts.yAxis) || {} },
+    series: [{ type: "line", data: series.map(p => p[opts && opts.yKey || "p"]), step: opts && opts.step, lineStyle: { color: (opts && opts.color) || "#38bdf8", width: 2 }, areaStyle: { color: (opts && opts.areaColor) || "rgba(56,189,248,.15)" }, symbol: "none" }],
+  });
+  new ResizeObserver(() => chart.resize()).observe(el);
+}
+
+async function loadPage(path, build) {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="placeholder">Laddar…</div>`;
+  let d;
+  try { d = await api(path); } catch (e) { main.innerHTML = `<div class="placeholder">${e.message}</div>`; return; }
+  if (!d.ok) { main.innerHTML = `<div class="placeholder">${d.error || "Kunde inte läsa data"}</div>`; return; }
+  main.innerHTML = build(d);
+  return d;
+}
+
+async function renderElbil() {
+  const d = await loadPage("api/car", (d) => `
+    <div class="grid" style="margin-bottom:16px">
+      ${d.cars.map(c => `<div class="card">
+        <div style="font-size:1.05rem;font-weight:700">🚗 ${c.name}</div>
+        <div class="v" style="margin:10px 0 2px;font-size:1.6rem">${fmt(c.soc, 0, "%")}</div>
+        <div class="note">${c.stale ? badge("warn", "⚠️ gammalt värde") : badge("on", "live")} ${c.status ? "· " + c.status : ""}</div>
+        <div class="note" style="margin-top:6px">⚡ ${fmt(c.power_kw, 1, " kW")} just nu${c.planned_kwh_today != null ? ` · 📅 ${c.planned_kwh_today.toFixed(1)} kWh planerat idag` : ""}</div>
+        ${c.climate_state ? `<div class="note">🌡️ Klimat: ${c.climate_state}${c.climate_temp != null ? " (" + c.climate_temp.toFixed(0) + "°C)" : ""}</div>` : ""}
+      </div>`).join("")}
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h2>📅 Dagens schema</h2>
+      ${d.schedule_today.length ? d.schedule_today.map(s => `<div class="note" style="margin:4px 0">${s.car_id === "tesla" ? "🚗 Tesla" : "🚗 Nissan"}: klar ${s.target_time || "–"} till ${s.target_soc}% ${s.enabled ? badge("on", "på") : badge("off", "av")}</div>`).join("") : `<div class="note">Inget schema satt för idag.</div>`}
+    </div>
+    <div class="note">Laddström: ${fmt(d.current_a, 0, " A")} · Dynamisk gräns: ${fmt(d.dynamic_limit_a, 0, " A")} · Målgräns just nu: ${fmt(d.current_target_limit, 0, " A")}</div>`);
+}
+
+async function renderSolceller() {
+  const d = await loadPage("api/solar", (d) => `
+    <div class="grid" style="margin-bottom:16px">
+      ${statTile("☀️ PV-effekt", fmt(d.pv_power_w != null ? d.pv_power_w / 1000 : null, 2, " kW"))}
+      ${statTile("🔆 Idag", fmt(d.solar_today_kwh, 1, " kWh"))}
+      ${statTile("📈 Prognos nu", fmt(d.solar_forecast_w != null ? d.solar_forecast_w / 1000 : null, 2, " kW"))}
+      ${statTile("🚫 Exportgräns", d.solar_limit_pct != null ? d.solar_limit_pct.toFixed(0) + " %" : "Ingen", d.solar_limit_pct != null && d.solar_limit_pct < 100 ? "AI begränsar (minuspris)" : "")}
+    </div>
+    ${d.battery_soc != null ? `<div class="card" style="margin-bottom:16px">
+      <h2>🔋 Husbatteri</h2>
+      ${barRow("Laddning", d.battery_soc, d.battery_soc.toFixed(0) + "%")}
+      <div class="note" style="margin-top:6px">${fmt(d.battery_power_w, 0, " W")} ${d.battery_power_w > 0 ? "(laddar)" : d.battery_power_w < 0 ? "(laddar ur)" : ""}</div>
+    </div>` : ""}
+    <div class="card"><h2>Elpris</h2><div class="note">Styr när exportbegränsningen slår till (minuspris)</div><div id="solarpricechart" style="height:220px;margin-top:10px"></div></div>`);
+  if (d && d.price_24h) lineChart("solarpricechart", d.price_24h, { step: "end" });
+}
+
+async function renderEkonomi() {
+  const d = await loadPage("api/economy", (d) => `
+    <div class="grid" style="margin-bottom:16px">
+      ${statTile("💸 Elpris just nu", fmtKrOre(d.price) + "/kWh")}
+      ${statTile("📉 Lägst idag", fmtKrOre(d.price_min) + "/kWh")}
+      ${statTile("📊 Snitt idag", fmtKrOre(d.price_avg) + "/kWh")}
+      ${statTile("📈 Högst idag", fmtKrOre(d.price_max) + "/kWh")}
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h2>💰 Uppskattad kostnad idag</h2>
+      <div class="v" style="font-size:1.8rem">${d.est_cost_today != null ? d.est_cost_today.toFixed(2) + " kr" : "–"}</div>
+      <div class="note" style="margin-top:4px">${fmt(d.accumulated_consumption_kwh, 1, " kWh")} förbrukat × dagens snittpris - en grov uppskattning, inte en exakt timme-för-timme-kostnad.</div>
+    </div>
+    <div class="card"><h2>Elpris senaste dygnet</h2><div id="econpricechart" style="height:240px;margin-top:10px"></div></div>`);
+  if (d && d.price_24h) lineChart("econpricechart", d.price_24h, { step: "end" });
+}
+
+async function renderElforbrukning() {
+  await loadPage("api/consumption", (d) => {
+    const b = d.breakdown;
+    const maxW = b ? Math.max(b.total_w || 0, 1) : 1;
+    return `
+    <div class="grid" style="margin-bottom:16px">
+      ${statTile("⚡ Just nu", fmt(d.avg_w_tot != null ? d.avg_w_tot / 1000 : null, 2, " kW"))}
+      ${statTile("🏠 Hus (bas)", fmt(d.house_consumption_w != null ? d.house_consumption_w / 1000 : null, 2, " kW"))}
+      ${statTile("📐 Prognos baslast", fmt(d.predicted_base_load_kw, 2, " kW"))}
+      ${statTile("🛡️ Effektvakt", d.peak_shaving_active ? badge("warn", "griper in") : badge("on", "normal läge"))}
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h2>🔌 Faser</h2>
+      ${barRow("L1", d.avg_w_l1 != null ? d.avg_w_l1 / maxW * 100 : 0, fmt(d.avg_w_l1, 0, " W"))}
+      ${barRow("L2", d.avg_w_l2 != null ? d.avg_w_l2 / maxW * 100 : 0, fmt(d.avg_w_l2, 0, " W"))}
+      ${barRow("L3", d.avg_w_l3 != null ? d.avg_w_l3 / maxW * 100 : 0, fmt(d.avg_w_l3, 0, " W"))}
+    </div>
+    ${b ? `<div class="card">
+      <h2>📦 Vad drar strömmen</h2>
+      ${barRow("🚗 Elbil", b.ev_w / maxW * 100, fmt(b.ev_w, 0, " W"))}
+      ${barRow("♨️ Värmepump", b.pump_w / maxW * 100, fmt(b.pump_w, 0, " W"))}
+      ${barRow("🛁 Spabad", b.spa_w / maxW * 100, fmt(b.spa_w, 0, " W"))}
+      ${barRow("❓ Oförklarat", b.unexplained_w / maxW * 100, fmt(b.unexplained_w, 0, " W"))}
+      ${barRow("Σ Totalt", 100, fmt(b.total_w, 0, " W"))}
+    </div>` : `<div class="note">Ingen uppdelning loggad än.</div>`}`;
+  });
+}
+
+async function renderSpabad() {
+  await loadPage("api/spa", (d) => `
+    <div class="grid" style="margin-bottom:16px">
+      ${statTile("🛁 Temperatur", fmt(d.temp, 1, "°C"))}
+      ${statTile("🎯 Mål", fmt(d.target, 1, "°C"))}
+      ${statTile("🔥 Värmare", d.heater_running ? badge("on", "värmer") : badge("off", "av"))}
+      ${statTile("⚡ Effekt", fmt(d.power_w, 0, " W"))}
+    </div>
+    <div class="card"><h2>📡 Trådlös anslutning</h2><div class="note">Signal: ${fmt(d.signal_pct, 0, "%")} · Kanal: ${d.rf_channel != null ? d.rf_channel : "–"}</div></div>`);
+}
+
+async function renderTemperaturer() {
+  await loadPage("api/temperatures", (d) => `
+    <div class="grid" style="margin-bottom:16px">
+      ${statTile("🏠 Inne", fmt(d.indoor_temp, 1, "°C"), d.indoor_humidity != null ? "💧 " + d.indoor_humidity.toFixed(0) + "%" : "")}
+      ${statTile("🌳 Ute", fmt(d.outdoor_temp, 1, "°C"))}
+      ${statTile("🌬️ Ventilation in", fmt(d.vent_supply_temp, 1, "°C"))}
+      ${statTile("🌬️ Ventilation ut", fmt(d.vent_exhaust_temp, 1, "°C"))}
+    </div>
+    <div class="card"><h2>🌡️ Rum</h2>
+      ${d.rooms.length ? d.rooms.map(r => barRow(r.name, (r.temp + 10) * 3, r.temp.toFixed(1) + "°C")).join("") : `<div class="note">Inga rumsgivare hittade.</div>`}
+    </div>`);
+}
+
+async function renderPrognos() {
+  const d = await loadPage("api/forecast", (d) => `
+    <div class="card" style="margin-bottom:16px"><h2>📅 Elpris kommande timmar</h2><div id="forecastpricechart" style="height:220px;margin-top:10px"></div></div>
+    <div class="card"><h2>🌤️ Väderprognos</h2><div id="forecastweatherchart" style="height:220px;margin-top:10px"></div>
+      <div class="note" style="margin-top:8px">Regnrisk/åskrisk anges i procent, molnighet i procent av himlen.</div></div>`);
+  if (d) {
+    if (d.prices.length) lineChart("forecastpricechart", d.prices, { step: "end" });
+    if (d.weather.length) lineChart("forecastweatherchart", d.weather, { yKey: "temp", color: "#fbbf24", areaColor: "rgba(251,191,36,.15)" });
+  }
+}
+
+async function renderHistorik() {
+  await loadPage("api/historylog", (d) => `
+    <div class="card">
+      <h2>📈 Logg</h2>
+      <div class="loglist">
+        ${d.entries.length ? d.entries.map(e => `<div class="logrow"><div class="t">${new Date(e.ts).toLocaleString("sv-SE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div><div>${e.user ? `<b>${esc(e.user)}:</b> ` : ""}${esc(e.text || "")}</div></div>`).join("") : `<div class="note">Inget loggat än.</div>`}
+      </div>
+    </div>`);
+}
+
+async function renderAviseringar() {
+  const d = await loadPage("api/notifications", (d) => `
+    <div class="card">
+      <h2>🔔 Aviseringstyper</h2>
+      <div class="note" style="margin-bottom:8px">Styr vilka händelser som skickar en avisering - samma inställning som i mobilappen.</div>
+      ${d.items.map(i => `<div class="togglerow"><span>${esc(i.label)}</span><label class="switch"><input type="checkbox" class="notify-toggle" data-key="${i.key}" ${i.on ? "checked" : ""}><span class="slider"></span></label></div>`).join("")}
+    </div>`);
+  if (d) document.querySelectorAll(".notify-toggle").forEach(cb => {
+    cb.onchange = () => api(`api/notifications/${cb.dataset.key}`, { method: "POST", body: JSON.stringify({ value: cb.checked }) }).catch(() => { cb.checked = !cb.checked; });
+  });
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
 async function api(path, opts) {
   const r = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
   if (r.status === 401) { showLogin(); throw new Error("not authed"); }
@@ -304,6 +477,24 @@ function openPage(id) {
     renderSystem();
   } else if (id === "installningar") {
     renderInstallningar();
+  } else if (id === "elbil") {
+    renderElbil();
+  } else if (id === "solceller") {
+    renderSolceller();
+  } else if (id === "ekonomi") {
+    renderEkonomi();
+  } else if (id === "elforbrukning") {
+    renderElforbrukning();
+  } else if (id === "spabad") {
+    renderSpabad();
+  } else if (id === "temperaturer") {
+    renderTemperaturer();
+  } else if (id === "prognos") {
+    renderPrognos();
+  } else if (id === "historik") {
+    renderHistorik();
+  } else if (id === "aviseringar") {
+    renderAviseringar();
   } else {
     document.getElementById("main").innerHTML = `<div class="placeholder">"${PAGES.find(p => p.id === id)?.name}" byggs i en senare fas.</div>`;
   }
