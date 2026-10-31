@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 import learning
 import logger
 import notifier
+import nordpool
 
 
 def _percentile(values, pct):
@@ -105,12 +106,10 @@ class GlobalPriorityManager:
         if now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)
         price = state.get('current_price', 0.0)
-        # EKONOMISKT OPTIMUM vid minuspris (brytpunkter ur din avgiftsmodell):
-        #   köp_pris(spot)  = spot*1.25 + 0.62675  → NEGATIVT (BETALT att förbruka)  när spot < -0.501
-        #   sälj_pris(spot) = spot + 0.02125       → NEGATIVT (FÖRLUST att exportera) när spot < -0.021
-        # paid_to_import = djupt minuspris: maxa nätuttag + strypa solen (importera allt → max betalning).
-        IMPORT_PROFIT_SPOT = -(0.62675 / 1.25)   # ≈ -0.501 kr/kWh: under detta får vi betalt för att importera
-        paid_to_import = price is not None and price < IMPORT_PROFIT_SPOT
+        # EKONOMISKT OPTIMUM vid minuspris: paid_to_import = djupt minuspris där den verkliga
+        # köpkostnaden (nordpool.full_buy_cost - moms+nätavgift+skatt, källoberoende formel)
+        # blir negativ → maxa nätuttag + strypa solen (importera allt → max betalning).
+        paid_to_import = price is not None and nordpool.full_buy_cost(price) < 0
         pv_power = state.get('pv_power_w', 0.0)
         avg_net = state.get('avg_net_w', 0.0)
         

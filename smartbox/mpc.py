@@ -13,6 +13,7 @@ och uppskattar besparingen — den styr INGET live förrän den validerats.
 from datetime import datetime, timedelta
 import learning
 import logger as sm_logger
+import nordpool
 
 # Hur många timmar husets värmetröghet realistiskt kan "coasta" på förvärmd värme.
 MAX_COAST_HOURS = 6
@@ -23,9 +24,8 @@ DEFAULT_COMFORT_MAX = 22.5
 # Representativ värmepumps-effekt (kW el) för att omvandla "på-timmar" → kr. Påverkar bara
 # ABSOLUTA kronor, inte besparings-PROCENTEN (pump_kw är en gemensam faktor).
 DEFAULT_PUMP_KW = 2.2
-# Prismodell (samma som dashboardens full_buy_cost) för kr/kWh inkl moms/nät/skatt.
-def _full_buy_cost(spot):
-    return (spot * 1.25) + 0.62675
+# Prismodell: nordpool.full_buy_cost (delad med gpm.py/smartdashboard, källoberoende).
+_full_buy_cost = nordpool.full_buy_cost
 
 
 def _hourly_day(day_start):

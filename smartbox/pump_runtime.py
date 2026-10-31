@@ -5,6 +5,7 @@ permanent i tabellen pump_runtime_daily (räknarens värde per dygn). Timmar per
 räknarvärden (delta). Tabellen fylls på bakåt från sensor_log vid start och uppdateras varje minut för dagens datum.
 """
 from sqlalchemy import text
+import nordpool
 
 DDL = """
 CREATE TABLE IF NOT EXISTS pump_runtime_daily (
@@ -88,8 +89,7 @@ def totals(conn):
 # Tibbers nätmätning är tillförlitlig, medan solvärdet före 2026-09-20 kom från ett 15-minutersvärde, därför
 # används solvärdet bara som "solen är uppe"-filter. Tidsvägt per loggrad (rader glesare än 20 min = lucka = räknas ej).
 # Pumpens elförbrukning (W) modelleras från framledningen med den kalibrerade kurvan (samma som main._PUMP_EL_CURVE) och
-# värderas med smartbox inköpsprismodell (gpm.py): köp = spot*1.25 + 0.62675 kr/kWh (moms, nätavgift, skatt).
-BUY_VAT, BUY_FIXED_KR = 1.25, 0.62675
+# värderas med nordpool.sql_buy_cost_expr (delad inköpsprismodell, källoberoende - se gpm.py/smartdashboard).
 _PUMP_W_SQL = """CASE WHEN fwd IS NULL THEN 2700 WHEN fwd <= 25 THEN 2000
     WHEN fwd <= 32.5 THEN 2000 + (fwd - 25) * (2480 - 2000) / 7.5 WHEN fwd <= 37.5 THEN 2480 + (fwd - 32.5) * (2655 - 2480) / 5
     WHEN fwd <= 42.5 THEN 2655 + (fwd - 37.5) * (2865 - 2655) / 5 WHEN fwd <= 50 THEN 2865 + (fwd - 42.5) * (3460 - 2865) / 7.5
@@ -109,7 +109,7 @@ SELECT {grp} AS k, sum(dt) / 3600.0 AS logg_h,
        sum(dt) FILTER (WHERE k = 1 AND net_power <= 0 AND pv > 100) / 3600.0 AS komp_gratis_h,
        sum(dt * pw) FILTER (WHERE k = 1) / 3600000.0 AS komp_kwh,
        sum(dt * pw) FILTER (WHERE k = 1 AND net_power <= 0 AND pv > 100) / 3600000.0 AS komp_sol_kwh,
-       sum(dt * pw * (price * {vat} + {fixed})) FILTER (WHERE k = 1 AND net_power <= 0 AND pv > 100) / 3600000.0 AS sparat_kr
+       sum(dt * pw * {buy}) FILTER (WHERE k = 1 AND net_power <= 0 AND pv > 100) / 3600000.0 AS sparat_kr
 FROM p GROUP BY 1 ORDER BY 1"""
 
 
@@ -126,7 +126,8 @@ def solar_free(conn):
     now_l = datetime.now(swe).replace(tzinfo=None)
     counter = {p[0]: p[1] for p in periods(conn, "month")}          # månad -> kompressortimmar från pumpens räknare
     out_m = []
-    for r in conn.execute(text(_SOLAR_SQL.format(grp="date_trunc('month', lt)::date", vat=BUY_VAT, fixed=BUY_FIXED_KR))).fetchall():
+    buy = nordpool.sql_buy_cost_expr("price")
+    for r in conn.execute(text(_SOLAR_SQL.format(grp="date_trunc('month', lt)::date", buy=buy))).fetchall():
         m = r[0]
         nxt = datetime(m.year + (m.month // 12), m.month % 12 + 1, 1)
         start = max(datetime(m.year, m.month, 1), first_l or datetime(m.year, m.month, 1))
@@ -142,7 +143,7 @@ def solar_free(conn):
                       "komp_kwh": round(kwh * scale), "komp_sol_kwh": round(sol_kwh * scale), "sparat_kr": round(sparat * scale)})
     out_h = [{"timme": int(r[0]), "hus_h": round(float(r[2] or 0), 1), "komp_h": round(float(r[3] or 0), 1),
               "komp_gratis_h": round(float(r[4] or 0), 1)}
-             for r in conn.execute(text(_SOLAR_SQL.format(grp="extract(hour FROM lt)::int", vat=BUY_VAT, fixed=BUY_FIXED_KR))).fetchall()]
+             for r in conn.execute(text(_SOLAR_SQL.format(grp="extract(hour FROM lt)::int", buy=buy))).fetchall()]
     return {"manader": out_m, "timmar": out_h}
 
 
@@ -164,8 +165,8 @@ WITH w AS (
     FROM w
 )
 SELECT mth, sum(dt) / 3600.0 AS logg_h,
-       sum(dt * lite) / 3600000.0, sum(dt * lite * sh) / 3600000.0, sum(dt * lite * sh * (price * {vat} + {fixed})) / 3600000.0,
-       sum(dt * cp) / 3600000.0,   sum(dt * cp * sh) / 3600000.0,   sum(dt * cp * sh * (price * {vat} + {fixed})) / 3600000.0
+       sum(dt * lite) / 3600000.0, sum(dt * lite * sh) / 3600000.0, sum(dt * lite * sh * {buy}) / 3600000.0,
+       sum(dt * cp) / 3600000.0,   sum(dt * cp * sh) / 3600000.0,   sum(dt * cp * sh * {buy}) / 3600000.0
 FROM s GROUP BY 1 ORDER BY 1"""
 
 
@@ -178,7 +179,7 @@ def ev_solar(conn):
     first_l = first.astimezone(swe).replace(tzinfo=None) if first else None
     now_l = datetime.now(swe).replace(tzinfo=None)
     out = []
-    for r in conn.execute(text(_EV_SQL.format(vat=BUY_VAT, fixed=BUY_FIXED_KR))).fetchall():
+    for r in conn.execute(text(_EV_SQL.format(buy=nordpool.sql_buy_cost_expr("price")))).fetchall():
         m = r[0]
         nxt = datetime(m.year + (m.month // 12), m.month % 12 + 1, 1)
         start = max(datetime(m.year, m.month, 1), first_l or datetime(m.year, m.month, 1))
