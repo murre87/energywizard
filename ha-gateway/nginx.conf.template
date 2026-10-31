@@ -50,6 +50,16 @@ server {
         }
         location = /energywizard { return 301 /energywizard/; }
 
+        location /telemetry/ {
+            rewrite ^/telemetry/(.*)$ /$1 break;
+            proxy_pass http://telemetry-collector:8504;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+        location = /telemetry { return 301 /telemetry/; }
+
         # Allt annat -> din Home Assistant. HA_PROTO=https om din HA terminerar egen TLS
         # (vanligt för Container-installationer med ett eget certifikat), annars http.
         location / {
