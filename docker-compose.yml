@@ -68,6 +68,9 @@ services:
       - HOUSE_CONFIG_PATH=/house_config.yaml
       - PRICE_SOURCE=${PRICE_SOURCE:-elprisetjustnu}
       - NORDPOOL_HA_ENTITY=${NORDPOOL_HA_ENTITY:-sensor.nordpool}
+      # Strikt opt-in, av om TELEMETRY_OPT_IN saknas - se .env.example och smartbox/telemetry.py
+      - TELEMETRY_OPT_IN=${TELEMETRY_OPT_IN:-}
+      - TELEMETRY_ENDPOINT=${TELEMETRY_ENDPOINT:-}
 
   ####################################################################
   # Dashboard: Streamlit (Den Visuella "Glassmorphism" Frontenden)
@@ -193,5 +196,26 @@ services:
       - HA_PROTO=${HA_GATEWAY_UPSTREAM_PROTO:-https}
       - GATEWAY_PORT=${HA_GATEWAY_PORT:-8199}
 
+  ####################################################################
+  # Telemetri-samlare: EN instans Emil själv driftsätter - inte något varje
+  # betatestare kör lokalt. Smartbox-containrarna pekar mot DEN HÄR adressen
+  # via TELEMETRY_ENDPOINT i sin .env, bara om de själva satt
+  # TELEMETRY_OPT_IN=true (av som standard, se smartbox/telemetry.py).
+  # "docker compose --profile telemetry-collector up -d" - rörs annars inte alls.
+  ####################################################################
+  telemetry-collector:
+    build: ./telemetry-collector
+    container_name: telemetry-collector
+    restart: unless-stopped
+    profiles: ["telemetry-collector"]
+    ports:
+      - "${TELEMETRY_COLLECTOR_PORT:-8504}:8504"
+    volumes:
+      - telemetry_data:/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TELEMETRY_DB_PATH=/data/telemetry.sqlite3
+
 volumes:
   postgres_data:
+  telemetry_data:

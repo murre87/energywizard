@@ -13,6 +13,7 @@ import settings  # Hanterar konfigurationsinställningar
 import weather   # Hämtar och cachelagrar väderprognos inkl. solprognos
 import homeassistant    # Hämtar data från Home Assistant (temperaturer + Easee-laddare)
 import notifier         # Skickar push-notiser till Emil
+import telemetry        # Strikt opt-in: fel + aktiva drivrutinkategorier, se telemetry.py
 from urllib.parse import urlsplit, urlunsplit
 import lawnmower        # Logik för robotgräsklippare
 import decisions        # Besluts- och styrlogik för pump och radiatorer
@@ -98,6 +99,8 @@ car_ids = [c.id for c in car_drivers] or ['nissan', 'tesla']  # tomt hus (inga b
 ev_allocations = {physical_id: None for physical_id in physical_charger_drivers}
 print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar) ({car_ids}), värmepump={type(heat_pump_driver).__name__}, "
       f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}, laddare={list(physical_charger_drivers.keys())}")
+
+telemetry.send_driver_snapshot(house_cfg)  # no-op om TELEMETRY_OPT_IN inte är satt - se telemetry.py
 
 # Ny installation (house_config.yaml fortfarande i princip tomt) → EN envägs-notis i HA:s
 # eget notisfält (persistent_notification, ligger kvar tills användaren kryssar bort den -
@@ -1923,4 +1926,5 @@ while True:
         print(f"🔥 KRITISKT FEL I HUVUDLOOPEN: {e}")
         import traceback
         traceback.print_exc()
+        telemetry.report_error(house_cfg, "main_loop", type(e).__name__)
         time.sleep(10)
