@@ -22,6 +22,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
 
 import webauth
+import discovery
+import house_config
 
 WATCHTOWER_URL = os.environ.get("WATCHTOWER_URL", "http://host.docker.internal:8090")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_API_TOKEN", "")
@@ -200,6 +202,119 @@ async def updates(request: Request, force: bool = False):
         "total": len(containers),
         "pending": sorted(pending),
     }
+
+
+@app.post("/api/discover")
+async def api_discover():
+    """Entitetsväljare (Inställningar-sidan): skannar husets riktiga Home Assistant
+    efter kandidat-entiteter per kategori. Live-anrop mot HA, bara på knapptryck -
+    inte cachat/automatiskt som /api/overview."""
+    try:
+        return {"ok": True, **discovery.discover_house()}
+    except Exception as e:
+        return {"ok": False, "error": f"Kunde inte skanna Home Assistant: {e}"}
+
+
+def _yaml_str(v) -> str:
+    return "null" if v is None else f'"{v}"'
+
+
+def _build_house_config_yaml(sel: dict) -> str:
+    """Bygger en riktig house_config.yaml-text från de BEKRÄFTADE valen frontend
+    skickar in (samma form som discovery.discover_house() ger, men bara det
+    användaren lämnat ikryssat). Fält discovery inte kan avgöra (Modbus-adress,
+    fysisk laddarplats) lämnas som tydliga FYLL I-platshållare, inte gissade."""
+    lines = ['house_id: "mitt-hus"   # byt gärna till något eget', ""]
+
+    lines.append("evs:")
+    cars = sel.get("cars") or []
+    if not cars:
+        lines[-1] = "evs: []"
+    for i, c in enumerate(cars):
+        car_id = c.get("id") or f"bil{i + 1}"
+        lines.append(f"  - id: {car_id}")
+        lines.append(f"    driver: {c.get('driver') or 'generic_ev'}")
+        lines.append(f"    battery_kwh: {c.get('battery_kwh') or 60}  # FYLL I - din bils batteristorlek i kWh")
+        lines.append("    entities:")
+        if c.get("soc_entity"):
+            lines.append(f"      soc: {c['soc_entity']}")
+        if c.get("plugged_in_entity"):
+            lines.append(f"      plugged_in: {c['plugged_in_entity']}")
+        if c.get("climate_entity"):
+            lines.append(f"      climate: {c['climate_entity']}")
+        charger = c.get("charger")
+        if charger:
+            charger_driver = charger.get("driver") or "generic_charger"
+            lines.append("    charger:")
+            lines.append(f"      id: {charger.get('device_name') or car_id + '_laddare'}")
+            lines.append(f"      driver: {charger_driver}  # ihopparningen bil<->laddare är en gissning (ordning på vad du kryssade i) - dubbelkolla den")
+            if charger_driver == "easee":
+                dn = (charger.get("device_name") or "").lower()
+                guessed_physical = "carport" if "carport" in dn else "lite" if "lite" in dn else None
+                if guessed_physical:
+                    lines.append(f"      physical: {guessed_physical}  # gissat från enhetsnamnet '{charger.get('device_name')}' - dubbelkolla")
+                else:
+                    lines.append("      physical: lite  # FYLL I - vilken av dina Easee-boxar (lite/carport, bara namn - byt om du vill)")
+            lines.append("      entities:")
+            if charger.get("status_entity"):
+                lines.append(f"        status: {charger['status_entity']}")
+    lines.append("")
+
+    hp = sel.get("heat_pump")
+    if hp:
+        lines += ["heat_pump:", "  enabled: true", f"  driver: {hp.get('driver') or 'generic_heatpump'}",
+                   "  connection:", "    modbus_host: 192.168.1.XXX  # FYLL I - värmepumpens IP/gateway, kan inte upptäckas automatiskt",
+                   "    modbus_port: 502", "    unit_id: 1"]
+    else:
+        lines += ["heat_pump:", "  enabled: false"]
+    lines.append("")
+
+    solar = sel.get("solar")
+    if solar:
+        lines += ["solar:", "  enabled: true", f"  driver: {solar.get('driver') or 'ha_entity_passthrough'}", "  entities:"]
+        if solar.get("pv_power_entity"):
+            lines.append(f"    pv_power_w: {solar['pv_power_entity']}")
+        if solar.get("today_kwh_entity"):
+            lines.append(f"    today_kwh: {solar['today_kwh_entity']}")
+    else:
+        lines += ["solar:", "  enabled: false"]
+    lines.append("")
+
+    spa = sel.get("spa")
+    if spa:
+        lines += ["spa:", "  enabled: true", f"  driver: {spa.get('driver') or 'generic_spa'}", "  entities:"]
+        if spa.get("current_temp_entity"):
+            lines.append(f"    current_temp: {spa['current_temp_entity']}")
+        if spa.get("power_entity"):
+            lines.append(f"    power_w: {spa['power_entity']}")
+    else:
+        lines += ["spa:", "  enabled: false"]
+    lines += ["", "fuse:", "  main_fuse_a: 25  # FYLL I - din huvudsäkring i Ampere"]
+
+    return "\n".join(lines) + "\n"
+
+
+@app.post("/api/generate-house-config")
+async def api_generate_house_config(request: Request):
+    sel = await request.json()
+    yaml_text = _build_house_config_yaml(sel)
+    # Egenkontroll innan den lämnas ut: ska gå att läsa in och bygga drivrutiner
+    # från, inte bara vara syntaktiskt rätt YAML - samma verktyg som redan finns.
+    import tempfile
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=True) as f:
+            f.write(yaml_text)
+            f.flush()
+            cfg = house_config.load_house_config(f.name)
+            house_config.build_car_drivers(cfg)
+            house_config.build_heat_pump_driver(cfg)
+            house_config.build_solar_driver(cfg)
+            house_config.build_spa_driver(cfg)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Den genererade filen gick inte att läsa in: {e}"}, status_code=500)
+    from fastapi.responses import Response
+    return Response(content=yaml_text, media_type="text/yaml",
+                     headers={"Content-Disposition": "attachment; filename=house_config.yaml"})
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
