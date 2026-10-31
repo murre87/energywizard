@@ -679,8 +679,10 @@ SETTING_RULES_HA_BACKED = {"nordpool_vat_enabled": ("bool",)}
 def get_settings():
     cfg = get_settings_row()
     values = {k: cfg.get(k) for k in SETTING_RULES}
-    nordpool_cfg = H.get_nordpool_config()
-    values["nordpool_vat_enabled"] = nordpool_cfg.get("data", {}).get("VAT") if nordpool_cfg else None
+    # Nuvarande VAT-läge går inte att läsa tillbaka från HA på något sätt (varken config
+    # entry eller sensorattribut avslöjar det) - alltid None/"okänt" i gränssnittet,
+    # aldrig en gissning. Se homeassistant.get_nordpool_config().
+    values["nordpool_vat_enabled"] = None
     return {"values": values, "rules": {k: list(v) for k, v in {**SETTING_RULES, **SETTING_RULES_HA_BACKED}.items()}}
 
 

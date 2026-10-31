@@ -705,10 +705,20 @@ def read_esphome_temp(ip="192.168.1.125"):
             continue
     return None
 
-def get_nordpool_config() -> dict:
-    """Läser nordpool-integrationens egen config entry (entry_id + data-fält, bl.a. VAT).
-    Live-läsning mot HA - vi speglar aldrig det här i vår egen databas, så det kan
-    aldrig bli inaktuellt. Returnerar {} om integrationen inte hittas/HA inte svarar."""
+# Nordpool-integrationens egna schema-defaults (config_flow.py:async_step_user) för de fält
+# som INTE går att läsa tillbaka på något sätt (varken via REST-config-entries, som bara ger
+# metadata - inte entry.data - eller via sensorns publika attribut). Bekräftat: HA:s
+# GET /api/config/config_entries/entry exponerar medvetet aldrig entry.data (integrationer
+# kan ha tokens där), och nordpool saknar diagnostics.py som annars brukar erbjuda en
+# säker väg till den sortens config-innehåll.
+_NORDPOOL_DEFAULT_PRECISION = 3
+_NORDPOOL_DEFAULT_LOW_PRICE_CUTOFF = 1.0
+_NORDPOOL_DEFAULT_ADDITIONAL_COSTS = "{{0.0|float}}"
+_NORDPOOL_DEFAULT_PRICE_TYPE = "kWh"
+
+
+def _nordpool_entry_id() -> str | None:
+    """Live-läsning av entry_id mot HA - vi speglar aldrig det här i vår egen databas."""
     try:
         r = requests.get(f"{_BASE}/config/config_entries/entry", params={"domain": "nordpool"},
                           headers=_HEADERS, timeout=5, verify=_VERIFY)
@@ -716,11 +726,36 @@ def get_nordpool_config() -> dict:
         entries = r.json()
         if not entries:
             print("❌ Nordpool-integrationen hittades inte i Home Assistant.")
-            return {}
-        return entries[0]
+            return None
+        return entries[0].get("entry_id")
     except Exception as e:
         print(f"❌ Kunde inte läsa nordpool-integrationens config: {e}")
+        return None
+
+
+def get_nordpool_config() -> dict:
+    """Bästa möjliga (INTE garanterat kompletta) bild av nordpool-integrationens
+    inställningar - entry_id + region/currency/price_in_cents rekonstruerat från
+    sensor.nordpool:s publika attribut. VAT:s NUVARANDE värde går inte att läsa tillbaka
+    på något sätt (varken config entry eller sensorattribut avslöjar det), så fältet
+    saknas helt i svaret - anroparen måste visa "okänt", aldrig gissa ett värde."""
+    entry_id = _nordpool_entry_id()
+    if not entry_id:
         return {}
+    try:
+        r = requests.get(f"{_BASE}/states/sensor.nordpool", headers=_HEADERS, timeout=5, verify=_VERIFY)
+        r.raise_for_status()
+        attrs = r.json().get("attributes", {})
+    except Exception as e:
+        print(f"❌ Kunde inte läsa sensor.nordpool för att rekonstruera konfigurationen: {e}")
+        return {}
+    return {
+        "entry_id": entry_id,
+        "region": attrs.get("region"),
+        "currency": attrs.get("currency"),
+        "price_in_cents": bool(attrs.get("price_in_cents", False)),
+        "additional_costs_current_hour": attrs.get("additional_costs_current_hour"),
+    }
 
 
 def set_nordpool_vat(enabled: bool) -> bool:
@@ -734,17 +769,37 @@ def set_nordpool_vat(enabled: bool) -> bool:
     gamla raderats, annars blir det sensor.nordpool_2 istället för sensor.nordpool och allt
     som redan pekar på det namnet (i och utanför EnergyWizard) går sönder.
 
+    BEST EFFORT (inte en exakt spegling - se get_nordpool_config): region/currency/
+    price_in_cents rekonstrueras från sensor.nordpool:s publika attribut, resten (precision/
+    low_price_cutoff/additional_costs/price_type) sätts till integrationens egna schema-
+    defaults. Om additional_costs_current_hour != 0 just nu finns sannolikt en anpassad
+    avgiftsmall vi INTE kan bevara - vägrar växla då istället för att tyst nolla ut den.
+
     Ger en kort lucka (några sekunder) där sensor.nordpool inte finns - EnergyWizards egen
     prishämtning (nordpool.fetch_ha_nordpool_and_save) faller automatiskt tillbaka till
     elprisetjustnu.se om den hinner träffa luckan."""
-    entry = get_nordpool_config()
-    entry_id = entry.get("entry_id")
-    data = dict(entry.get("data") or {})
-    if not entry_id or not data:
-        print("❌ Kan inte ändra moms: nordpool-integrationens config kunde inte läsas.")
+    cfg = get_nordpool_config()
+    entry_id = cfg.get("entry_id")
+    if not entry_id or not cfg.get("region") or not cfg.get("currency"):
+        print("❌ Kan inte ändra moms: nordpool-integrationens inställningar kunde inte rekonstrueras.")
         return False
 
-    data["VAT"] = bool(enabled)
+    extra_costs = cfg.get("additional_costs_current_hour")
+    if extra_costs not in (None, 0, 0.0):
+        print(f"❌ Vägrar växla moms: additional_costs_current_hour = {extra_costs} (≠ 0) tyder på "
+              f"en anpassad avgiftsmall som INTE kan bevaras vid återskapning - ändra manuellt i HA istället.")
+        return False
+
+    data = {
+        "region": cfg["region"],
+        "currency": cfg["currency"],
+        "VAT": bool(enabled),
+        "precision": _NORDPOOL_DEFAULT_PRECISION,
+        "low_price_cutoff": _NORDPOOL_DEFAULT_LOW_PRICE_CUTOFF,
+        "price_in_cents": cfg["price_in_cents"],
+        "price_type": _NORDPOOL_DEFAULT_PRICE_TYPE,
+        "additional_costs": _NORDPOOL_DEFAULT_ADDITIONAL_COSTS,
+    }
 
     try:
         r_del = requests.delete(f"{_BASE}/config/config_entries/entry/{entry_id}",
