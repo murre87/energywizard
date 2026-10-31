@@ -919,5 +919,41 @@ def set_nordpool_vat(enabled: bool) -> bool:
     return False
 
 
+def get_own_base_url() -> str | None:
+    """HA:s egen, redan korrekt ifyllda internal_url/external_url (Inställningar →
+    System → Nätverk) - mer pålitligt än att gissa värdens LAN-IP inifrån en
+    bridge-nätverkad container (containerns egen IP är inte samma sak som värdens,
+    skulle bli missvisande). Föredrar internal_url (lokalt nät, samma plats de flesta
+    kör EnergyWizard ifrån)."""
+    try:
+        r = requests.get(f"{_BASE}/config", headers=_HEADERS, timeout=5, verify=_VERIFY)
+        r.raise_for_status()
+        d = r.json()
+        return d.get("internal_url") or d.get("external_url")
+    except Exception as e:
+        print(f"❌ Kunde inte läsa HA:s egen internal_url/external_url: {e}")
+        return None
+
+
+def send_persistent_notification(notification_id: str, title: str, message: str) -> bool:
+    """Genuint generisk persistent_notification.create - ligger kvar synlig i HA:s eget
+    notisfält tills användaren själv kryssar bort den (samma mekanism HACS och många
+    tillägg använder för "kräver uppmärksamhet"). notification_id gör anropet
+    idempotent - samma id uppdaterar/ersätter istället för att stapla dubbletter."""
+    try:
+        r = requests.post(
+            f"{_BASE}/services/persistent_notification/create",
+            headers=_HEADERS,
+            json={"notification_id": notification_id, "title": title, "message": message},
+            timeout=5,
+            verify=_VERIFY,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid persistent_notification.create: {e}")
+        return False
+
+
 if __name__ == "__main__":
     print("Home Assistant Modul laddad.")
