@@ -1536,7 +1536,11 @@ def manifest():
 
 @app.get("/sw.js")
 def sw():
-    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Service-Worker-Allowed": "/m/", "Cache-Control": "no-cache"})
+    # "/" (inte hårdkodat "/m/") - ewapp nås nu under flera olika prefix (nginx stripper
+    # prefixet innan det når appen, se /m/ och /energywizard/mobil/), så ett smalare omfång
+    # skulle göra service workern verkningslös/trasig under vilket prefix som helst förutom
+    # just /m/. En bredare scope än det faktiska sidans path är alltid giltig för webbläsaren.
+    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
 
 
 @app.get("/i18n.js")
