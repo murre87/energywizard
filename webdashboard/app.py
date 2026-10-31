@@ -9,6 +9,8 @@ alla 13 planerade sidor, och en testgraf som bevisar att ECharts-pipen fungerar.
 Ingen sida har riktigt innehåll än - det är Fas B och framåt.
 """
 import asyncio
+import hashlib
+import hmac
 import math
 import os
 import sys
@@ -42,6 +44,38 @@ ENGINE = create_engine(
 # Eget salt ("webdash") -> egen cookie-scope, skild session från ewapp även om PASSWORD
 # är detsamma. family-rollen har inga skriv-vägar än (Fas A har inga formulär alls).
 AUTH = webauth.Auth(salt="webdash", family_write_prefixes=())
+
+# -- styrkommandon: samma knappar som ewapp, inte dubblerad logik ------------------------
+# webdashboard har ingen egen Tesla/Nissan/SolarEdge/spa-styrningskod - den enda riktiga
+# hårdvarulogiken (handskakningar, HA-anrop) finns i ewapp/app.py, redan testad i skarp
+# drift. Istället för att skriva om den (gissad kod = exakt det det här projektet undviker,
+# se ROADMAP) PROXAR webdashboard de skrivande anropen till ewapp-containern internt
+# (samma docker-nät, container_name "ewapp", port 8502) med ett eget serversignerat
+# "ew"-cookie - exakt samma HMAC-formel ewapp/app.py:s _sign() använder (salt "ewapp"),
+# bara byggd server-till-server här istället för att komma från webbläsaren.
+# OBS: /api/secure + /api/tesla/access (lås/upplåsning/luckor) är MEDVETET INTE proxade -
+# det är ett separat omverifieringsflöde (eget "ew2"-cookie, lösenord igen, 10 minuters
+# fönster) som förtjänar sin egen, noga testade implementation - inte en hastig kopia.
+EWAPP_URL = os.environ.get("EWAPP_URL", "http://ewapp:8502")
+_EWAPP_SECRET = hashlib.sha256(("ewapp|" + webauth.PASSWORD).encode()).digest()
+
+
+def _ewapp_cookie() -> str:
+    exp = int(time.time()) + 60
+    payload = f"{exp}.owner.owner"
+    return f"{payload}.{hmac.new(_EWAPP_SECRET, payload.encode(), hashlib.sha256).hexdigest()}"
+
+
+async def _ewapp_proxy(path: str, body: dict) -> JSONResponse:
+    try:
+        r = requests.post(f"{EWAPP_URL}{path}", cookies={"ew": _ewapp_cookie()}, json=body, timeout=25)
+    except requests.RequestException as e:
+        return JSONResponse({"detail": f"Nådde inte ewapp: {e}"}, status_code=502)
+    try:
+        data = r.json()
+    except ValueError:
+        data = {"detail": r.text}
+    return JSONResponse(data, status_code=r.status_code)
 
 # De 13 sidorna enligt inventeringen av smartdashboard (se planfilen) - tomma till Fas B+.
 # "built": False döljs i menyn (se /api/me) tills sidan faktiskt har eget innehåll i
@@ -181,11 +215,15 @@ async def overview(request: Request):
             return {"ok": False, "error": "Ingen data i sensor_log än"}
         mode = str(row.get("active_mode") or "").upper()
         target_room = _temp_target(c, mode)
+        ov = _overrides(c, ("heat", "hotwater"))
+        cfg = _settings_row(c, ("temp_cheap", "temp_expensive"))
     is_high_load = _is_high_load_time(row["sthlm_time"])
 
     return {
         "ok": True,
         "mode": mode,
+        "heat_mode": ov.get("heat", "auto"), "hotwater_mode": ov.get("hotwater", "auto"),
+        "temp_cheap": _n(cfg.get("temp_cheap")), "temp_expensive": _n(cfg.get("temp_expensive")),
         "decision": row.get("active_decision") or "Utvärderar…",
         "price": _n(row.get("price")),
         "indoor_temp": _n(row.get("indoor_temp")),
@@ -240,6 +278,16 @@ def _latest_row(c):
     return dict(row) if row else None
 
 
+def _overrides(c, keys):
+    rows = c.execute(text("SELECT device, mode FROM overrides WHERE device = ANY(:k)"), {"k": list(keys)}).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
+def _settings_row(c, cols):
+    row = c.execute(text(f"SELECT {', '.join(cols)} FROM system_settings WHERE id = 1")).mappings().first()
+    return dict(row) if row else {}
+
+
 def _price_24h(c):
     rows = c.execute(text(
         "SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= now() - interval '24 hours' ORDER BY time_start"
@@ -290,11 +338,14 @@ async def api_solar():
         if row is None:
             return {"ok": False, "error": "Ingen data i sensor_log än"}
         price_24h = _price_24h(c)
+        ov = _overrides(c, ("ai_solar_limit_active", "solar_export_price_limit", "notify_solar_limit"))
     return {"ok": True, "pv_power_w": _n(row.get("pv_power_w")), "solar_today_kwh": _n(row.get("solar_today_kwh")),
             "solar_forecast_w": _n(row.get("solar_forecast_w")), "solar_limit_pct": _n(row.get("solar_limit_pct")),
             "inverter_status": row.get("inverter_status"), "battery_soc": _n(row.get("battery_soc")),
             "battery_power_w": _n(row.get("battery_power_w")), "net_power_w": _n(row.get("net_power")),
-            "price": _n(row.get("price")), "price_24h": price_24h}
+            "price": _n(row.get("price")), "price_24h": price_24h,
+            "ai_limit": ov.get("ai_solar_limit_active") == "true", "export_price_floor": _n(ov.get("solar_export_price_limit"), -1.0),
+            "notify": ov.get("notify_solar_limit", "true") == "true"}
 
 
 @app.get("/api/economy")
@@ -330,11 +381,13 @@ async def api_consumption():
         lb = c.execute(text(
             "SELECT total_w, ev_w, pump_w, spa_w, unexplained_w FROM load_breakdown ORDER BY timestamp DESC LIMIT 1"
         )).mappings().first()
+        cfg = _settings_row(c, ("peak_shaving_enabled", "power_limit_kw"))
     return {"ok": True, "avg_w_l1": _n(row.get("avg_w_l1")), "avg_w_l2": _n(row.get("avg_w_l2")),
             "avg_w_l3": _n(row.get("avg_w_l3")), "avg_w_tot": _n(row.get("avg_w_tot")),
             "house_consumption_w": _n(row.get("house_consumption_w")), "power_oven_w": _n(row.get("power_oven_w")),
             "power_computer_w": _n(row.get("power_computer_w")), "peak_shaving_active": bool(row.get("peak_shaving_active")),
             "predicted_base_load_kw": _n(row.get("predicted_base_load_kw")),
+            "peak_shaving_enabled": bool(cfg.get("peak_shaving_enabled")), "power_limit_kw": _n(cfg.get("power_limit_kw")),
             "breakdown": {k: _n(lb[k]) for k in ("total_w", "ev_w", "pump_w", "spa_w", "unexplained_w")} if lb else None}
 
 
@@ -344,11 +397,14 @@ async def api_spa():
     styrenheten) - direkt ur sensor_log, samma fält gpm.py redan styr mot."""
     with ENGINE.connect() as c:
         row = _latest_row(c)
-    if row is None:
-        return {"ok": False, "error": "Ingen data i sensor_log än"}
+        if row is None:
+            return {"ok": False, "error": "Ingen data i sensor_log än"}
+        cfg = _settings_row(c, ("spa_force_heat",))
+        ov = _overrides(c, ("spa_force_eco",))
     return {"ok": True, "temp": _n(row.get("spa_temp")), "target": _n(row.get("spa_target")),
             "heater_running": bool(row.get("spa_heater_running")), "power_w": _n(row.get("spa_power_w")),
-            "signal_pct": _n(row.get("spa_signal_pct")), "rf_channel": _n(row.get("spa_rf_channel"))}
+            "signal_pct": _n(row.get("spa_signal_pct")), "rf_channel": _n(row.get("spa_rf_channel")),
+            "force_heat": bool(cfg.get("spa_force_heat")), "eco": ov.get("spa_force_eco") == "on"}
 
 
 ROOMS = [("temp_vardagsrum", "Vardagsrum"), ("temp_masterbedroom", "Sovrum"), ("temp_barnrum_nere", "Barnrum nere"),
@@ -438,6 +494,57 @@ async def set_notification(key: str, request: Request):
             "INSERT INTO overrides (device, mode) VALUES (:d, :m) ON CONFLICT (device) DO UPDATE SET mode = :m, updated_at = now()"
         ), {"d": key, "m": "true" if v else "false"})
     return {"ok": True}
+
+
+@app.post("/api/car/{car}/action")
+async def proxy_car_action(car: str, request: Request):
+    """Elbil-sidan: start/max/stop/auto-laddning + värm/stoppa klimatet - ewapp:s egen
+    car_command()/heat_on/heat_off, bara anropad härifrån också."""
+    if car not in ("tesla", "nissan"):
+        return JSONResponse({"detail": "Okänd bil"}, status_code=404)
+    body = await request.json()
+    if body.get("kind") not in ("start", "max", "set", "stop", "auto", "heat_on", "heat_off"):
+        return JSONResponse({"detail": "Okänd åtgärd"}, status_code=400)
+    return await _ewapp_proxy(f"/api/car/{car}/action", body)
+
+
+@app.post("/api/home-action/{what}")
+async def proxy_home_action(what: str, request: Request):
+    """Spabad-sidan: spa_heat/spa_auto/spa_eco, Värmepump-sidan: heat/hotwater - ewapp:s
+    /api/home/{what}. Eget pathnamn (inte /api/home/{what}) så det inte krockar med en
+    egen framtida webdashboard-endpoint under /api/home."""
+    if what not in ("heat", "hotwater", "spa_heat", "spa_auto", "spa_eco"):
+        return JSONResponse({"detail": "Okänd åtgärd"}, status_code=404)
+    body = await request.json()
+    return await _ewapp_proxy(f"/api/home/{what}", body)
+
+
+@app.post("/api/energy-action/{what}")
+async def proxy_energy_action(what: str, request: Request):
+    """Solceller-sidan: manuell exportgräns, prisgolv, avisering på/av - ewapp:s
+    /api/energy/{what}."""
+    if what not in ("limit", "floor", "notify"):
+        return JSONResponse({"detail": "Okänd åtgärd"}, status_code=404)
+    body = await request.json()
+    return await _ewapp_proxy(f"/api/energy/{what}", body)
+
+
+@app.post("/api/schedule")
+async def proxy_schedule(request: Request):
+    """Elbil-sidan: redigera laddschemat (klar kl/nivå per veckodag) - ewapp:s
+    /api/schedule, samma ev_charging_schedule-tabell vi redan läser i /api/car."""
+    return await _ewapp_proxy("/api/schedule", await request.json())
+
+
+@app.post("/api/settings-action")
+async def proxy_setting(request: Request):
+    """Elförbrukning-sidan (effektvakt på/av + effektgräns) och Värmepump-sidan
+    (billig/dyr måltemperatur) - ewapp:s /api/settings, begränsat till de nycklar
+    webdashboards sidor faktiskt visar kontroller för."""
+    body = await request.json()
+    if body.get("key") not in ("peak_shaving_enabled", "power_limit_kw", "temp_cheap", "temp_expensive"):
+        return JSONResponse({"detail": "Okänd inställning"}, status_code=400)
+    return await _ewapp_proxy("/api/settings", body)
 
 
 @app.post("/api/discover")

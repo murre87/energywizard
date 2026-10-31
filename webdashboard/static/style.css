@@ -30,9 +30,20 @@ h1, h2, h3 { font-family:inherit; letter-spacing:-.01em; }
 
 @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 
-/* -- glas-tema (delat med ewapp, html[data-glass]) -- */
-html[data-glass] .card, html[data-glass] .sidebar, html[data-glass] .topbar { background:rgba(255,255,255,.065); -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%); border-color:rgba(255,255,255,.14); }
-:root[data-theme=light][data-glass] .card, :root[data-theme=light][data-glass] .sidebar, :root[data-theme=light][data-glass] .topbar { background:rgba(255,255,255,.6); border-color:rgba(255,255,255,.85); }
+/* -- glasdesign: samma systrem som ewapp (html[data-glass]), på som standard här också --
+   frostade kort som släpper igenom bakgrundens dygnsfärger, inte en egen separat stil. */
+html[data-glass] body::before { content:""; position:fixed; inset:-10%; z-index:-1; pointer-events:none; filter:blur(46px); background: radial-gradient(40% 32% at 18% 14%, rgba(34,211,160,.42), transparent 70%), radial-gradient(38% 30% at 86% 30%, rgba(56,189,248,.38), transparent 70%), radial-gradient(44% 34% at 30% 88%, rgba(168,85,247,.30), transparent 70%); }
+html[data-glass] .card, html[data-glass] .stat, html[data-glass] .sidebar, html[data-glass] .topbar, html[data-glass] .loginbox { background:rgba(255,255,255,.07); -webkit-backdrop-filter:blur(22px) saturate(170%); backdrop-filter:blur(22px) saturate(170%); border-color:rgba(255,255,255,.16); box-shadow:0 10px 32px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.16); }
+html[data-glass] .icobtn, html[data-glass] .badge { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); }
+:root[data-theme=light][data-glass] .card, :root[data-theme=light][data-glass] .stat, :root[data-theme=light][data-glass] .sidebar, :root[data-theme=light][data-glass] .topbar, :root[data-theme=light][data-glass] .loginbox { background:rgba(255,255,255,.52); border-color:rgba(255,255,255,.85); box-shadow:0 10px 30px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.9); }
+:root[data-theme=light][data-glass] .icobtn, :root[data-theme=light][data-glass] .badge { background:rgba(255,255,255,.55); border-color:rgba(255,255,255,.9); }
+
+/* -- dygnsfärger: bakgrunden skiftar med tiden på dygnet, samma stopp som ewapp -- */
+html[data-ambient] body { transition: background .8s; }
+html[data-ambient][data-tod=morning] body { background: radial-gradient(1100px 620px at 15% -8%, rgba(251,146,60,.30), transparent 62%), radial-gradient(900px 520px at 95% 8%, rgba(244,114,182,.18), transparent 62%), var(--bg); }
+html[data-ambient][data-tod=day] body { background: radial-gradient(1100px 620px at 50% -12%, rgba(56,189,248,.30), transparent 62%), radial-gradient(800px 500px at 100% 20%, rgba(34,211,160,.14), transparent 62%), var(--bg); }
+html[data-ambient][data-tod=evening] body { background: radial-gradient(1100px 620px at 85% -8%, rgba(249,115,22,.32), transparent 62%), radial-gradient(1000px 580px at 5% 12%, rgba(168,85,247,.24), transparent 62%), var(--bg); }
+html[data-ambient][data-tod=night] body { background: radial-gradient(1100px 620px at 50% -10%, rgba(79,70,229,.30), transparent 62%), radial-gradient(700px 400px at 10% 30%, rgba(30,64,175,.18), transparent 62%), var(--bg); }
 
 /* -- layoutskal: sidomeny + innehåll, vanlig scroll -- */
 #shell { display:none; min-height:100dvh; }
@@ -104,6 +115,15 @@ main > *:first-child { animation:fadeUp .3s ease both; }
 .loginbox button { font-size:15px; font-weight:700; padding:14px; border-radius:var(--r-sm); border:none; background:linear-gradient(135deg, var(--acc), var(--acc2)); color:#04201a; cursor:pointer; transition:transform .12s, filter .12s; }
 .loginbox button:hover { filter:brightness(1.06); transform:translateY(-1px); }
 .err { color:var(--bad); font-size:.88rem; min-height:1.2em; }
+
+#toast { position:fixed; left:50%; bottom:28px; transform:translate(-50%,16px); background:#111a2e; color:#fff; padding:11px 18px; border-radius:14px; opacity:0; transition:.22s; pointer-events:none; max-width:min(90vw,420px); border:1px solid var(--line); z-index:9; font-size:.9rem; box-shadow:var(--shadow); }
+#toast.show { opacity:1; transform:translate(-50%,0); }
+.seg { display:inline-flex; gap:6px; border-radius:var(--r-sm); } .seg button { min-height:36px; border-radius:10px; border:1px solid var(--line); background:var(--card2); color:var(--txt); font-size:.84rem; font-weight:600; padding:0 12px; cursor:pointer; } .seg button.on { border-color:var(--acc); color:var(--acc); background:rgba(34,211,160,.12); }
+.seg button[disabled], .togglerow.dim, .row-disabled { opacity:.45; pointer-events:none; }
+.numfield { display:flex; align-items:center; gap:8px; }
+.numfield input[type=number] { width:88px; font-size:15px; padding:9px 10px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card2); color:var(--txt); }
+.numfield input[type=time] { width:118px; font-size:15px; padding:9px 10px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card2); color:var(--txt); }
+.numfield input[type=range] { flex:1; accent-color:var(--acc); }
 
 @media (max-width: 860px) {
   #shell.on { grid-template-columns:1fr; grid-template-areas:"top" "main"; }
