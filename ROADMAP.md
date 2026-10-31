@@ -33,19 +33,32 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   vi ska luta oss mot redan underhållen kod (Predbat, HA:s egna
   integrationer) så mycket som möjligt istället för att bygga och underhålla
   en egen optimerare - minimal egen kodyta, inte en konkurrerande
-  implementation. Konkret, i prioritetsordning:
-  1. **Läsning, ingen skrivning** (byggbart nu, litet): räkna in Predbats
-     faktiska batterieffekt (via `GenericBatteryDriver.read_state()`) i
-     `gpm.py`:s solöverskottsberäkning, så elbil/värmepump inte tror sig ha
-     mer överskott än vad som faktiskt är ledigt efter att Predbat tagit sin
-     del. Ingen ny skrivbehörighet, ingen konkurrerande beslutslogik.
-  2. **Dubbelriktad samplanering** (större, senare): publicera
-     EnergyWizards planerade laster (t.ex. elbilens laddfönster) som en HA-
-     sensor Predbat kan läsa in som extra förväntad last i sin egen prognos -
-     den riktiga "pratar med varandra"-biten, men beror på hur stabilt
-     Predbats indataformat är mellan versioner.
-  Vi bygger INTE en egen batterioptimerare som konkurrerar med Predbats -
-  målet är att komplettera den, inte ersätta den.
+  implementation. Vi bygger INTE en egen batterioptimerare som konkurrerar
+  med Predbats - målet är att komplettera den, inte ersätta den.
+
+  **Koordinering med Predbat, redan utredd:**
+  - ~~Steg 1, läs Predbats batterieffekt in i solöverskottsberäkningen~~ -
+    **redan löst av arkitekturen, inget att bygga.** `gpm.py`:s
+    `avg_net_w` (styr all solöverskott-logik: elbilsladdning, spabad,
+    husvärme) kommer från Tibber Pulse och mäts VID HUVUDSÄKRINGEN
+    (`homeassistant.read_tibber_data()`, P=U×I på alla tre faser) - alltså
+    EFTER att batteriet redan tagit sin del. Om Predbat laddar batteriet
+    från solöverskottet syns det automatiskt som mindre överskott i
+    `avg_net_w`, utan att vi behöver läsa batteriets effekt separat. Ingen
+    dubbelräkning existerar, eftersom vi aldrig räknar fram överskott från
+    solproduktionen i sig - vi mäter den riktiga nettosiffran vid mätaren.
+    Enda kvarvarande teoretiska risk: två oberoende system kan reagera på
+    samma momentana överskott i samma ögonblick - en generell racing-fråga,
+    dämpad redan idag av `gpm.py`:s rullande medelvärde (`avg_net_history`).
+  - **Steg 2, dubbelriktad samplanering (inte byggt, större):** publicera
+    EnergyWizards planerade laster (t.ex. elbilens laddfönster, kommande
+    värmepumpsbeslut) som en HA-sensor Predbat kan läsa in som extra
+    förväntad last i sin egen prognos - den riktiga "pratar med varandra"-
+    biten. Kräver dels en ny, enkel exportsensor i EnergyWizard, dels att
+    Predbat faktiskt stödjer att läsa in externa förväntade laster på ett
+    stabilt sätt mellan versioner - overifierat, ingen betatestare med
+    batteri + Predbat ännu att prova mot. Avsiktligt uppskjutet tills en
+    sådan finns.
 
 - **OCPP-laddare via Home Assistants egen OCPP-integration, ingen egen
   server.** [FTW](https://github.com/srcfl/ftw) kör en egen inbyggd
@@ -89,8 +102,14 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   verkliga installation som behövs för att bekräfta den.
 
 - **Delad ML-modellträning på poolad data** från flera hus (bättre solprognoser,
-  prismönster) - kräver den opt-in-telemetritjänst som redan är designad
-  (`smartbox/telemetry.py`, pausad) men inte färdigkopplad än.
+  prismönster). **Telemetrilagret finns nu** (`smartbox/telemetry.py`,
+  strikt opt-in och av som standard - skickar bara hashad husidentifierare,
+  aktiva drivrutinkategorier, feltyp och version, ingen sensorhistorik) och
+  samlartjänsten (`telemetry-collector/`) är byggd och testad lokalt - men
+  INTE publikt nåbar än, behöver en domän/reverse proxy (samma mönster som
+  `ha-gateway`) innan betatestares instanser kan skicka in något. Själva den
+  poolade modellträningen är fortfarande inte byggd - det här är bara
+  grunden som data kan börja samlas på.
 
 - **EMHASS ([emhass.readthedocs.io](https://emhass.readthedocs.io/en/latest/),
   [GitHub](https://github.com/davidusb-geek/emhass)) som ett valfritt,
