@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running EnergyWizard behind your own Home Assistant address - EnergyWizard Open</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Knowledge base</a><span class="langswitch"><a href="../../kunskapsbank/ha-gateway.html">SV</a><a class="on" href="#">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Running EnergyWizard behind your own Home Assistant address</h1>
+  <div class="meta">Installation, advanced</div>
+
+  <p>Running Home Assistant OS or Supervised? Use HA's own
+  <strong>Ingress</strong> instead - install EnergyWizard as an add-on and
+  you get auth/TLS/routing for free, simpler and safer than everything
+  below. This guide is for <strong>Container installations WITHOUT
+  Supervisor</strong> (the most common way to run HA in plain Docker) -
+  Ingress doesn't exist there, so this is the only way to get the same
+  result: EnergyWizard under the exact same address as your HA.</p>
+
+  <h3>What you get</h3>
+  <p>A new, optional <code>ha-gateway</code> service in EnergyWizard's own
+  <code>docker-compose.yml</code> that merges your Home Assistant and
+  EnergyWizard under the same address and port: everything else passes
+  through to your real HA, <code>/energywizard</code> goes to the web
+  dashboard, <code>/energywizard/mobil</code> and <code>/tablet</code> go to
+  the mobile app.</p>
+
+  <h3>Step 1 - configure</h3>
+  <p>Add to your <code>.env</code> (example in <code>.env.example</code>):</p>
+  <pre>HA_GATEWAY_DOMAIN=your-domain.com
+HA_GATEWAY_CERT_DIR=/path/to/your/cert/dir
+HA_GATEWAY_UPSTREAM_HOST=192.168.1.X   # your HA's local IP
+HA_GATEWAY_UPSTREAM_PORT=8123
+HA_GATEWAY_UPSTREAM_PROTO=https        # http if your HA doesn't terminate its own TLS
+HA_GATEWAY_PORT=8199                   # TEST PORT - not your real 8123 yet</pre>
+  <p><code>HA_GATEWAY_CERT_DIR</code> must contain real
+  <code>fullchain.pem</code>/<code>privkey.pem</code> files. If you use
+  Certbot these may be symlinks pointing outside the directory (common) - a
+  simple directory mount won't resolve them. Fix it with a local
+  <code>docker-compose.override.yml</code> (never committed, see
+  <code>.gitignore</code>) mounting the real files directly:</p>
+  <pre>services:
+  ha-gateway:
+    volumes:
+      - /path/to/archive/yourdomain/fullchain1.pem:/certs/fullchain.pem:ro
+      - /path/to/archive/yourdomain/privkey1.pem:/certs/privkey.pem:ro</pre>
+
+  <h3>Step 2 - test on a completely different port FIRST</h3>
+  <p><code>docker compose --profile ha-gateway up -d ha-gateway</code> and
+  visit <code>https://your-nuc-ip:8199/</code> (should show your normal HA
+  login) and <code>/energywizard/</code> (should show EnergyWizard). Do NOT
+  touch your real port 8123 until both work perfectly here - including
+  logging into EnergyWizard and HA's live updates (click around a bit)
+  working as usual.</p>
+
+  <h3>Step 3 - move HA's own port (you do this YOURSELF, manually)</h3>
+  <p>EnergyWizard's installation never touches your HA's own configuration -
+  you do that yourself, in HA's own interface (Settings → System → Network,
+  requires "Advanced mode" enabled on your user profile). Move HA's "server
+  port" away from 8123 (e.g. to 8124) and save - HA restarts. Then set
+  <code>HA_GATEWAY_UPSTREAM_PORT</code> to the same new port and
+  <code>HA_GATEWAY_PORT</code> to <code>8123</code>, and restart the
+  gateway. Now <code>your-domain.com:8123</code> is the gateway, which in
+  turn talks to your HA on its new internal port.</p>
+
+  <p><strong>Safety net:</strong> test thoroughly before closing off any
+  other paths to your HA (the mobile app, any voice assistants) - they
+  often point to the old port hardcoded and need updating. Make the change
+  when you have plenty of time to troubleshoot on site, not right before
+  heading out.</p>
+</article>
+</div>
+</body>
+</html>
