@@ -26,6 +26,9 @@ nedan). Fler märken är ett väntat, naturligt sätt att bidra.
 4. `docker compose up -d` - `smartbox` är huvudmotorn. `webdashboard` (dator/
    surfplatta) och `ewapp` (mobil, PWA) är separata profiler:
    `docker compose --profile webdashboard up -d webdashboard`.
+5. Valfritt, avancerat: kör EnergyWizard under samma adress som din egna Home
+   Assistant (för Container-installationer utan Supervisor) - se
+   [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/ha-gateway.html).
 
 ## Vilka märken stöds idag
 

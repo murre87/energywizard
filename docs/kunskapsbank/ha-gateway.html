@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kör EnergyWizard bakom din egen Home Assistant-adress - EnergyWizard Open</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Kunskapsbank</a><span class="langswitch"><a class="on" href="#">SV</a><a href="../en/kunskapsbank/ha-gateway.html">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Kör EnergyWizard bakom din egen Home Assistant-adress</h1>
+  <div class="meta">Installation, avancerat</div>
+
+  <p>Har du Home Assistant OS eller Supervised? Använd då HA:s egen
+  <strong>Ingress</strong> istället - installera EnergyWizard som ett tillägg
+  och du får auth/TLS/routing helt gratis, enklare och säkrare än allt nedan.
+  Den här guiden är för <strong>Container-installationer UTAN Supervisor</strong>
+  (det vanligaste sättet att köra HA i vanlig Docker) - Ingress finns inte
+  där, så det här är den enda vägen till samma sak: EnergyWizard under exakt
+  samma adress som din HA.</p>
+
+  <h3>Vad det ger dig</h3>
+  <p>En ny, valfri <code>ha-gateway</code>-tjänst i EnergyWizards egen
+  <code>docker-compose.yml</code> som slår ihop din Home Assistant och
+  EnergyWizard under samma adress och port: allt annat går vidare till din
+  riktiga HA, <code>/energywizard</code> går till webbdashboarden,
+  <code>/energywizard/mobil</code> och <code>/tablet</code> går till
+  mobilappen.</p>
+
+  <h3>Steg 1 - konfigurera</h3>
+  <p>Lägg till i din <code>.env</code> (exempel finns i <code>.env.example</code>):</p>
+  <pre>HA_GATEWAY_DOMAIN=din-domän.se
+HA_GATEWAY_CERT_DIR=/sökväg/till/din/cert-mapp
+HA_GATEWAY_UPSTREAM_HOST=192.168.1.X   # din HA:s lokala IP
+HA_GATEWAY_UPSTREAM_PORT=8123
+HA_GATEWAY_UPSTREAM_PROTO=https        # http om din HA inte terminerar egen TLS
+HA_GATEWAY_PORT=8199                   # TESTPORT - inte din riktiga 8123 än</pre>
+  <p><code>HA_GATEWAY_CERT_DIR</code> måste innehålla riktiga
+  <code>fullchain.pem</code>/<code>privkey.pem</code>-filer. Använder du
+  Certbot kan dessa vara symlänkar som pekar utanför mappen (vanligt) - då
+  räcker inte en enkel mappmontering. Lös det med en lokal
+  <code>docker-compose.override.yml</code> (checkas aldrig in, se
+  <code>.gitignore</code>) som monterar de faktiska filerna direkt:</p>
+  <pre>services:
+  ha-gateway:
+    volumes:
+      - /sökväg/till/archive/dindomän/fullchain1.pem:/certs/fullchain.pem:ro
+      - /sökväg/till/archive/dindomän/privkey1.pem:/certs/privkey.pem:ro</pre>
+
+  <h3>Steg 2 - testa på en helt annan port FÖRST</h3>
+  <p><code>docker compose --profile ha-gateway up -d ha-gateway</code> och
+  besök <code>https://din-nuc-ip:8199/</code> (ska visa din vanliga HA-
+  inloggning) och <code>/energywizard/</code> (ska visa EnergyWizard). Rör
+  INTE din riktiga port 8123 förrän båda fungerar perfekt här - inklusive att
+  logga in i EnergyWizard och att HA:s live-uppdateringar (klicka runt lite)
+  fungerar som vanligt.</p>
+
+  <h3>Steg 3 - flytta HA:s egen port (gör du SJÄLV, manuellt)</h3>
+  <p>EnergyWizards installation rör aldrig din HA:s egen konfiguration - det
+  gör du själv, i HA:s eget gränssnitt (Inställningar → System → Nätverk,
+  kräver att "Avancerat läge" är påslaget på din användarprofil). Flytta
+  HA:s "server port" bort från 8123 (t.ex. till 8124) och spara - HA startar
+  om. Sätt sen <code>HA_GATEWAY_UPSTREAM_PORT</code> till samma nya port och
+  <code>HA_GATEWAY_PORT</code> till <code>8123</code>, och starta om
+  gatewayn. Nu är <code>din-domän.se:8123</code> gatewayn, som i sin tur
+  pratar med din HA på den nya interna porten.</p>
+
+  <p><strong>Säkerhetsnät:</strong> testa noga innan du stänger några andra
+  vägar till din HA (mobilappen, ev. röstassistenter) - de pekar ofta
+  hårdkodat mot den gamla porten och behöver uppdateras. Gör ändringen när du
+  har gott om tid att felsöka på plats, inte precis innan du ska ut.</p>
+</article>
+</div>
+</body>
+</html>

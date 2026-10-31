@@ -17,3 +17,6 @@ Emil_homeassistant_fetch_data.py
 ha_entities.txt
 node_modules/
 scripts/data/price_cache/
+# Driftspecifika overrides (t.ex. ha-gateway: certbot-symlänkar som pekar utanför
+# den enkla HA_GATEWAY_CERT_DIR-mounten) - aldrig incheckat, bara lokalt per installation.
+docker-compose.override.yml

@@ -165,5 +165,31 @@ services:
       - WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN}
       - WATCHTOWER_URL=http://watchtower:8080
 
+  ####################################################################
+  # HA-gateway: valfri reverse-proxy som slår ihop EnergyWizard (/energywizard,
+  # /energywizard/mobil, /tablet) med din befintliga Home Assistant under SAMMA
+  # adress/port. Bara för Container-installationer UTAN Supervisor - har du
+  # Home Assistant OS/Supervised, använd HA:s egen Ingress istället (enklare,
+  # säkrare, HA hanterar auth åt dig). Se kunskapsbanken för hela guiden,
+  # inklusive varför själva portbytet på din RIKTIGA HA alltid görs manuellt
+  # av dig i HA:s Inställningar - den här tjänsten rör aldrig HA:s egen config.
+  # "docker compose --profile ha-gateway up -d" - rörs annars inte alls.
+  ####################################################################
+  ha-gateway:
+    image: nginx:alpine
+    container_name: ha-gateway
+    restart: unless-stopped
+    profiles: ["ha-gateway"]
+    ports:
+      - "${HA_GATEWAY_PORT:-8199}:8199"
+    volumes:
+      - ./ha-gateway/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - ${HA_GATEWAY_CERT_DIR}:/certs:ro
+    environment:
+      - DOMAIN=${HA_GATEWAY_DOMAIN}
+      - HA_HOST=${HA_GATEWAY_UPSTREAM_HOST}
+      - HA_PORT=${HA_GATEWAY_UPSTREAM_PORT:-8123}
+      - HA_PROTO=${HA_GATEWAY_UPSTREAM_PROTO:-https}
+
 volumes:
   postgres_data:
