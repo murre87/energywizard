@@ -17,6 +17,49 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   själv bygger på. Kör gärna Predbat parallellt tills vidare - se
   [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/husbatteri.html).
 
+  **Predbat, inte [FTW](https://github.com/srcfl/ftw), är referensen för
+  själva batteribeslutslogiken** den dagen det byggs: Predbat kör inuti Home
+  Assistant (samma plattform vi redan kräver), har redan verifierat stöd för
+  GivEnergy/Solis/Huawei/SolarEdge/Sofar/Tesla Powerwall m.fl., och är
+  betydligt mer moget (365 stjärnor, 5 391 commits) än FTW (22 stjärnor,
+  övergivna 2.x/3.x-linjer). FTW:s enda bidrag hit är ett specifikt, smalt
+  mönster: dess opt-in-skrivväg för batteri/solöverskott har en dead-man
+  switch (slutar skriva om den inte hör av sig), en tydlig återgång till
+  standardläge, och en uppstarts-sweep som städar bort gamla/föräldralösa
+  kommandon - värt att återanvända som skyddsnät oavsett vems beslutslogik
+  `gpm.py` till slut bygger på.
+
+  **Princip, gäller alla externa projekt vi tittar på, inte bara batteriet:**
+  vi ska luta oss mot redan underhållen kod (Predbat, HA:s egna
+  integrationer) så mycket som möjligt istället för att bygga och underhålla
+  en egen optimerare - minimal egen kodyta, inte en konkurrerande
+  implementation. Konkret, i prioritetsordning:
+  1. **Läsning, ingen skrivning** (byggbart nu, litet): räkna in Predbats
+     faktiska batterieffekt (via `GenericBatteryDriver.read_state()`) i
+     `gpm.py`:s solöverskottsberäkning, så elbil/värmepump inte tror sig ha
+     mer överskott än vad som faktiskt är ledigt efter att Predbat tagit sin
+     del. Ingen ny skrivbehörighet, ingen konkurrerande beslutslogik.
+  2. **Dubbelriktad samplanering** (större, senare): publicera
+     EnergyWizards planerade laster (t.ex. elbilens laddfönster) som en HA-
+     sensor Predbat kan läsa in som extra förväntad last i sin egen prognos -
+     den riktiga "pratar med varandra"-biten, men beror på hur stabilt
+     Predbats indataformat är mellan versioner.
+  Vi bygger INTE en egen batterioptimerare som konkurrerar med Predbats -
+  målet är att komplettera den, inte ersätta den.
+
+- **OCPP-laddare via Home Assistants egen OCPP-integration, ingen egen
+  server.** [FTW](https://github.com/srcfl/ftw) kör en egen inbyggd
+  OCPP 1.6J/2.0.1-server, men vi behöver inte bygga om det - det finns redan
+  en mogen, aktivt underhållen HA-integration som gör exakt samma sak:
+  [lbbrhzn/ocpp](https://github.com/lbbrhzn/ocpp) (HACS, stödjer
+  1.6J/2.0.1/2.1) kör OCPP-servern inuti Home Assistant och exponerar en
+  `switch` ("Charge Control") + `number` (`number.<cpid>_maximum_current`) -
+  samma entitetsformer som vår befintliga `GenericChargerDriver` redan läser/
+  skriver. Borde alltså redan fungera mot vilken OCPP-laddare som helst utan
+  ny drivrutinskod - återstår bara att verifiera mot en riktig OCPP-laddare,
+  och eventuellt lägga till entitetsnamnet i `discovery.py` så
+  entitetsväljaren känner igen och föreslår den.
+
 - **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
   arkitekturen (`smartbox/drivers/heatpump.py`) är byggd för det, men varje
   märke kräver en egen, verifierad implementation - bidrag välkomna.
@@ -24,9 +67,18 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   `smartbox/discovery.py` matchar den), flaggas bara `driver_known: False`
   tills en riktig drivrutin finns. Anslutningssättet varierar med modell -
   äldre pumpar pratar RS485 (t.ex. via [NibePi](https://energy.anerdins-iot.se/)
-  + MQTT till HA), nyare S-serie-pumpar har en inbyggd Modbus TCP-server med
-  en helt annan registerkarta än Husdata/Thermia - kräver verifiering mot en
-  riktig pump av varje typ, inte gissad kod.
+  + MQTT till HA) - kräver verifiering mot en riktig pump av varje typ, inte
+  gissad kod. **Nyare S-serie-pumpar (S735/S1255/S1155/S320 m.fl.) har en
+  lokal REST-API, inte rå Modbus TCP** - rättad slutsats efter att ha läst
+  [srcfl/ftw](https://github.com/srcfl/ftw)s
+  [nibe-local-dokumentation](https://github.com/srcfl/ftw/blob/master/docs/nibe-local.md):
+  HTTPS-port 8443, aktiveras i installatörsmeny 7.5, certifikatet pinnas
+  (SHA-256-fingeravtryck) istället för att verifieringen stängs av, ~980
+  datapunkter med Modbus-registernummer som metadata. Deras egen drivrutin är
+  medvetet read-only - en opt-in skrivväg finns bara för solöverskott
+  (register 2107/2109), inte generell styrning. Bra konkret referens för en
+  framtida EnergyWizard-drivrutin mot S-serien, men fortfarande overifierad
+  mot en riktig pump här.
 
 - **Balboa-spabad: drivrutin byggd, väntar på verifiering mot riktig
   hårdvara.** `drivers/spa_balboa.py` finns nu - byggd mot HA:s officiella
