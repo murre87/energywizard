@@ -195,7 +195,7 @@ def test_okant_solcellsmarke_med_exportgrans_foreslar_generisk_drivrutin():
 def test_tomt_hus_ger_inga_fynd_kraschar_inte():
     with patch("discovery._check_configured_heat_pump", return_value=None):
         result = discover_house([])
-    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": []}
+    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": [], "battery": None}
 
 
 def test_ha_fynd_vinner_over_serverchecken_inte_overskrivs():
@@ -254,3 +254,87 @@ def test_pulse_och_smartmatare_hittas_bada_inte_bara_en():
     # Solcellssensorn (också en power-sensor) ska INTE räknas som elmätare.
     grid_entities = {g["power_entity"] for g in result["grid_meters"]}
     assert "sensor.solaredge_power" not in grid_entities
+
+
+# ---------- Husbatteri ----------
+
+def test_kant_batterimarke_hittas_och_foreslar_generisk_drivrutin():
+    givenergy = [
+        {"e": "sensor.givenergy_soc", "n": "Battery SOC", "a": "Garage", "d": "dev_battery",
+         "dn": "GivEnergy", "m": "GivEnergy", "mo": "AIO", "dc": "battery", "u": "%", "st": "72"},
+        {"e": "sensor.givenergy_power", "n": "Battery Power", "a": "Garage", "d": "dev_battery",
+         "dn": "GivEnergy", "m": "GivEnergy", "mo": "AIO", "dc": "power", "u": "W", "st": "-850"},
+    ]
+    result = discover_house(givenergy)
+    assert result["battery"] is not None
+    assert result["battery"]["maker"] == "GivEnergy"
+    assert result["battery"]["driver"] is None
+    assert result["battery"]["driver_known"] is False
+    assert result["battery"]["generic_suggestion"] == {
+        "driver": "generic", "entities": {"soc": "sensor.givenergy_soc", "power": "sensor.givenergy_power"},
+    }
+
+
+def test_okant_batterimarke_med_soc_och_effekt_hittas_anda():
+    """Inget känt märke i BATTERY_MAKERS, men BÅDE en battery-%-sensor OCH en
+    effektsensor (laddar/laddar ur) på samma enhet räcker för att misstänka ett
+    husbatteri - soc ensam räcker inte (se false-positive-testet nedan)."""
+    unknown_battery = [
+        {"e": "sensor.acme_batt_soc", "n": "State of Charge", "a": "Garage", "d": "dev_acme",
+         "dn": "Acme Battery", "m": "Acme", "mo": "X1", "dc": "battery", "u": "%", "st": "55"},
+        {"e": "sensor.acme_batt_power", "n": "Battery Power", "a": "Garage", "d": "dev_acme",
+         "dn": "Acme Battery", "m": "Acme", "mo": "X1", "dc": "power", "u": "W", "st": "-400"},
+    ]
+    result = discover_house(unknown_battery)
+    assert result["battery"] is not None
+    assert result["battery"]["maker"] == "Acme"
+
+
+def test_batteridriven_sensor_med_eget_myntcellsbatteri_feltolkas_inte_som_husbatteri():
+    """Bekräftat live mot Emils riktiga HA: en vanlig temperatur-/fuktgivare med eget
+    myntcellsbatteri (battery-%, men INGEN effektsensor) gav en falsk träff innan
+    effektkravet lades till - en battery-%-sensor ensam är för löst, alla
+    batteridrivna prylar (dörrsensorer, fjärrkontroller, IKEA-givare m.fl.) har en."""
+    coin_cell_sensor = [
+        {"e": "sensor.tempsensor_battery", "n": "Battery", "a": "Vardagsrum", "d": "dev_tempsensor",
+         "dn": "Temp/Fukt-givare", "m": "IKEA of Sweden", "mo": "VINDSTYRKA", "dc": "battery", "u": "%", "st": "87"},
+        {"e": "sensor.tempsensor_temp", "n": "Temperatur", "a": "Vardagsrum", "d": "dev_tempsensor",
+         "dn": "Temp/Fukt-givare", "m": "IKEA of Sweden", "mo": "VINDSTYRKA", "dc": "temperature", "u": "°C", "st": "21.0"},
+    ]
+    result = discover_house(coin_cell_sensor)
+    assert result["battery"] is None
+
+
+def test_bilens_batteriprocent_feltolkas_inte_som_husbatteri():
+    """Kritisk avgränsning: Teslans battery-%-sensor (redan klassad som bil) ska INTE
+    också dyka upp som ett husbatteri-fynd."""
+    only_tesla = [e for e in SYNTHETIC_ENTITIES if e["d"] == "dev_tesla"]
+    result = discover_house(only_tesla)
+    assert len(result["cars"]) == 1
+    assert result["battery"] is None
+
+
+def test_mobilens_batteri_raknas_inte_som_husbatteri():
+    only_phone = [e for e in SYNTHETIC_ENTITIES if e["d"] == "dev_phone"]
+    result = discover_house(only_phone)
+    assert result["battery"] is None
+
+
+def test_solaredge_lagringsniva_pa_vaxelriktaren_feltolkas_inte_som_husbatteri():
+    """Bekräftat live mot Emils riktiga HA: SolarEdges integration skapar alltid en
+    'Lagringsnivå' (storage-%) -sensor på VÄXELRIKTARENS egen enhet, oavsett om man
+    faktiskt har ett batteri (state 'unknown' utan ett) - och dess effektsensor är
+    bara soleffekten, inte batterieffekt. Samma enhet som redan är solcellsfyndet
+    ska inte DUBBELT också räknas som ett separat husbatteri."""
+    solaredge_no_battery = SYNTHETIC_ENTITIES + [
+        {"e": "sensor.solaredge_storage_level", "n": "Lagringsnivå", "a": "Garage", "d": "dev_inverter",
+         "dn": "SolarEdge Inverter", "m": "SolarEdge", "mo": "SE10K", "dc": "battery", "u": "%", "st": "unknown"},
+    ]
+    result = discover_house(solaredge_no_battery)
+    assert result["solar"] is not None
+    assert result["battery"] is None
+
+
+def test_inget_batteri_ger_none_inte_krasch():
+    result = discover_house([e for e in SYNTHETIC_ENTITIES if e["d"] == "dev_light"])
+    assert result["battery"] is None

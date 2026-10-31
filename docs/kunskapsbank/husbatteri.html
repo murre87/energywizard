@@ -39,11 +39,20 @@
   värme/varmvatten/elbil och Predbat batteriet - olika "hinkar" el för det mesta, så
   konflikten blir sällan stor. Håll ett öga på det själv tills vi vet mer.</p>
 
-  <h3>Vad som händer sen</h3>
-  <p>En riktig, inbyggd batteri-kategori i EnergyWizards drivrutinsarkitektur är ett
-  rimligt nästa steg - men vi bygger den när fler betatestare faktiskt har ett
-  husbatteri att verifiera mot, inte i förväg på gissningar. Har du ett? Hör av dig -
-  det är precis den sortens verkliga hus vi behöver för att göra det rätt.</p>
+  <h3>Vad som finns redan</h3>
+  <p>Ett drivrutinslager för husbatteri finns nu - upptäcks av entitetsväljaren precis
+  som bil/laddare/värmepump/sol, läser SOC och effekt, och kan sätta ett läge via en
+  valfri <code>select</code>-entitet om batteriets integration exponerar en. Samma
+  generiska princip Predbat själv bygger på: ingen egen protokollkod, bara det batteriets
+  egen HA-integration redan ger dig.</p>
+
+  <h3>Vad som INTE finns än, medvetet</h3>
+  <p>EnergyWizards egen prioritetsmotor (<code>gpm.py</code>) fattar inga automatiska
+  laddnings-/urladdningsbeslut om batteriet - det är en genuint annan optimeringsfråga
+  (batteriet konkurrerar direkt med sol/nät/elbil om samma watt just nu) som vi inte
+  bygger på gissningar utan en riktig installation att verifiera mot. Har du ett
+  batteri? Hör av dig - det är precis den sortens verkliga hus vi behöver för att göra
+  det rätt.</p>
 </article>
 </div>
 </body>

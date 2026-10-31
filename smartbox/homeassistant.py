@@ -731,6 +731,25 @@ def set_number(entity_id: str, value: float) -> bool:
         return False
 
 
+def set_select(entity_id: str, option: str) -> bool:
+    """Genuint generisk select.select_option på en valfri entitet - de flesta
+    batteriintegrationers lägesväljare (ladda/ladda ur/auto/vila) är en select-entitet,
+    inte number/switch. Återanvänds av generiska drivrutiner."""
+    try:
+        r = requests.post(
+            f"{_BASE}/services/select/select_option",
+            headers=_HEADERS,
+            json={"entity_id": entity_id, "option": option},
+            timeout=5,
+            verify=_VERIFY,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid select.select_option på {entity_id}: {e}")
+        return False
+
+
 def toggle_mower_plug(turn_on: bool):
     """Slår på eller av strömmen till robotgräsklipparen."""
     service = "turn_on" if turn_on else "turn_off"
