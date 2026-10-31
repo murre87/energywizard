@@ -41,6 +41,17 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   prismönster) - kräver den opt-in-telemetritjänst som redan är designad
   (`smartbox/telemetry.py`, pausad) men inte färdigkopplad än.
 
+- **EMHASS ([emhass.readthedocs.io](https://emhass.readthedocs.io/en/latest/),
+  [GitHub](https://github.com/davidusb-geek/emhass)) som ett valfritt,
+  framåtblickande planeringslager vid sidan av EnergyWizards egen, reaktiva
+  motor.** Genuint annan ansats, inte en duplicerad bit: EMHASS löser ett
+  riktigt LP-optimeringsproblem (pris-/solprognos → optimalt schema framåt),
+  medan `gpm.py` fattar minut-för-minut-beslut utifrån nuläget. EMHASS saknar
+  helt elbilsladdning, spabad och direkt Modbus-styrning (pratar bara med
+  HA:s entiteter/tjänster) - skulle alltså komplettera, inte ersätta, det
+  EnergyWizard redan gör. Inget konkret utkast än - en idé värd att utforska,
+  inte ett beslutat nästa steg.
+
 ## Redan klart
 
 - Drivrutinsarkitektur kopplad till huvudstyrloopen (bil/laddare/värmepump/sol/spa)
