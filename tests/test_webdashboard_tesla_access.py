@@ -1,10 +1,14 @@
 """Bil-lås/luckor i webdashboard: eget ew2-omverifieringsflöde (lösenordet igen, 10 min)
 innan ett lås-/luckokommando proxas vidare till ewapp. Mockar requests helt - rör aldrig
-en riktig Tesla eller Home Assistant. Importerar webdashboard/app.py direkt via dess
-filväg (modulen heter inget annat webdashboard-test importerar redan)."""
+en riktig Tesla eller Home Assistant. Anropar routfunktionerna direkt (samma mönster som
+tests/test_webauth.py) istället för ett ASGI-testklientbibliotek, för att inte dra in ett
+nytt testberoende i smartbox/requirements.txt bara för det här."""
+import asyncio
 import hashlib
 import hmac
 import importlib.util
+import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -16,6 +20,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "smartbox"))  # webauth/discovery/house_config/pump
 
 
+class _FakeRequest:
+    def __init__(self, body: dict | None = None, cookies: dict | None = None, ip: str = "10.0.0.5"):
+        self._body = body or {}
+        self.cookies = cookies or {}
+        self.headers = {}
+        self.client = type("c", (), {"host": ip})()
+
+    async def json(self):
+        return self._body
+
+
 @pytest.fixture(scope="module")
 def wd():
     mp = pytest.MonkeyPatch()
@@ -23,23 +38,16 @@ def wd():
     import webauth
     mp.setattr(webauth, "PASSWORD", "hemligt123")  # webdashboard läser webauth.PASSWORD direkt vid import, inte miljövariabeln igen
     cwd = Path.cwd()
-    os_chdir = __import__("os").chdir
-    os_chdir(ROOT / "webdashboard")  # app.py monterar StaticFiles(directory="static") relativt cwd
+    os.chdir(ROOT / "webdashboard")  # app.py monterar StaticFiles(directory="static") relativt cwd
     try:
         spec = importlib.util.spec_from_file_location("webdashboard_app", ROOT / "webdashboard" / "app.py")
         mod = importlib.util.module_from_spec(spec)
         sys.modules["webdashboard_app"] = mod
         spec.loader.exec_module(mod)
     finally:
-        os_chdir(cwd)
+        os.chdir(cwd)
     yield mod
     mp.undo()
-
-
-@pytest.fixture()
-def client(wd):
-    from fastapi.testclient import TestClient
-    return TestClient(wd.app)
 
 
 def _owner_cookie(wd):
@@ -63,71 +71,85 @@ def _resp(status_code=200, json_data=None):
     return r
 
 
-def test_secure_fel_losenord_ger_401(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
-    r = client.post("/api/secure", json={"password": "fel"})
+def _run(coro):
+    return asyncio.run(coro)
+
+
+def test_secure_fel_losenord_ger_401(wd):
+    req = _FakeRequest({"password": "fel"}, {"ew": _owner_cookie(wd)})
+    r = _run(wd.secure(req))
     assert r.status_code == 401
 
 
-def test_secure_ratt_losenord_satter_ew2_kaka(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
-    r = client.post("/api/secure", json={"password": "hemligt123"})
+def test_secure_ratt_losenord_satter_ew2_kaka(wd):
+    req = _FakeRequest({"password": "hemligt123"}, {"ew": _owner_cookie(wd)})
+    r = _run(wd.secure(req))
     assert r.status_code == 200
-    assert "ew2=" in r.headers.get("set-cookie", "")
+    assert any(h[0].lower() == b"set-cookie" and b"ew2=" in h[1] for h in r.raw_headers)
 
 
-def test_lock_kraver_inte_secure(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
+def test_secure_for_manga_fel_ger_429(wd):
+    ip = "10.0.0.9"
+    for _ in range(5):
+        _run(wd.secure(_FakeRequest({"password": "fel"}, {"ew": _owner_cookie(wd)}, ip=ip)))
+    r = _run(wd.secure(_FakeRequest({"password": "hemligt123"}, {"ew": _owner_cookie(wd)}, ip=ip)))
+    assert r.status_code == 429
+    wd._secure_fails.pop(ip, None)
+
+
+def test_lock_kraver_inte_secure(wd):
+    req = _FakeRequest({"what": "lock"}, {"ew": _owner_cookie(wd)})
     with patch("webdashboard_app.requests.post", return_value=_resp(json_data={"ok": True, "msg": "Bilen låst"})):
-        r = client.post("/api/tesla/access", json={"what": "lock"})
+        r = _run(wd.proxy_tesla_access(req))
     assert r.status_code == 200
 
 
-def test_unlock_utan_ew2_ger_403_secure(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
-    client.cookies.delete("ew2")
-    r = client.post("/api/tesla/access", json={"what": "unlock"})
+def test_unlock_utan_ew2_ger_403_secure(wd):
+    req = _FakeRequest({"what": "unlock"}, {"ew": _owner_cookie(wd)})
+    r = _run(wd.proxy_tesla_access(req))
     assert r.status_code == 403
-    assert r.json()["detail"] == "secure"
+    assert json.loads(r.body)["detail"] == "secure"
 
 
-def test_unlock_med_giltig_ew2_proxas_till_ewapp(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
-    client.cookies.set("ew2", _ew2_cookie(wd))
+def test_unlock_med_giltig_ew2_proxas_till_ewapp(wd):
+    ew2 = _ew2_cookie(wd)
+    req = _FakeRequest({"what": "unlock"}, {"ew": _owner_cookie(wd), "ew2": ew2})
     with patch("webdashboard_app.requests.post", return_value=_resp(json_data={"ok": True, "msg": "Bilen upplåst"})) as mock_post:
-        r = client.post("/api/tesla/access", json={"what": "unlock"})
+        r = _run(wd.proxy_tesla_access(req))
     assert r.status_code == 200
-    assert r.json()["msg"] == "Bilen upplåst"
     _, kwargs = mock_post.call_args
-    assert kwargs["cookies"]["ew2"] == _ew2_cookie(wd) or "ew2" in kwargs["cookies"]
+    assert kwargs["cookies"]["ew2"] == ew2
 
 
-def test_unlock_med_utganget_ew2_ger_403_secure(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
-    client.cookies.set("ew2", _ew2_cookie(wd, exp_delta=-10))
-    r = client.post("/api/tesla/access", json={"what": "unlock"})
+def test_unlock_med_utganget_ew2_ger_403_secure(wd):
+    req = _FakeRequest({"what": "unlock"}, {"ew": _owner_cookie(wd), "ew2": _ew2_cookie(wd, exp_delta=-10)})
+    r = _run(wd.proxy_tesla_access(req))
     assert r.status_code == 403
 
 
-def test_okand_atgard_ger_400(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
-    r = client.post("/api/tesla/access", json={"what": "nedbrand"})
+def test_okand_atgard_ger_400(wd):
+    req = _FakeRequest({"what": "nedbrand"}, {"ew": _owner_cookie(wd)})
+    r = _run(wd.proxy_tesla_access(req))
     assert r.status_code == 400
 
 
-def test_ingen_session_ger_401(wd, client):
-    client.cookies.clear()
-    r = client.post("/api/tesla/access", json={"what": "lock"})
-    assert r.status_code == 401
-
-
-def test_access_state_plockar_ut_tesla(wd, client):
-    client.cookies.set("ew", _owner_cookie(wd))
+def test_access_state_plockar_ut_tesla(wd):
     full_state = {"cars": [
         {"key": "nissan", "access": None},
         {"key": "tesla", "access": {"locked": True, "trunk": False, "frunk": False}},
     ]}
     with patch("webdashboard_app.requests.get", return_value=_resp(json_data=full_state)):
-        r = client.get("/api/tesla/access-state")
-    assert r.status_code == 200
-    assert r.json()["access"]["locked"] is True
+        r = _run(wd.tesla_access_state())
+    assert r["access"]["locked"] is True
+
+
+def test_ingen_session_nekas_av_delade_guard(wd):
+    """Själva routfunktionen antar att middlewaren redan stoppat obehöriga - det
+    generiska skyddet testas redan i tests/test_webauth.py. Bevisar här bara att
+    webdashboards guard faktiskt täcker /api/tesla/access-sökvägen."""
+    req = _FakeRequest()
+    req.url = type("u", (), {"path": "/api/tesla/access"})()
+    req.method = "POST"
+    err = wd.AUTH.guard_response(req)
+    assert err is not None
+    assert err.status_code == 401
