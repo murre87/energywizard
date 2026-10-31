@@ -107,7 +107,10 @@ entity-id:n eller sensorvärden), feltyper vid kritiska fel i huvudloopen
 (git-commit-hash) och en tidsstämpel. Inget annat - ingen elprisdata, ingen
 sensorhistorik, ingen plats. Se `smartbox/telemetry.py` för exakt vad som
 skickas och `telemetry-collector/` för mottagarsidan (en separat, valfri
-tjänst - `docker compose --profile telemetry-collector up -d`).
+tjänst - `docker compose --profile telemetry-collector up -d` om du vill
+köra din egen). Vill du hjälpa till genom att skicka in fel till utvecklaren,
+sätt `TELEMETRY_ENDPOINT=https://energywizzard.profitalgos.com/telemetry` i
+din `.env` - det är den centrala, publika mottagaren.
 
 ## Struktur
 
