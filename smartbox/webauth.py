@@ -98,7 +98,12 @@ class Auth:
         print(f"🔑 inloggning: {who} ({role})", flush=True)
         r = JSONResponse({"ok": True, "role": role, "user": who})
         days = 90 if role in ("owner", "family") else 30
-        r.set_cookie("ew", self.sign(int(time.time()) + days * 86400, role, who), max_age=days * 86400, httponly=True, secure=True, samesite="lax", path="/")
+        # secure=True krävs över HTTPS (den publika domänen, där nginx alltid sätter
+        # X-Forwarded-Proto: https - bekräftat i proxy.conf) men webbläsare vägrar tyst
+        # SPARA en Secure-kaka över vanlig HTTP (lokal IP:port utan nginx/TLS emellan) -
+        # login såg ut att lyckas (200 OK) men nästa anrop blev 401, kakan fanns aldrig.
+        is_https = request.headers.get("x-forwarded-proto", "").lower() == "https"
+        r.set_cookie("ew", self.sign(int(time.time()) + days * 86400, role, who), max_age=days * 86400, httponly=True, secure=is_https, samesite="lax", path="/")
         return r
 
     @staticmethod
