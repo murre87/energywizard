@@ -184,12 +184,14 @@ services:
       - "${HA_GATEWAY_PORT:-8199}:8199"
     volumes:
       - ./ha-gateway/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - ./ha-gateway/print-url.sh:/docker-entrypoint.d/99-print-url.sh:ro
       - ${HA_GATEWAY_CERT_DIR}:/certs:ro
     environment:
       - DOMAIN=${HA_GATEWAY_DOMAIN}
       - HA_HOST=${HA_GATEWAY_UPSTREAM_HOST}
       - HA_PORT=${HA_GATEWAY_UPSTREAM_PORT:-8123}
       - HA_PROTO=${HA_GATEWAY_UPSTREAM_PROTO:-https}
+      - GATEWAY_PORT=${HA_GATEWAY_PORT:-8199}
 
 volumes:
   postgres_data:

@@ -29,10 +29,23 @@
   <h3>Vad det ger dig</h3>
   <p>En ny, valfri <code>ha-gateway</code>-tjänst i EnergyWizards egen
   <code>docker-compose.yml</code> som slår ihop din Home Assistant och
-  EnergyWizard under samma adress och port: allt annat går vidare till din
-  riktiga HA, <code>/energywizard</code> går till webbdashboarden,
+  EnergyWizard under samma adress: allt annat går vidare till din riktiga HA,
+  <code>/energywizard</code> går till webbdashboarden,
   <code>/energywizard/mobil</code> och <code>/tablet</code> går till
   mobilappen.</p>
+  <p><strong>Två giltiga slutlägen</strong> - välj det som passar dig:</p>
+  <ul>
+    <li><strong>Egen port (enklast, rekommenderas för de flesta):</strong>
+    låt gatewayn ligga kvar på sin egen port (t.ex. <code>8199</code>) bredvid
+    din HA, som alltid förblir på 8123 - exakt samma mönster som andra
+    fristående tjänster (t.ex. Familjetavlan). Rör ALDRIG HA:s egen
+    konfiguration. Stega bara igenom Steg 1-2 nedan, hoppa över Steg 3.</li>
+    <li><strong>Exakt samma port som HA (Steg 3, mer jobb):</strong> flytta
+    HA:s egen port åt sidan så gatewayn kan ta över 8123 helt - kräver att du
+    själv ändrar HA:s konfiguration och startar om ditt styrsystem. Bara värt
+    besväret om du verkligen vill ha EXAKT samma adress/port som HA, inte
+    bara samma domän.</li>
+  </ul>
 
   <h3>Steg 1 - konfigurera</h3>
   <p>Lägg till i din <code>.env</code> (exempel finns i <code>.env.example</code>):</p>
@@ -41,7 +54,7 @@ HA_GATEWAY_CERT_DIR=/sökväg/till/din/cert-mapp
 HA_GATEWAY_UPSTREAM_HOST=192.168.1.X   # din HA:s lokala IP
 HA_GATEWAY_UPSTREAM_PORT=8123
 HA_GATEWAY_UPSTREAM_PROTO=https        # http om din HA inte terminerar egen TLS
-HA_GATEWAY_PORT=8199                   # TESTPORT - inte din riktiga 8123 än</pre>
+HA_GATEWAY_PORT=8199                   # din egen port - kan vara permanent (se ovan)</pre>
   <p><code>HA_GATEWAY_CERT_DIR</code> måste innehålla riktiga
   <code>fullchain.pem</code>/<code>privkey.pem</code>-filer. Använder du
   Certbot kan dessa vara symlänkar som pekar utanför mappen (vanligt) - då
@@ -54,15 +67,15 @@ HA_GATEWAY_PORT=8199                   # TESTPORT - inte din riktiga 8123 än</p
       - /sökväg/till/archive/dindomän/fullchain1.pem:/certs/fullchain.pem:ro
       - /sökväg/till/archive/dindomän/privkey1.pem:/certs/privkey.pem:ro</pre>
 
-  <h3>Steg 2 - testa på en helt annan port FÖRST</h3>
+  <h3>Steg 2 - starta och testa</h3>
   <p><code>docker compose --profile ha-gateway up -d ha-gateway</code> och
   besök <code>https://din-nuc-ip:8199/</code> (ska visa din vanliga HA-
-  inloggning) och <code>/energywizard/</code> (ska visa EnergyWizard). Rör
-  INTE din riktiga port 8123 förrän båda fungerar perfekt här - inklusive att
-  logga in i EnergyWizard och att HA:s live-uppdateringar (klicka runt lite)
-  fungerar som vanligt.</p>
+  inloggning) och <code>/energywizard/</code> (ska visa EnergyWizard),
+  inklusive att logga in i EnergyWizard och att HA:s live-uppdateringar
+  (klicka runt lite) fungerar som vanligt. Klart - vill du ha egen port som
+  slutläge (rekommenderas) är du redan klar här, hoppa över Steg 3.</p>
 
-  <h3>Steg 3 - flytta HA:s egen port (gör du SJÄLV, manuellt)</h3>
+  <h3>Steg 3 (valfritt, mer jobb) - flytta HA:s egen port (gör du SJÄLV, manuellt)</h3>
   <p>EnergyWizards installation rör aldrig din HA:s egen konfiguration - det
   gör du själv, i HA:s eget gränssnitt (Inställningar → System → Nätverk,
   kräver att "Avancerat läge" är påslaget på din användarprofil). Flytta
