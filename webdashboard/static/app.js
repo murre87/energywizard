@@ -172,9 +172,13 @@ async function runDiscovery() {
   if (!d.ok) { results.innerHTML = `<div class="placeholder">${d.error}</div>`; return; }
   _discovered = d;
 
-  const driverTag = (item) => item.driver_known
-    ? `<span class="tag">drivrutin: ${item.driver}</span>`
-    : `<span class="tag warn">hittades (${item.maker || "okänt märke"}) - ingen drivrutin än, bidra gärna</span>`;
+  const driverTag = (item, genericKey) => {
+    if (item.driver_known) return `<span class="tag">drivrutin: ${item.driver}</span>`;
+    const base = `<span class="tag warn">hittades (${item.maker || "okänt märke"}) - ingen drivrutin än, bidra gärna</span>`;
+    if (!item.generic_suggestion || !genericKey) return base;
+    return base + `<label style="display:block;margin-top:4px;font-size:.8rem">
+      <input type="checkbox" class="generic-pick" data-key="${genericKey}"> Använd generisk styrning (grundläggande, inte märkets fulla funktioner)</label>`;
+  };
 
   let html = "";
 
@@ -193,7 +197,7 @@ async function runDiscovery() {
   const simpleCard = (icon, title, item, fields) => {
     if (!item) return `<div class="card" style="margin-bottom:16px"><h2>${icon} ${title}</h2><div class="note">Inget hittades i Home Assistant${title === "Värmepump" ? " - normalt om din pump pratar direkt via Modbus istället för via en HA-integration (t.ex. Thermia/Husdata). Sätt heat_pump.enabled: true och fyll i anslutningen för hand i den nedladdade filen efteråt." : ""}.</div></div>`;
     return `<div class="card" style="margin-bottom:16px"><h2>${icon} ${title}</h2>
-      <label><input type="checkbox" class="pick" data-cat="${title}" checked> Använd detta fynd</label> ${driverTag(item)}
+      <label><input type="checkbox" class="pick" data-cat="${title}" checked> Använd detta fynd</label> ${driverTag(item, title)}
       <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div></div>`;
   };
   html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? (d.heat_pump.note || `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)`) : "");
@@ -202,7 +206,7 @@ async function runDiscovery() {
 
   html += `<div class="card" style="margin-bottom:16px"><h2>🔌 Laddare (${d.chargers.length})</h2>`;
   d.chargers.forEach((c, i) => {
-    html += `<label style="display:block;margin:6px 0"><input type="checkbox" class="charger-pick" data-i="${i}" checked> ${c.device_name}</label> ${driverTag(c)}`;
+    html += `<label style="display:block;margin:6px 0"><input type="checkbox" class="charger-pick" data-i="${i}" checked> ${c.device_name}</label> ${driverTag(c, `charger:${i}`)}`;
   });
   if (!d.chargers.length) html += `<div class="note">Inga laddare hittades.</div>`;
   html += `</div>`;
@@ -218,6 +222,29 @@ async function runDiscovery() {
   html += `<button class="icobtn" id="genbtn" style="margin-top:6px">Generera house_config.yaml</button>`;
   results.innerHTML = html;
   document.getElementById("genbtn").onclick = generateConfig;
+
+  // Kryssar man i "Använd generisk styrning" skrivs fyndets driver/entities om till
+  // förslaget (generic_suggestion) - annars tillbaka till det ursprungliga (okänt märke,
+  // ingen drivrutin). generateConfig() läser direkt ur _discovered, så det räcker att
+  // mutera objektet här, ingen separat state behövs.
+  const itemForKey = (key) => key.startsWith("charger:") ? _discovered.chargers[key.split(":")[1]]
+    : key === "Värmepump" ? _discovered.heat_pump
+    : key === "Solceller" ? _discovered.solar
+    : null;
+  document.querySelectorAll(".generic-pick").forEach(cb => {
+    cb.onchange = () => {
+      const item = itemForKey(cb.dataset.key);
+      if (!item || !item.generic_suggestion) return;
+      if (cb.checked) {
+        item._original_driver_state = { driver: item.driver, entities: item.entities };
+        item.driver = item.generic_suggestion.driver;
+        item.entities = item.generic_suggestion.entities;
+      } else if (item._original_driver_state) {
+        item.driver = item._original_driver_state.driver;
+        item.entities = item._original_driver_state.entities;
+      }
+    };
+  });
 }
 
 async function generateConfig() {

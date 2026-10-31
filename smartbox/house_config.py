@@ -20,17 +20,20 @@ from drivers.car import NullCarDriver
 from drivers.car_generic import GenericEvCarDriver, NissanCarDriver, TeslaCarDriver
 from drivers.charger import NullChargerDriver
 from drivers.charger_easee import EaseeChargerDriver
+from drivers.charger_generic import GenericChargerDriver
 from drivers.heatpump import HeatPumpDriver, NullHeatPumpDriver
+from drivers.heatpump_generic import GenericClimateHeatPumpDriver
 from drivers.heatpump_thermia import ThermiaHusdataHeatPumpDriver
 from drivers.solar import NullSolarDriver, SolarDriver
+from drivers.solar_generic import GenericNumberSolarDriver
 from drivers.solar_solaredge import SolarEdgeSolarDriver
 from drivers.spa import NullSpaDriver, SpaDriver
 from drivers.spa_gecko import GeckoSpaDriver
 
 CAR_DRIVER_REGISTRY = {"generic_ev": GenericEvCarDriver, "nissan": NissanCarDriver, "tesla": TeslaCarDriver}
-CHARGER_DRIVER_REGISTRY = {"easee": EaseeChargerDriver}
-HEAT_PUMP_DRIVER_REGISTRY = {"thermia_husdata": ThermiaHusdataHeatPumpDriver}
-SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver}
+CHARGER_DRIVER_REGISTRY = {"easee": EaseeChargerDriver, "generic": GenericChargerDriver}
+HEAT_PUMP_DRIVER_REGISTRY = {"thermia_husdata": ThermiaHusdataHeatPumpDriver, "generic_climate": GenericClimateHeatPumpDriver}
+SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver, "generic_number": GenericNumberSolarDriver}
 SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver}
 
 # Easees två fysiska boxar har var sin läsfunktion i homeassistant.py (ingen generisk
@@ -79,6 +82,8 @@ def build_charger_drivers(cfg: dict) -> dict:
         if driver_cls is EaseeChargerDriver:
             get_id, reader = _EASEE_PHYSICAL.get(charger_cfg.get("physical"), (lambda: charger_cfg.get("id", ""), lambda: {}))
             out[car_id] = EaseeChargerDriver(id=get_id(), reader=reader)
+        elif driver_cls is GenericChargerDriver:
+            out[car_id] = GenericChargerDriver(id=charger_cfg.get("id", ""), entities=charger_cfg.get("entities", {}))
         else:
             out[car_id] = driver_cls(id=charger_cfg.get("id", ""))
     return out
@@ -100,6 +105,9 @@ def build_physical_charger_drivers(cfg: dict) -> dict:
             get_id, reader = _EASEE_PHYSICAL.get(charger_cfg.get("physical"), (lambda: charger_cfg.get("id", ""), lambda: {}))
             physical_id = get_id()
             out[physical_id] = EaseeChargerDriver(id=physical_id, reader=reader)
+        elif driver_cls is GenericChargerDriver:
+            physical_id = charger_cfg.get("id", "")
+            out[physical_id] = GenericChargerDriver(id=physical_id, entities=charger_cfg.get("entities", {}))
         else:
             physical_id = charger_cfg.get("id", "")
             out[physical_id] = driver_cls(id=physical_id)
@@ -129,6 +137,8 @@ def build_heat_pump_driver(cfg: dict) -> HeatPumpDriver:
     if not hp.get("enabled"):
         return NullHeatPumpDriver()
     driver_cls = HEAT_PUMP_DRIVER_REGISTRY.get(hp.get("driver"), NullHeatPumpDriver)
+    if driver_cls is GenericClimateHeatPumpDriver:
+        return GenericClimateHeatPumpDriver(entity_id=hp.get("entities", {}).get("climate"))
     return driver_cls()
 
 
@@ -137,6 +147,8 @@ def build_solar_driver(cfg: dict) -> SolarDriver:
     if not sol.get("enabled"):
         return NullSolarDriver()
     driver_cls = SOLAR_DRIVER_REGISTRY.get(sol.get("driver"), NullSolarDriver)
+    if driver_cls is GenericNumberSolarDriver:
+        return GenericNumberSolarDriver(entities=sol.get("entities", {}))
     return driver_cls()
 
 
