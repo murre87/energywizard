@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Har du ett husbatteri? - EnergyWizard Open</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Kunskapsbank</a><span class="langswitch"><a class="on" href="#">SV</a><a href="../en/kunskapsbank/home-battery.html">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Har du ett husbatteri?</h1>
+  <div class="meta">Husbatteri</div>
+
+  <p>Rakt på sak: EnergyWizard styr idag inte ett riktigt elektriskt husbatteri
+  (Powerwall, GivEnergy, Huawei Luna och liknande). Huset självt (golv, väggar) och
+  varmvattenberedaren används som ett <em>termiskt</em> batteri - se
+  <a href="huset-som-varmebatteri.html">artikeln om det</a> - men det är långsamt och
+  läcker värme. Ett riktigt elbatteri är snabbt, i princip förlustfritt på kort sikt,
+  och konkurrerar direkt med sol/nät/elbilsladdning om samma watt just nu. Det är en
+  genuint annan optimeringsfråga, inte bara "lägg till en drivrutin till".</p>
+
+  <h3>Vad du kan göra redan idag</h3>
+  <p>Kör <a href="https://github.com/springfall2008/batpred">Predbat</a> parallellt med
+  EnergyWizard. Predbat är ett moget, väletablerat projekt specifikt för
+  batteriladdning/urladdning mot elpris och solprognos, med stöd för många
+  batterimärken (GivEnergy, Solis, Huawei, Tesla Powerwall med flera). Det körs som en
+  egen app i Home Assistant (AppDaemon) - helt separat installation, ingen koppling
+  till EnergyWizard behövs.</p>
+
+  <p>Eftersom de två systemen inte pratar med varandra kan de i teorin dra åt olika
+  håll (t.ex. om båda vill prioritera samma soleffekt). I praktiken styr EnergyWizard
+  värme/varmvatten/elbil och Predbat batteriet - olika "hinkar" el för det mesta, så
+  konflikten blir sällan stor. Håll ett öga på det själv tills vi vet mer.</p>
+
+  <h3>Vad som händer sen</h3>
+  <p>En riktig, inbyggd batteri-kategori i EnergyWizards drivrutinsarkitektur är ett
+  rimligt nästa steg - men vi bygger den när fler betatestare faktiskt har ett
+  husbatteri att verifiera mot, inte i förväg på gissningar. Har du ett? Hör av dig -
+  det är precis den sortens verkliga hus vi behöver för att göra det rätt.</p>
+</article>
+</div>
+</body>
+</html>

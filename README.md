@@ -46,6 +46,8 @@ för praktiskt taget vilken bil som helst som har SOC/laddstatus i Home Assistan
 För övriga delsystem - se `smartbox/drivers/*.py` för gränssnitten och skicka
 gärna ett bidrag.
 
+Se [ROADMAP.md](ROADMAP.md) för vad som är nästa rimliga steg och varför.
+
 ## Struktur
 
 - `smartbox/` – styrmotorn (huvudloopen, drivrutinerna, prioritetsmotorn).

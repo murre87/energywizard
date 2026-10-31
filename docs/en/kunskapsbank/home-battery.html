@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Do you have a home battery? - EnergyWizard Open</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="dot"></span> EnergyWizard Open</a>
+    <nav class="top"><a href="./">Knowledge base</a><span class="langswitch"><a href="../../kunskapsbank/husbatteri.html">SV</a><a class="on" href="#">EN</a></span></nav>
+  </div>
+</header>
+<div class="wrap">
+<article class="post">
+  <h1>Do you have a home battery?</h1>
+  <div class="meta">Home battery</div>
+
+  <p>Straight up: EnergyWizard doesn't currently control a real electrical home
+  battery (Powerwall, GivEnergy, Huawei Luna and similar). The house itself (floors,
+  walls) and the hot water tank are used as a <em>thermal</em> battery - see
+  <a href="the-house-as-a-heat-battery.html">the article about that</a> - but that's
+  slow and leaks heat. A real electric battery is fast, essentially lossless in the
+  short term, and competes directly with solar/grid/EV charging for the same watts
+  right now. It's a genuinely different optimization problem, not just "add one more
+  driver".</p>
+
+  <h3>What you can do today</h3>
+  <p>Run <a href="https://github.com/springfall2008/batpred">Predbat</a> alongside
+  EnergyWizard. Predbat is a mature, well-established project specifically for
+  battery charge/discharge scheduling against electricity price and solar forecasts,
+  supporting many battery brands (GivEnergy, Solis, Huawei, Tesla Powerwall and
+  others). It runs as its own app inside Home Assistant (AppDaemon) - a completely
+  separate installation, no connection to EnergyWizard needed.</p>
+
+  <p>Since the two systems don't talk to each other, they could in theory pull in
+  different directions (e.g. if both want to prioritize the same solar surplus). In
+  practice EnergyWizard controls heating/hot water/EV charging and Predbat controls
+  the battery - different "buckets" of electricity most of the time, so the conflict
+  is rarely significant. Keep an eye on it yourself until we know more.</p>
+
+  <h3>What comes next</h3>
+  <p>A real, built-in battery category in EnergyWizard's driver architecture is a
+  reasonable next step - but we'll build it once more beta testers actually have a
+  home battery to validate against, not in advance on guesses. Have one? Get in
+  touch - that's exactly the kind of real house we need to get it right.</p>
+</article>
+</div>
+</body>
+</html>
