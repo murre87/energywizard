@@ -44,23 +44,43 @@ ENGINE = create_engine(
 AUTH = webauth.Auth(salt="webdash", family_write_prefixes=())
 
 # De 13 sidorna enligt inventeringen av smartdashboard (se planfilen) - tomma till Fas B+.
+# "built": False döljs i menyn (se /api/me) tills sidan faktiskt har eget innehåll i
+# app.js - en platshållarflik ("byggs i en senare fas") är precis det en betatestare
+# tolkar som att allt är trasigt, så den ska aldrig synas i en skarp installation.
 PAGES = [
-    {"id": "oversikt", "name": "Översikt", "icon": "📊"},
-    {"id": "ekonomi", "name": "Ekonomi", "icon": "💰"},
-    {"id": "elforbrukning", "name": "Elförbrukning", "icon": "🔌"},
-    {"id": "elbil", "name": "Elbil", "icon": "⚡"},
-    {"id": "varmepump", "name": "Värmepump", "icon": "♨️"},
-    {"id": "solceller", "name": "Solceller", "icon": "☀️"},
-    {"id": "spabad", "name": "Spabad", "icon": "🛁"},
-    {"id": "temperaturer", "name": "Temperaturer", "icon": "🌡️"},
-    {"id": "prognos", "name": "Prognos", "icon": "📅"},
-    {"id": "historik", "name": "Historik", "icon": "📈"},
-    {"id": "installningar", "name": "Inställningar", "icon": "⚙️"},
-    {"id": "aviseringar", "name": "Aviseringar", "icon": "🔔"},
-    {"id": "system", "name": "System", "icon": "🛠️"},
+    {"id": "oversikt", "name": "Översikt", "icon": "📊", "built": True},
+    {"id": "ekonomi", "name": "Ekonomi", "icon": "💰", "built": True},
+    {"id": "elforbrukning", "name": "Elförbrukning", "icon": "🔌", "built": True},
+    {"id": "elbil", "name": "Elbil", "icon": "⚡", "built": True},
+    {"id": "varmepump", "name": "Värmepump", "icon": "♨️", "built": True},
+    {"id": "solceller", "name": "Solceller", "icon": "☀️", "built": True},
+    {"id": "spabad", "name": "Spabad", "icon": "🛁", "built": True},
+    {"id": "temperaturer", "name": "Temperaturer", "icon": "🌡️", "built": True},
+    {"id": "prognos", "name": "Prognos", "icon": "📅", "built": True},
+    {"id": "historik", "name": "Historik", "icon": "📈", "built": True},
+    {"id": "installningar", "name": "Inställningar", "icon": "⚙️", "built": True},
+    {"id": "aviseringar", "name": "Aviseringar", "icon": "🔔", "built": True},
+    {"id": "system", "name": "System", "icon": "🛠️", "built": True},
 ]
 
 app = FastAPI(title="EnergyWizard Webdashboard")
+
+
+@app.on_event("startup")
+async def _print_welcome():
+    """Skriver ut adressen i docker-loggarna direkt vid start, samma mönster som
+    ha-gateway/print-url.sh - annars är README den ENDA platsen en ny användare kan
+    hitta adressen, och det kräver att man redan vet att man ska leta där. Kan inte
+    räkna ut värdens egen LAN-IP pålitligt inifrån en bridge-nätverkad container
+    (containerns egen IP är inte samma sak, skulle bli missvisande) - ärligt
+    generiskt istället för en gissning som ser exakt ut men kan vara fel."""
+    print("")
+    print("=" * 66)
+    print("🔆  EnergyWizard webdashboard är igång!")
+    print("    Besök http://<din-servers-lokala-IP>:8503 i webbläsaren")
+    print("    (hittar du inte IP:n? \"ip addr\" på servern, eller din routers DHCP-lista)")
+    print("=" * 66)
+    print("")
 
 
 @app.middleware("http")
@@ -93,7 +113,7 @@ async def logout():
 @app.get("/api/me")
 async def me(request: Request):
     role, user = AUTH.session(request)
-    return {"role": role, "user": user, "pages": PAGES}
+    return {"role": role, "user": user, "pages": [p for p in PAGES if p["built"]]}
 
 
 @app.get("/api/ping")
@@ -209,6 +229,215 @@ async def updates(request: Request, force: bool = False):
         "total": len(containers),
         "pending": sorted(pending),
     }
+
+
+def _latest_row(c):
+    """Senaste raden i sensor_log som dict - delad av alla de nya datasidorna nedan
+    istället för att varje endpoint skriver om samma SELECT * ... LIMIT 1."""
+    row = c.execute(text(
+        "SELECT *, timestamp AT TIME ZONE 'Europe/Stockholm' AS sthlm_time FROM sensor_log ORDER BY timestamp DESC LIMIT 1"
+    )).mappings().first()
+    return dict(row) if row else None
+
+
+def _price_24h(c):
+    rows = c.execute(text(
+        "SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= now() - interval '24 hours' ORDER BY time_start"
+    )).fetchall()
+    return [{"t": r[0].isoformat(), "p": float(r[1])} for r in rows]
+
+
+@app.get("/api/car")
+async def api_car():
+    """Elbil-sidan: SoC/laddstatus för båda bilarna + dagens schema (ev_charging_schedule)
+    och planerade laddningspass (ev_plan_slots, summeras bara - full passplan hör hemma
+    i ewapp:s egen editor, inte duplicerad här)."""
+    with ENGINE.connect() as c:
+        row = _latest_row(c)
+        if row is None:
+            return {"ok": False, "error": "Ingen data i sensor_log än"}
+        today_dow = time.localtime().tm_wday
+        sched = c.execute(text(
+            "SELECT car_id, target_time, target_soc, enabled FROM ev_charging_schedule WHERE day_of_week = :d"
+        ), {"d": today_dow}).mappings().all()
+        planned = c.execute(text(
+            "SELECT car_id, SUM(kw) AS kwh FROM ev_plan_slots WHERE t_slot::date = CURRENT_DATE GROUP BY car_id"
+        )).mappings().all()
+    planned_by_car = {p["car_id"]: _n(p["kwh"]) for p in planned}
+    cars = [
+        {"id": "tesla", "name": "Tesla Model Y", "soc": _n(row.get("tesla_soc")), "stale": bool(row.get("tesla_soc_stale")),
+         "power_kw": _n(row.get("ev_power_kw")), "status": row.get("ev_status"),
+         "climate_temp": _n(row.get("tesla_climate_temp")), "climate_state": row.get("tesla_climate_state")},
+        {"id": "nissan", "name": "Nissan Leaf", "soc": _n(row.get("nissan_soc")), "stale": bool(row.get("nissan_soc_stale")),
+         "power_kw": _n(row.get("ev_carport_power_kw")), "status": row.get("ev_carport_status"),
+         "climate_temp": _n(row.get("nissan_climate_temp")), "climate_state": row.get("nissan_climate_state")},
+    ]
+    for car in cars:
+        car["planned_kwh_today"] = planned_by_car.get(car["id"])
+    schedule = [{"car_id": s["car_id"], "target_time": str(s["target_time"]) if s["target_time"] else None,
+                 "target_soc": s["target_soc"], "enabled": s["enabled"]} for s in sched]
+    return {"ok": True, "cars": cars, "session_kwh": _n(row.get("ev_session_kwh")),
+            "current_a": _n(row.get("ev_current_a")), "dynamic_limit_a": _n(row.get("ev_dynamic_limit_a")),
+            "current_target_limit": _n(row.get("current_target_limit")), "schedule_today": schedule}
+
+
+@app.get("/api/solar")
+async def api_solar():
+    """Solceller-sidan: produktion, dagens energi, exportgräns och husbatteriet - allt
+    redan loggat av smartbox i sensor_log varje cykel, ingen live HA-fråga behövs."""
+    with ENGINE.connect() as c:
+        row = _latest_row(c)
+        if row is None:
+            return {"ok": False, "error": "Ingen data i sensor_log än"}
+        price_24h = _price_24h(c)
+    return {"ok": True, "pv_power_w": _n(row.get("pv_power_w")), "solar_today_kwh": _n(row.get("solar_today_kwh")),
+            "solar_forecast_w": _n(row.get("solar_forecast_w")), "solar_limit_pct": _n(row.get("solar_limit_pct")),
+            "inverter_status": row.get("inverter_status"), "battery_soc": _n(row.get("battery_soc")),
+            "battery_power_w": _n(row.get("battery_power_w")), "net_power_w": _n(row.get("net_power")),
+            "price": _n(row.get("price")), "price_24h": price_24h}
+
+
+@app.get("/api/economy")
+async def api_economy():
+    """Ekonomi-sidan: dagens pris (min/medel/max) och en uppskattad kostnad hittills
+    idag (ackumulerad förbrukning × dagens snittpris) - en grov uppskattning, inte en
+    exakt timme-för-timme-kostnad, och tydligt märkt som sådan i gränssnittet."""
+    with ENGINE.connect() as c:
+        row = _latest_row(c)
+        if row is None:
+            return {"ok": False, "error": "Ingen data i sensor_log än"}
+        today_prices = c.execute(text(
+            "SELECT sek_per_kwh FROM elpriser WHERE time_start::date = CURRENT_DATE"
+        )).fetchall()
+        price_24h = _price_24h(c)
+    prices = [float(r[0]) for r in today_prices if r[0] is not None]
+    avg_price = sum(prices) / len(prices) if prices else None
+    consumption = _n(row.get("accumulated_consumption_kwh"))
+    est_cost = round(consumption * avg_price, 2) if consumption is not None and avg_price is not None else None
+    return {"ok": True, "price": _n(row.get("price")), "price_min": min(prices) if prices else None,
+            "price_avg": avg_price, "price_max": max(prices) if prices else None,
+            "accumulated_consumption_kwh": consumption, "est_cost_today": est_cost, "price_24h": price_24h}
+
+
+@app.get("/api/consumption")
+async def api_consumption():
+    """Elförbrukning-sidan: fasströmmar/effekt just nu + senaste förklarade uppdelningen
+    (load_breakdown - EV/pump/spa/oförklarat) och effektvaktens status."""
+    with ENGINE.connect() as c:
+        row = _latest_row(c)
+        if row is None:
+            return {"ok": False, "error": "Ingen data i sensor_log än"}
+        lb = c.execute(text(
+            "SELECT total_w, ev_w, pump_w, spa_w, unexplained_w FROM load_breakdown ORDER BY timestamp DESC LIMIT 1"
+        )).mappings().first()
+    return {"ok": True, "avg_w_l1": _n(row.get("avg_w_l1")), "avg_w_l2": _n(row.get("avg_w_l2")),
+            "avg_w_l3": _n(row.get("avg_w_l3")), "avg_w_tot": _n(row.get("avg_w_tot")),
+            "house_consumption_w": _n(row.get("house_consumption_w")), "power_oven_w": _n(row.get("power_oven_w")),
+            "power_computer_w": _n(row.get("power_computer_w")), "peak_shaving_active": bool(row.get("peak_shaving_active")),
+            "predicted_base_load_kw": _n(row.get("predicted_base_load_kw")),
+            "breakdown": {k: _n(lb[k]) for k in ("total_w", "ev_w", "pump_w", "spa_w", "unexplained_w")} if lb else None}
+
+
+@app.get("/api/spa")
+async def api_spa():
+    """Spabad-sidan: temperatur, mål, värmarstatus och signalstyrka (RF-kanal till
+    styrenheten) - direkt ur sensor_log, samma fält gpm.py redan styr mot."""
+    with ENGINE.connect() as c:
+        row = _latest_row(c)
+    if row is None:
+        return {"ok": False, "error": "Ingen data i sensor_log än"}
+    return {"ok": True, "temp": _n(row.get("spa_temp")), "target": _n(row.get("spa_target")),
+            "heater_running": bool(row.get("spa_heater_running")), "power_w": _n(row.get("spa_power_w")),
+            "signal_pct": _n(row.get("spa_signal_pct")), "rf_channel": _n(row.get("spa_rf_channel"))}
+
+
+ROOMS = [("temp_vardagsrum", "Vardagsrum"), ("temp_masterbedroom", "Sovrum"), ("temp_barnrum_nere", "Barnrum nere"),
+         ("temp_cesars_rum", "Cesars rum"), ("temp_isacs_rum", "Isacs rum"), ("temp_utbyggnad", "Utbyggnad"),
+         ("temp_tvattstuga", "Tvättstuga"), ("temp_friggebod", "Friggebod"), ("temp_garage", "Garage"),
+         ("temp_matter_1", "Sensor Matter 1"), ("temp_matter_2", "Sensor Matter 2"), ("temp_matter_3", "Sensor Matter 3"),
+         ("temp_esp", "ESP-sensor")]
+
+
+@app.get("/api/temperatures")
+async def api_temperatures():
+    """Temperaturer-sidan: samma rumslista som ewapp:s /api/rooms (ROOMS ovan är en
+    medveten kopia, inte en delad import - webdashboard har ingen HA-koppling att
+    dela, bara sensor_log)."""
+    with ENGINE.connect() as c:
+        row = _latest_row(c)
+    if row is None:
+        return {"ok": False, "error": "Ingen data i sensor_log än"}
+    rooms = [{"name": n, "temp": _n(row.get(col))} for col, n in ROOMS]
+    return {"ok": True, "indoor_temp": _n(row.get("indoor_temp")), "outdoor_temp": _n(row.get("outdoor_temp")),
+            "indoor_humidity": _n(row.get("indoor_humidity")), "rooms": [r for r in rooms if r["temp"] is not None],
+            "vent_supply_temp": _n(row.get("vent_supply_temp")), "vent_exhaust_temp": _n(row.get("vent_exhaust_temp")),
+            "vent_setpoint_c": _n(row.get("vent_setpoint_c"))}
+
+
+@app.get("/api/forecast")
+async def api_forecast():
+    """Prognos-sidan: kommande väder (weather_forecast) och kommande elpriser (elpriser) -
+    samma tabeller gpm.py redan planerar mot, bara en vy på dem."""
+    with ENGINE.connect() as c:
+        weather = c.execute(text(
+            "SELECT timestamp, temp, cloud_cover, wind_speed, rain_probability, thunder_probability "
+            "FROM weather_forecast WHERE timestamp >= now() ORDER BY timestamp LIMIT 48"
+        )).mappings().all()
+        prices = c.execute(text(
+            "SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= now() ORDER BY time_start LIMIT 48"
+        )).fetchall()
+    return {"ok": True,
+            "weather": [{"t": w["timestamp"].isoformat(), "temp": _n(w["temp"]), "cloud_cover": _n(w["cloud_cover"]),
+                         "wind_speed": _n(w["wind_speed"]), "rain_probability": _n(w["rain_probability"]),
+                         "thunder_probability": _n(w["thunder_probability"])} for w in weather],
+            "prices": [{"t": r[0].isoformat(), "p": float(r[1])} for r in prices]}
+
+
+@app.get("/api/historylog")
+async def api_historylog():
+    """Historik-sidan: ew_log (familjelogg + systemhändelser) - de senaste 80 posterna,
+    nyast först."""
+    with ENGINE.connect() as c:
+        rows = c.execute(text("SELECT ts, usr, txt FROM ew_log ORDER BY ts DESC LIMIT 80")).fetchall()
+    return {"ok": True, "entries": [{"ts": r[0].isoformat(), "user": r[1], "text": r[2]} for r in rows]}
+
+
+NOTIFY_LABELS = {
+    "notify_spa_boost": "Spabadet värmer extra (boost)", "notify_spa_reconnect": "Spabadet tappade kontakten och är tillbaka",
+    "notify_ev_full": "Elbilen är fulladdad", "notify_price_tip": "Pristips (ovanligt billig/dyr timme)",
+    "notify_high_low": "Höglast/baslast byter", "notify_peak_shaving": "Effektvakten griper in",
+    "notify_pump_alarm": "Värmepumpen larmar", "notify_pump_mode": "Värmepumpen byter läge",
+    "notify_solar_error": "Solcellsväxelriktaren svarar inte", "notify_solar_limit": "Solexporten begränsas/släpps",
+    "notify_mower_mowing": "Robotgräsklipparen klipper", "notify_mower_charging": "Robotgräsklipparen laddar",
+    "notify_mower_idle": "Robotgräsklipparen vilar", "notify_mower_weather": "Robotgräsklipparen pausar pga väder",
+    "notify_mower_manual": "Robotgräsklipparen körs manuellt", "notify_mower_failsafe": "Robotgräsklipparens failsafe",
+}
+
+
+@app.get("/api/notifications")
+async def api_notifications():
+    """Aviseringar-sidan: nuvarande på/av-läge för varje aviseringstyp (overrides-
+    tabellen, delad med ewapp - samma device/mode-par ewapp:s /api/energy-action:notify
+    redan skriver till, bara en läsvy här)."""
+    with ENGINE.connect() as c:
+        rows = c.execute(text("SELECT device, mode FROM overrides WHERE device LIKE 'notify_%'")).fetchall()
+    items = [{"key": r[0], "label": NOTIFY_LABELS.get(r[0], r[0]), "on": str(r[1]).lower() == "true"} for r in rows]
+    items.sort(key=lambda i: i["label"])
+    return {"ok": True, "items": items}
+
+
+@app.post("/api/notifications/{key}")
+async def set_notification(key: str, request: Request):
+    """Växlar en aviseringstyp - samma overrides-tabell/semantik som ewapp:s notify-
+    inställningar, så en ändring här syns direkt i ewapp också (och tvärtom)."""
+    if key not in NOTIFY_LABELS:
+        return JSONResponse({"ok": False, "error": "Okänd aviseringstyp"}, status_code=404)
+    v = (await request.json()).get("value")
+    with ENGINE.begin() as c:
+        c.execute(text(
+            "INSERT INTO overrides (device, mode) VALUES (:d, :m) ON CONFLICT (device) DO UPDATE SET mode = :m, updated_at = now()"
+        ), {"d": key, "m": "true" if v else "false"})
+    return {"ok": True}
 
 
 @app.post("/api/discover")
