@@ -131,6 +131,106 @@ async function loadUpdates(force) {
   document.getElementById("checknowbtn").onclick = () => loadUpdates(true);
 }
 
+let _discovered = null;
+
+async function renderInstallningar() {
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:700">⚙️ Entitetsväljare</div>
+      <div class="note" style="margin-top:4px">Skannar ditt Home Assistant efter värmepump, bilar, solceller, spa och laddare - du väljer vilka som stämmer, sen genererar du en färdig house_config.yaml att spara och starta om smartbox med.</div>
+      <button class="icobtn" id="scanbtn" style="margin-top:10px">Skanna mitt Home Assistant</button>
+    </div>
+    <div id="discoverResults"></div>`;
+  document.getElementById("scanbtn").onclick = runDiscovery;
+}
+
+async function runDiscovery() {
+  const results = document.getElementById("discoverResults");
+  results.innerHTML = `<div class="placeholder">Skannar... (kan ta en liten stund)</div>`;
+  let d;
+  try { d = await api("api/discover", { method: "POST" }); } catch (e) { results.innerHTML = `<div class="placeholder">${e.message}</div>`; return; }
+  if (!d.ok) { results.innerHTML = `<div class="placeholder">${d.error}</div>`; return; }
+  _discovered = d;
+
+  const driverTag = (item) => item.driver_known
+    ? `<span class="tag">drivrutin: ${item.driver}</span>`
+    : `<span class="tag warn">hittades (${item.maker || "okänt märke"}) - ingen drivrutin än, bidra gärna</span>`;
+
+  let html = "";
+
+  html += `<div class="card" style="margin-bottom:16px"><h2>🚗 Bilar (${d.cars.length})</h2>`;
+  d.cars.forEach((c, i) => {
+    html += `<div class="note" style="margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:10px">
+      <label><input type="checkbox" class="car-pick" data-i="${i}" checked> <b>${c.device_name}</b></label> ${driverTag(c)}<br>
+      id: <input type="text" class="car-id" data-i="${i}" value="${c.driver}" style="width:100px"> &nbsp;
+      batteri (kWh): <input type="number" class="car-kwh" data-i="${i}" value="60" style="width:70px"><br>
+      <span style="font-size:.8rem">SOC: ${c.soc_entity || "-"} · Kabel: ${c.plugged_in_entity || "-"} · Klimat: ${c.climate_entity || "-"}</span>
+    </div>`;
+  });
+  if (!d.cars.length) html += `<div class="note">Inga bilar hittades.</div>`;
+  html += `</div>`;
+
+  const simpleCard = (icon, title, item, fields) => {
+    if (!item) return `<div class="card" style="margin-bottom:16px"><h2>${icon} ${title}</h2><div class="note">Inget hittades i Home Assistant${title === "Värmepump" ? " - normalt om din pump pratar direkt via Modbus istället för via en HA-integration (t.ex. Thermia/Husdata). Sätt heat_pump.enabled: true och fyll i anslutningen för hand i den nedladdade filen efteråt." : ""}.</div></div>`;
+    return `<div class="card" style="margin-bottom:16px"><h2>${icon} ${title}</h2>
+      <label><input type="checkbox" class="pick" data-cat="${title}" checked> Använd detta fynd</label> ${driverTag(item)}
+      <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div></div>`;
+  };
+  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)` : "");
+  html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `Effekt: ${d.solar.pv_power_entity || "-"} · Dagsenergi: ${d.solar.today_kwh_entity || "-"}` : "");
+  html += simpleCard("🛁", "Spabad", d.spa, d.spa ? `Temp: ${d.spa.current_temp_entity || "-"} · Effekt: ${d.spa.power_entity || "-"}` : "");
+
+  html += `<div class="card" style="margin-bottom:16px"><h2>🔌 Laddare (${d.chargers.length})</h2>`;
+  d.chargers.forEach((c, i) => {
+    html += `<label style="display:block;margin:6px 0"><input type="checkbox" class="charger-pick" data-i="${i}" checked> ${c.device_name}</label> ${driverTag(c)}`;
+  });
+  if (!d.chargers.length) html += `<div class="note">Inga laddare hittades.</div>`;
+  html += `</div>`;
+
+  html += `<div class="card" style="margin-bottom:16px"><h2>⚡ Elmätare / Tibber Pulse</h2>
+    <div class="note">Bara informativt än - EnergyWizard läser idag nätimport hårdkodat (Tibber Pulse), inte via en insticksbar drivrutin. Visas så du vet vilka entiteter som finns, oavsett om du har Pulse, en smartmätare (HAN/P1), eller båda.</div>`;
+  (d.grid_meters || []).forEach(g => {
+    html += `<div class="note" style="margin-top:6px">• ${g.kind === "pulse" ? "Tibber Pulse" : "Smartmätare"}: ${g.power_entity} (${g.maker || "okänt märke"})</div>`;
+  });
+  if (!(d.grid_meters || []).length) html += `<div class="note" style="margin-top:6px">Ingen hittades.</div>`;
+  html += `</div>`;
+
+  html += `<button class="icobtn" id="genbtn" style="margin-top:6px">Generera house_config.yaml</button>`;
+  results.innerHTML = html;
+  document.getElementById("genbtn").onclick = generateConfig;
+}
+
+async function generateConfig() {
+  const sel = { cars: [], heat_pump: null, solar: null, spa: null };
+  const pickedChargers = [];
+  document.querySelectorAll(".charger-pick:checked").forEach(cb => pickedChargers.push(_discovered.chargers[cb.dataset.i]));
+  document.querySelectorAll(".car-pick:checked").forEach((cb, idx) => {
+    const i = cb.dataset.i;
+    const car = { ..._discovered.cars[i] };
+    car.id = document.querySelector(`.car-id[data-i="${i}"]`).value || car.driver;
+    car.battery_kwh = parseFloat(document.querySelector(`.car-kwh[data-i="${i}"]`).value) || 60;
+    // Ihopparning laddare<->bil är en gissning (index-ordning) - markerad i YAML:ns
+    // kommentar, inte tyst: handskakningen (se main.py) kan ändå byta dem vid behov.
+    car.charger = pickedChargers[idx] || null;
+    sel.cars.push(car);
+  });
+  document.querySelectorAll(".pick:checked").forEach(cb => {
+    const cat = cb.dataset.cat;
+    if (cat === "Värmepump") sel.heat_pump = _discovered.heat_pump;
+    if (cat === "Solceller") sel.solar = _discovered.solar;
+    if (cat === "Spabad") sel.spa = _discovered.spa;
+  });
+
+  const r = await fetch("api/generate-house-config", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sel) });
+  if (!r.ok) { alert("Kunde inte generera filen: " + (await r.json().catch(() => ({}))).error); return; }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "house_config.yaml"; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function openPage(id) {
   currentPage = id;
   renderSidebar();
@@ -140,6 +240,8 @@ function openPage(id) {
     renderVarmepump();
   } else if (id === "system") {
     renderSystem();
+  } else if (id === "installningar") {
+    renderInstallningar();
   } else {
     document.getElementById("main").innerHTML = `<div class="placeholder">"${PAGES.find(p => p.id === id)?.name}" byggs i en senare fas.</div>`;
   }
