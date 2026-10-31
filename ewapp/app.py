@@ -670,16 +670,32 @@ async def home_action(what: str, request: Request):
     raise HTTPException(404, "Okänd åtgärd")
 
 
+# nordpool_vat_enabled lagras ALDRIG i system_settings - sanningen finns bara på ett ställe
+# (HA:s egen nordpool-integration), annars riskerar vårt UI visa ett inaktuellt värde.
+SETTING_RULES_HA_BACKED = {"nordpool_vat_enabled": ("bool",)}
+
+
 @app.get("/api/settings")
 def get_settings():
     cfg = get_settings_row()
-    return {"values": {k: cfg.get(k) for k in SETTING_RULES}, "rules": {k: list(v) for k, v in SETTING_RULES.items()}}
+    values = {k: cfg.get(k) for k in SETTING_RULES}
+    nordpool_cfg = H.get_nordpool_config()
+    values["nordpool_vat_enabled"] = nordpool_cfg.get("data", {}).get("VAT") if nordpool_cfg else None
+    return {"values": values, "rules": {k: list(v) for k, v in {**SETTING_RULES, **SETTING_RULES_HA_BACKED}.items()}}
 
 
 @app.post("/api/settings")
 async def set_setting(request: Request):
     body = await request.json()
     key, v = body.get("key"), body.get("value")
+    if key == "nordpool_vat_enabled":
+        v = bool(v)
+        if not H.set_nordpool_vat(v):
+            raise HTTPException(502, "Kunde inte ändra momsinställningen i Home Assistant - "
+                                      "nordpool-integrationen kan behöva läggas till manuellt igen")
+        print(f"⚙️ ewapp: nordpool_vat_enabled = {v} (via HA:s nordpool-integration)", flush=True)
+        logact(request, f"Inställning: moms (Nord Pool) = {v}")
+        return {"ok": True, "value": v, "msg": f"Moms {'på' if v else 'av'} i Nord Pool-priserna"}
     rule = SETTING_RULES.get(key)
     if not rule:
         raise HTTPException(400, "Okänd inställning")

@@ -12,6 +12,12 @@ DB_USER = os.environ.get("POSTGRES_USER")
 DB_PASS = os.environ.get("POSTGRES_PASSWORD")
 DB_NAME = os.environ.get("POSTGRES_DB")
 
+# Val av priskälla: "elprisetjustnu" (default, oförändrat) eller "ha_nordpool"
+# (läs Home Assistants egen nordpool-integration istället för att hämta själva).
+# Opt-in - installationer utan PRICE_SOURCE satt påverkas inte alls.
+PRICE_SOURCE = os.environ.get("PRICE_SOURCE", "elprisetjustnu").strip().lower()
+NORDPOOL_HA_ENTITY = os.environ.get("NORDPOOL_HA_ENTITY", "sensor.nordpool").strip()
+
 from logger import get_db
 
 def init_db():
@@ -54,6 +60,69 @@ def fetch_api_and_save(date_obj):
         print(f"❌ Fel vid API-hämtning för {date_str}: {e}")
     return False
 
+
+def fetch_ha_nordpool_and_save(date_obj):
+    """Hämtar priser från Home Assistants egen nordpool-integration (sensor.nordpool,
+    attributen raw_today/raw_tomorrow) istället för att anropa elprisetjustnu.se.
+
+    Samma kontrakt som fetch_api_and_save: True/False, samma INSERT/ON CONFLICT-mönster
+    så nedströms-konsumenter (get_price_info, get_price_at) inte märker varifrån raderna
+    kom. Priserna kommer i 15-minutersupplösning från HA - get_price_info hanterar redan
+    båda upplösningarna.
+    """
+    import homeassistant
+    date_str = date_obj.strftime("%Y-%m-%d")
+    try:
+        r = requests.get(
+            f"{homeassistant._BASE}/states/{NORDPOOL_HA_ENTITY}",
+            headers=homeassistant._HEADERS, timeout=10, verify=homeassistant._VERIFY,
+        )
+        if r.status_code != 200:
+            print(f"❌ HA nordpool-sensorn ({NORDPOOL_HA_ENTITY}) svarade {r.status_code}.")
+            return False
+        attrs = r.json().get("attributes", {})
+        raw_today = attrs.get("raw_today") or []
+        raw_tomorrow = attrs.get("raw_tomorrow") or []
+
+        wanted = [
+            item for item in (raw_today + raw_tomorrow)
+            if datetime.fromisoformat(item["start"]).astimezone(SWE_TZ).date() == date_obj.date()
+        ]
+        if not wanted:
+            print(f"⚠️ HA nordpool-sensorn har inga priser för {date_str} (ännu).")
+            return False
+
+        records = [
+            (item["start"], item["end"], item["value"])
+            for item in wanted
+        ]
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.executemany("""
+                    INSERT INTO elpriser (time_start, time_end, sek_per_kwh)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (time_start) DO NOTHING
+                """, records)
+            conn.commit()
+        print(f"📥 Laddade ner {len(records)} rader för {date_str} från HA nordpool-integrationen.")
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid HA nordpool-hämtning för {date_str}: {e}")
+    return False
+
+
+def _fetch_and_save(date_obj):
+    """Hämtar och sparar ett dygns priser enligt konfigurerad PRICE_SOURCE, med automatisk
+    fallback till elprisetjustnu.se samma cykel om den primära källan misslyckas - pris-
+    optimeringen får aldrig stå helt utan källa bara för att HA-integrationen är otillgänglig."""
+    if PRICE_SOURCE == "ha_nordpool":
+        if fetch_ha_nordpool_and_save(date_obj):
+            return True
+        print("⚠️ HA nordpool-källan misslyckades, faller tillbaka till elprisetjustnu.se.")
+        return fetch_api_and_save(date_obj)
+    return fetch_api_and_save(date_obj)
+
+
 def ensure_prices_exist():
     now = datetime.now(SWE_TZ)
     today    = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -68,7 +137,7 @@ def ensure_prices_exist():
                     print("⚠️ Saknar priser för idag. Hämtar från API...")
                     # FIX: Agera på fetch-status så tyst degradering (tom prislista -> dyra
                     # default-lägen) syns i loggen istället för att ignoreras.
-                    if not fetch_api_and_save(today):
+                    if not _fetch_and_save(today):
                         print("❌ KRITISKT: Kunde inte hämta dagens priser – pris-optimering "
                               "(peak shaving/EV/värme/spa) faller tillbaka till default tills priser finns.")
 
@@ -78,7 +147,7 @@ def ensure_prices_exist():
                         print("📅 Hämtar morgondagens priser...")
                         # FIX: Logga om morgondagens priser inte kunde hämtas (kan ännu inte
                         # vara publicerade) så det inte tystas helt.
-                        if not fetch_api_and_save(tomorrow):
+                        if not _fetch_and_save(tomorrow):
                             print("⚠️ Morgondagens priser kunde inte hämtas ännu – försöker igen nästa cykel.")
     except Exception as e:
         print(f"❌ Databasfel vid kontroll av priser: {e}")

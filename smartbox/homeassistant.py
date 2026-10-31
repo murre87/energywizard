@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 import urllib3
 import traceback
@@ -703,6 +704,87 @@ def read_esphome_temp(ip="192.168.1.125"):
         except Exception:
             continue
     return None
+
+def get_nordpool_config() -> dict:
+    """Läser nordpool-integrationens egen config entry (entry_id + data-fält, bl.a. VAT).
+    Live-läsning mot HA - vi speglar aldrig det här i vår egen databas, så det kan
+    aldrig bli inaktuellt. Returnerar {} om integrationen inte hittas/HA inte svarar."""
+    try:
+        r = requests.get(f"{_BASE}/config/config_entries/entry", params={"domain": "nordpool"},
+                          headers=_HEADERS, timeout=5, verify=_VERIFY)
+        r.raise_for_status()
+        entries = r.json()
+        if not entries:
+            print("❌ Nordpool-integrationen hittades inte i Home Assistant.")
+            return {}
+        return entries[0]
+    except Exception as e:
+        print(f"❌ Kunde inte läsa nordpool-integrationens config: {e}")
+        return {}
+
+
+def set_nordpool_vat(enabled: bool) -> bool:
+    """Växlar momsinställningen i HA:s RIKTIGA nordpool-integration, istället för att
+    EnergyWizard underhåller egen på/av-momslogik (se smartbox/gpm.py:s IMPORT_PROFIT_SPOT
+    för exemplet på just den sortens kod vi vill slippa duplicera).
+
+    Integrationen saknar OptionsFlow/reconfigure (verifierat i dess egen config_flow.py) -
+    enda vägen att ändra ett redan satt fält är att radera config entry och skapa en ny via
+    HA:s riktiga config-flow-REST-API. Sätter inget unique_id, så ny MÅSTE skapas efter att
+    gamla raderats, annars blir det sensor.nordpool_2 istället för sensor.nordpool och allt
+    som redan pekar på det namnet (i och utanför EnergyWizard) går sönder.
+
+    Ger en kort lucka (några sekunder) där sensor.nordpool inte finns - EnergyWizards egen
+    prishämtning (nordpool.fetch_ha_nordpool_and_save) faller automatiskt tillbaka till
+    elprisetjustnu.se om den hinner träffa luckan."""
+    entry = get_nordpool_config()
+    entry_id = entry.get("entry_id")
+    data = dict(entry.get("data") or {})
+    if not entry_id or not data:
+        print("❌ Kan inte ändra moms: nordpool-integrationens config kunde inte läsas.")
+        return False
+
+    data["VAT"] = bool(enabled)
+
+    try:
+        r_del = requests.delete(f"{_BASE}/config/config_entries/entry/{entry_id}",
+                                 headers=_HEADERS, timeout=10, verify=_VERIFY)
+        r_del.raise_for_status()
+    except Exception as e:
+        print(f"❌ Kunde inte radera nordpool-integrationens gamla config: {e}")
+        return False
+
+    try:
+        r_flow = requests.post(f"{_BASE}/config/config_entries/flow", headers=_HEADERS,
+                                json={"handler": "nordpool"}, timeout=10, verify=_VERIFY)
+        r_flow.raise_for_status()
+        flow_id = r_flow.json()["flow_id"]
+
+        r_create = requests.post(f"{_BASE}/config/config_entries/flow/{flow_id}",
+                                  headers=_HEADERS, json=data, timeout=10, verify=_VERIFY)
+        r_create.raise_for_status()
+    except Exception as e:
+        # KRITISKT: gamla entryn är redan raderad och nya kunde inte skapas - sensor.nordpool
+        # saknas nu helt tills någon lägger till integrationen manuellt i HA:s UI.
+        print(f"❌ KRITISKT: Nordpool-integrationen raderad men kunde INTE skapas om "
+              f"(VAT={enabled}): {e}. Lägg till den manuellt i Home Assistant igen.")
+        return False
+
+    for _ in range(6):
+        try:
+            r_check = requests.get(f"{_BASE}/states/sensor.nordpool", headers=_HEADERS,
+                                    timeout=5, verify=_VERIFY)
+            if r_check.status_code == 200:
+                print(f"✅ Nordpool-integrationen återskapad med VAT={enabled}, sensor.nordpool svarar.")
+                return True
+        except Exception:
+            pass
+        time.sleep(2)
+
+    print(f"⚠️ Nordpool-integrationen återskapad (VAT={enabled}) men sensor.nordpool "
+          f"svarade inte inom 12 s - kan dyka upp strax, kolla HA manuellt.")
+    return False
+
 
 if __name__ == "__main__":
     print("Home Assistant Modul laddad.")
