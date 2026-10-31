@@ -16,6 +16,12 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   entitetsstyrning som [Predbat](https://github.com/springfall2008/batpred)
   själv bygger på. Kör gärna Predbat parallellt tills vidare - se
   [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/husbatteri.html).
+  **Säkerhetsmönster värt att återanvända när det väl byggs:** [FTW](https://github.com/srcfl/ftw)s
+  opt-in-skrivväg för batteri/solöverskott har en dead-man switch (slutar
+  skriva om den inte hör av sig), en tydlig återgång till standardläge, och
+  en uppstarts-sweep som städar bort gamla/föräldralösa kommandon - exakt den
+  sortens skyddsnät ett framtida batteribeslut i `gpm.py` behöver, oavsett om
+  vi återanvänder FTW:s kod eller bara mönstret.
 
 - **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
   arkitekturen (`smartbox/drivers/heatpump.py`) är byggd för det, men varje
