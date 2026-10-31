@@ -237,3 +237,72 @@ def set_heat_curve(left_c=None, right_c=None):
 def set_room_sensor_influence(value):
     """Rumsgivarens inflytande på värmekurvan (reg 16/2204). Sanity 0–10."""
     return _write_holding(16, int(max(0.0, min(10.0, float(value))) * 10))
+
+
+# --- Nätverksskanning efter en okonfigurerad Husdata-pump (entitetsväljaren, opt-in) ---
+# Läser bara - skriver aldrig något. Eget, valfritt steg i wizardern, ALDRIG en del av
+# den vanliga HA-skanningen eftersom detta faktiskt probear andra enheter på
+# användarens LAN (till skillnad från resten av discovery.py, som bara pratar med HA).
+
+import socket
+from concurrent.futures import ThreadPoolExecutor
+
+
+def _probe_modbus_port(ip: str, timeout: float = 0.3) -> bool:
+    try:
+        with socket.create_connection((ip, PORT), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _confirm_husdata(ip: str, timeout: float = 3.0) -> bool:
+    """Läser en liten, ofarlig delmängd av Husdatas kända inputregister (samma tolkning
+    som read_sensors()) och kontrollerar att utomhus-/inomhustemp ligger i ett fysiskt
+    rimligt intervall - skiljer en riktig Husdata-pump från vilken Modbus-enhet som helst
+    som råkar svara på port 502."""
+    try:
+        client = ModbusTcpClient(ip, port=PORT, timeout=timeout)
+    except Exception:
+        return False
+    try:
+        if not client.connect():
+            return False
+        try:
+            res = client.read_input_registers(address=0, count=6, device_id=DEVICE_ID)
+        except TypeError:
+            try:
+                res = client.read_input_registers(address=0, count=6, slave=DEVICE_ID)
+            except TypeError:
+                res = client.read_input_registers(address=0, count=6)
+        if res is None or res.isError():
+            return False
+        reg = res.registers
+        outdoor = _to_signed(reg[4]) / 10.0
+        indoor = _to_signed(reg[5]) / 10.0
+        return -40.0 <= outdoor <= 50.0 and 5.0 <= indoor <= 35.0
+    except Exception:
+        return False
+    finally:
+        client.close()
+
+
+def _local_subnet() -> str:
+    """Härleder husets /24 från en redan känd, riktig LAN-adress (PUMP_IP om satt, annars
+    HA_IP) - ingen gissning om användarens nätverk."""
+    import homeassistant
+    base = os.environ.get("PUMP_IP") or homeassistant.HA_IP or "192.168.1.1"
+    return ".".join(base.split(".")[:3])
+
+
+def scan_for_husdata(subnet: str | None = None) -> list[dict]:
+    """Söker efter en Husdata-värmepump på det lokala nätverket, för installationer som
+    inte har PUMP_IP satt alls. Hela skanningen (254 adresser, port 502) tar normalt
+    under en minut. Returnerar kandidat-IP(er) utan att skriva något."""
+    subnet = subnet or _local_subnet()
+    candidates = [f"{subnet}.{i}" for i in range(1, 255)]
+
+    with ThreadPoolExecutor(max_workers=64) as pool:
+        open_ips = [ip for ip, is_open in zip(candidates, pool.map(_probe_modbus_port, candidates)) if is_open]
+
+    return [{"ip": ip, "driver": "thermia_husdata"} for ip in open_ips if _confirm_husdata(ip)]

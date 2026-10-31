@@ -141,8 +141,27 @@ async function renderInstallningar() {
       <div class="note" style="margin-top:4px">Skannar ditt Home Assistant efter värmepump, bilar, solceller, spa och laddare - du väljer vilka som stämmer, sen genererar du en färdig house_config.yaml att spara och starta om smartbox med.</div>
       <button class="icobtn" id="scanbtn" style="margin-top:10px">Skanna mitt Home Assistant</button>
     </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:700">📡 Sök Modbus-värmepump på nätverket</div>
+      <div class="note" style="margin-top:4px">Om din värmepump inte syns i Home Assistant alls (pratar direkt Modbus) kan den här knappen leta upp den på ditt lokala nätverk istället. Kan ta upp till en minut - söker bara, ändrar inget.</div>
+      <button class="icobtn" id="scanmodbusbtn" style="margin-top:10px">Sök Modbus-värmepump på nätverket</button>
+    </div>
+    <div id="modbusScanResults"></div>
     <div id="discoverResults"></div>`;
   document.getElementById("scanbtn").onclick = runDiscovery;
+  document.getElementById("scanmodbusbtn").onclick = runModbusScan;
+}
+
+async function runModbusScan() {
+  const results = document.getElementById("modbusScanResults");
+  results.innerHTML = `<div class="placeholder">Söker på nätverket... (kan ta upp till en minut)</div>`;
+  let d;
+  try { d = await api("api/discover-modbus", { method: "POST" }); } catch (e) { results.innerHTML = `<div class="placeholder">${e.message}</div>`; return; }
+  if (!d.ok) { results.innerHTML = `<div class="placeholder">${d.error}</div>`; return; }
+  if (!d.found.length) { results.innerHTML = `<div class="note">Ingen Husdata-värmepump hittades på nätverket.</div>`; return; }
+  results.innerHTML = `<div class="card" style="margin-bottom:16px"><h2>📡 Hittat på nätverket</h2>` +
+    d.found.map(f => `<div class="note">Husdata-pump hittad på <b>${f.ip}</b> - lägg till <code>PUMP_IP=${f.ip}</code> i din .env och starta om smartbox.</div>`).join("") +
+    `</div>`;
 }
 
 async function runDiscovery() {
