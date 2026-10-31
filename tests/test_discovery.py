@@ -109,6 +109,17 @@ def test_easee_laddare_hittas():
     assert result["chargers"][0]["driver"] == "easee" and result["chargers"][0]["driver_known"] is True
 
 
+def test_easee_hubbenhet_utan_statussensor_listas_inte_som_laddare():
+    """Easee-integrationen registrerar en egen konto-/hubb-enhet i HA:s enhetsregister
+    (bekräftat live: 1 entitet, ingen statussensor) utöver de fysiska laddarna - den ska
+    inte dyka upp som en falsk tredje laddare i gränssnittet."""
+    hub_device = [{"e": "sensor.easee_cloud_version", "n": "Easee Firmware", "a": None, "d": "dev_easee_hub",
+                   "dn": "Easee EV Charger", "m": "Easee", "mo": None, "dc": None, "u": None, "st": "0.9.74"}]
+    result = discover_house(SYNTHETIC_ENTITIES + hub_device)
+    assert len(result["chargers"]) == 1
+    assert result["chargers"][0]["device_name"] == "Easee Home"
+
+
 def test_okant_varmepumpsmarke_flaggas_utan_drivrutin_inte_tyst_fel_eller_kraschar():
     """NIBE hittas (matchar HEATPUMP-regexen) men har ingen registrerad drivrutin -
     ska synas med driver_known=False, inte krascha och inte tyst väljas som Husdata."""

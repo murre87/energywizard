@@ -200,6 +200,12 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         if not _has(_candidate(head), CHARGER_MAKERS):
             continue
         status_e = next((e for e in ents if e["e"].startswith("sensor.") and _has(e.get("n"), re.compile("status", re.I))), None)
+        if not status_e:
+            # Ingen statussensor = sannolikt integrationens egen konto-/hubb-enhet (t.ex.
+            # Easees molnkonto som en egen "enhet" i HA:s register), inte en fysisk laddare -
+            # en riktig laddare har alltid en statussensor. Bekräftat live: en sån hubb-enhet
+            # hade bara 1 entitet totalt, mot 19-20 för de riktiga laddarna.
+            continue
         brand = next((b for b in _CHARGER_BRAND_TO_DRIVER if _has(_candidate(head), re.compile(b, re.I))), None)
         driver = _CHARGER_BRAND_TO_DRIVER.get(brand)
         chargers.append({
