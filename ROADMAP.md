@@ -24,9 +24,18 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   `smartbox/discovery.py` matchar den), flaggas bara `driver_known: False`
   tills en riktig drivrutin finns. Anslutningssättet varierar med modell -
   äldre pumpar pratar RS485 (t.ex. via [NibePi](https://energy.anerdins-iot.se/)
-  + MQTT till HA), nyare S-serie-pumpar har en inbyggd Modbus TCP-server med
-  en helt annan registerkarta än Husdata/Thermia - kräver verifiering mot en
-  riktig pump av varje typ, inte gissad kod.
+  + MQTT till HA) - kräver verifiering mot en riktig pump av varje typ, inte
+  gissad kod. **Nyare S-serie-pumpar (S735/S1255/S1155/S320 m.fl.) har en
+  lokal REST-API, inte rå Modbus TCP** - rättad slutsats efter att ha läst
+  [srcfl/ftw](https://github.com/srcfl/ftw)s
+  [nibe-local-dokumentation](https://github.com/srcfl/ftw/blob/master/docs/nibe-local.md):
+  HTTPS-port 8443, aktiveras i installatörsmeny 7.5, certifikatet pinnas
+  (SHA-256-fingeravtryck) istället för att verifieringen stängs av, ~980
+  datapunkter med Modbus-registernummer som metadata. Deras egen drivrutin är
+  medvetet read-only - en opt-in skrivväg finns bara för solöverskott
+  (register 2107/2109), inte generell styrning. Bra konkret referens för en
+  framtida EnergyWizard-drivrutin mot S-serien, men fortfarande overifierad
+  mot en riktig pump här.
 
 - **Balboa-spabad: drivrutin byggd, väntar på verifiering mot riktig
   hårdvara.** `drivers/spa_balboa.py` finns nu - byggd mot HA:s officiella
