@@ -3,6 +3,18 @@
 let PAGES = [];
 let currentPage = null;
 
+// Glas + dygnsfärger på som standard - samma designspråk som ewapp (html[data-glass]/
+// html[data-ambient][data-tod]), inte en egen plattare stil. localStorage-nycklarna är
+// delade namn med ewapp men EGEN lagring (skild origin) - "0" = avstängt av användaren.
+(function applyAmbientTheme() {
+  const de = document.documentElement;
+  const todOf = (h) => (h >= 5 && h < 10 ? "morning" : h >= 10 && h < 16 ? "day" : h >= 16 && h < 21 ? "evening" : "night");
+  let glass = "1", amb = "1";
+  try { glass = localStorage.getItem("ew_glass") ?? "1"; amb = localStorage.getItem("ew_ambient") ?? "1"; } catch (e) { /* privat läge etc - kör med standard */ }
+  if (glass !== "0") de.setAttribute("data-glass", "1"); else de.removeAttribute("data-glass");
+  if (amb !== "0") { de.setAttribute("data-ambient", "1"); de.setAttribute("data-tod", todOf(new Date().getHours())); } else { de.removeAttribute("data-ambient"); de.removeAttribute("data-tod"); }
+})();
+
 function fmtKrOre(v) {
   if (v == null) return "–";
   return Math.abs(v) < 1 && v !== 0 ? `${Math.round(v * 100)} öre` : `${v.toFixed(2)} kr`;
@@ -114,19 +126,46 @@ async function loadPage(path, build) {
 async function renderElbil() {
   const d = await loadPage("api/car", (d) => `
     <div class="grid" style="margin-bottom:16px">
-      ${d.cars.map(c => `<div class="card">
+      ${d.cars.map(c => {
+        const s = d.schedule_today.find(s => s.car_id === c.id) || { target_time: "07:00", target_soc: 100, enabled: false };
+        return `<div class="card">
         <div style="font-size:1.05rem;font-weight:700">🚗 ${c.name}</div>
         <div class="v" style="margin:10px 0 2px;font-size:1.6rem">${fmt(c.soc, 0, "%")}</div>
         <div class="note">${c.stale ? badge("warn", "⚠️ gammalt värde") : badge("on", "live")} ${c.status ? "· " + c.status : ""}</div>
         <div class="note" style="margin-top:6px">⚡ ${fmt(c.power_kw, 1, " kW")} just nu${c.planned_kwh_today != null ? ` · 📅 ${c.planned_kwh_today.toFixed(1)} kWh planerat idag` : ""}</div>
         ${c.climate_state ? `<div class="note">🌡️ Klimat: ${c.climate_state}${c.climate_temp != null ? " (" + c.climate_temp.toFixed(0) + "°C)" : ""}</div>` : ""}
-      </div>`).join("")}
-    </div>
-    <div class="card" style="margin-bottom:16px">
-      <h2>📅 Dagens schema</h2>
-      ${d.schedule_today.length ? d.schedule_today.map(s => `<div class="note" style="margin:4px 0">${s.car_id === "tesla" ? "🚗 Tesla" : "🚗 Nissan"}: klar ${s.target_time || "–"} till ${s.target_soc}% ${s.enabled ? badge("on", "på") : badge("off", "av")}</div>`).join("") : `<div class="note">Inget schema satt för idag.</div>`}
+        <div class="seg" style="margin-top:12px;flex-wrap:wrap">
+          <button data-car="${c.id}" data-kind="start">Ladda nu</button>
+          <button data-car="${c.id}" data-kind="max">Max</button>
+          <button data-car="${c.id}" data-kind="stop">Stoppa</button>
+          <button data-car="${c.id}" data-kind="auto">Auto</button>
+        </div>
+        <div class="seg" style="margin-top:6px">
+          <button data-car="${c.id}" data-kind="heat_on">🔥 Värm</button>
+          <button data-car="${c.id}" data-kind="heat_off">Stoppa värme</button>
+        </div>
+        <div class="card" style="margin-top:12px;padding:12px">
+          <div class="note">📅 Dagens schema</div>
+          <div class="numfield" style="margin-top:6px">
+            <input type="time" class="sch-time" data-car="${c.id}" value="${s.target_time || "07:00"}">
+            <input type="number" class="sch-soc" data-car="${c.id}" min="20" max="100" value="${s.target_soc || 100}"> %
+          </div>
+          <div class="togglerow"><span>Aktivt idag</span><label class="switch"><input type="checkbox" class="sch-enabled" data-car="${c.id}" ${s.enabled ? "checked" : ""}><span class="slider"></span></label></div>
+          <button class="icobtn sch-save" data-car="${c.id}" style="margin-top:6px">Spara schema</button>
+        </div>
+      </div>`;
+      }).join("")}
     </div>
     <div class="note">Laddström: ${fmt(d.current_a, 0, " A")} · Dynamisk gräns: ${fmt(d.dynamic_limit_a, 0, " A")} · Målgräns just nu: ${fmt(d.current_target_limit, 0, " A")}</div>`);
+  if (!d) return;
+  document.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => postAction(`api/car/${b.dataset.car}/action`, { kind: b.dataset.kind }).then(renderElbil));
+  document.querySelectorAll(".sch-save").forEach(b => b.onclick = () => {
+    const car = b.dataset.car;
+    const time = document.querySelector(`.sch-time[data-car="${car}"]`).value;
+    const soc = parseInt(document.querySelector(`.sch-soc[data-car="${car}"]`).value, 10);
+    const enabled = document.querySelector(`.sch-enabled[data-car="${car}"]`).checked;
+    postAction("api/schedule", { car, day: new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, time, soc, enabled }, "Schema sparat").then(renderElbil);
+  });
 }
 
 async function renderSolceller() {
@@ -142,8 +181,23 @@ async function renderSolceller() {
       ${barRow("Laddning", d.battery_soc, d.battery_soc.toFixed(0) + "%")}
       <div class="note" style="margin-top:6px">${fmt(d.battery_power_w, 0, " W")} ${d.battery_power_w > 0 ? "(laddar)" : d.battery_power_w < 0 ? "(laddar ur)" : ""}</div>
     </div>` : ""}
+    <div class="card${d.ai_limit ? " row-disabled" : ""}" style="margin-bottom:16px">
+      <h2>🚫 Manuell exportgräns${d.ai_limit ? " · AI:n styr just nu (minuspris) – manuell ändring spärrad" : ""}</h2>
+      <div class="numfield" style="margin-top:8px"><input type="range" id="solarlimit" min="0" max="100" step="5" value="${d.solar_limit_pct != null ? d.solar_limit_pct : 100}"><span id="solarlimitval" style="min-width:48px;text-align:right;font-weight:700">${d.solar_limit_pct != null ? d.solar_limit_pct.toFixed(0) : 100} %</span></div>
+      <button class="icobtn" id="setsolarlimitbtn" style="margin-top:10px">Sätt gräns</button>
+      <div class="note" style="margin-top:12px">Begränsa export automatiskt när priset går under:</div>
+      <div class="numfield" style="margin-top:6px"><input type="number" id="solarfloor" step="0.1" min="-1" max="5" value="${d.export_price_floor}"> kr/kWh <button class="icobtn" id="setsolarfloorbtn">Spara</button></div>
+      <div class="togglerow" style="margin-top:6px"><span>Avisera vid begränsning</span><label class="switch"><input type="checkbox" id="solarnotify" ${d.notify ? "checked" : ""}><span class="slider"></span></label></div>
+    </div>
     <div class="card"><h2>Elpris</h2><div class="note">Styr när exportbegränsningen slår till (minuspris)</div><div id="solarpricechart" style="height:220px;margin-top:10px"></div></div>`);
   if (d && d.price_24h) lineChart("solarpricechart", d.price_24h, { step: "end" });
+  if (d) {
+    const rangeEl = document.getElementById("solarlimit"), valEl = document.getElementById("solarlimitval");
+    rangeEl.oninput = () => valEl.textContent = rangeEl.value + " %";
+    document.getElementById("setsolarlimitbtn").onclick = () => postAction("api/energy-action/limit", { value: parseInt(rangeEl.value, 10) }).then(renderSolceller);
+    document.getElementById("setsolarfloorbtn").onclick = () => postAction("api/energy-action/floor", { value: parseFloat(document.getElementById("solarfloor").value) }).then(renderSolceller);
+    document.getElementById("solarnotify").onchange = (e) => postAction("api/energy-action/notify", { value: e.target.checked });
+  }
 }
 
 async function renderEkonomi() {
@@ -164,7 +218,7 @@ async function renderEkonomi() {
 }
 
 async function renderElforbrukning() {
-  await loadPage("api/consumption", (d) => {
+  const d = await loadPage("api/consumption", (d) => {
     const b = d.breakdown;
     const maxW = b ? Math.max(b.total_w || 0, 1) : 1;
     return `
@@ -187,19 +241,40 @@ async function renderElforbrukning() {
       ${barRow("🛁 Spabad", b.spa_w / maxW * 100, fmt(b.spa_w, 0, " W"))}
       ${barRow("❓ Oförklarat", b.unexplained_w / maxW * 100, fmt(b.unexplained_w, 0, " W"))}
       ${barRow("Σ Totalt", 100, fmt(b.total_w, 0, " W"))}
-    </div>` : `<div class="note">Ingen uppdelning loggad än.</div>`}`;
+    </div>` : `<div class="note">Ingen uppdelning loggad än.</div>`}
+    <div class="card" style="margin-top:16px">
+      <h2>🛡️ Effektvakt (peak shaving)</h2>
+      <div class="togglerow"><span>Effektvakt på</span><label class="switch"><input type="checkbox" id="peakenabled" ${d.peak_shaving_enabled ? "checked" : ""}><span class="slider"></span></label></div>
+      <div class="numfield${d.peak_shaving_enabled ? "" : " row-disabled"}" style="margin-top:8px" id="peaklimitrow">Gräns: <input type="number" id="peaklimit" step="0.5" min="1" value="${d.power_limit_kw != null ? d.power_limit_kw : ""}"> kW <button class="icobtn" id="peaklimitbtn">Spara</button></div>
+    </div>`;
   });
+  if (d) {
+    document.getElementById("peakenabled").onchange = (e) => postAction("api/settings-action", { key: "peak_shaving_enabled", value: e.target.checked }).then(renderElforbrukning);
+    const btn = document.getElementById("peaklimitbtn");
+    if (btn) btn.onclick = () => postAction("api/settings-action", { key: "power_limit_kw", value: parseFloat(document.getElementById("peaklimit").value) }).then(renderElforbrukning);
+  }
 }
 
 async function renderSpabad() {
-  await loadPage("api/spa", (d) => `
+  const d = await loadPage("api/spa", (d) => `
     <div class="grid" style="margin-bottom:16px">
       ${statTile("🛁 Temperatur", fmt(d.temp, 1, "°C"))}
       ${statTile("🎯 Mål", fmt(d.target, 1, "°C"))}
       ${statTile("🔥 Värmare", d.heater_running ? badge("on", "värmer") : badge("off", "av"))}
       ${statTile("⚡ Effekt", fmt(d.power_w, 0, " W"))}
     </div>
+    <div class="card" style="margin-bottom:16px">
+      <h2>🎛️ Styrning</h2>
+      <div class="togglerow"><span>Tvångsvärme (värm nu, oavsett pris)</span><label class="switch"><input type="checkbox" id="spaforce" ${d.force_heat ? "checked" : ""}><span class="slider"></span></label></div>
+      <div class="togglerow"><span>Eco-läge (håll nere temperaturen)</span><label class="switch"><input type="checkbox" id="spaeco" ${d.eco ? "checked" : ""}><span class="slider"></span></label></div>
+      <button class="icobtn" id="spaautobtn" style="margin-top:10px">Auto (följ schemat)</button>
+    </div>
     <div class="card"><h2>📡 Trådlös anslutning</h2><div class="note">Signal: ${fmt(d.signal_pct, 0, "%")} · Kanal: ${d.rf_channel != null ? d.rf_channel : "–"}</div></div>`);
+  if (d) {
+    document.getElementById("spaforce").onchange = (e) => postAction("api/home-action/spa_heat", { value: e.target.checked });
+    document.getElementById("spaeco").onchange = (e) => postAction("api/home-action/spa_eco", { value: e.target.checked });
+    document.getElementById("spaautobtn").onclick = () => postAction("api/home-action/spa_auto", {}).then(renderSpabad);
+  }
 }
 
 async function renderTemperaturer() {
@@ -250,6 +325,28 @@ async function renderAviseringar() {
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
+let _toastT = null;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+// Skriv-knapparna proxas vidare till ewapp (se webdashboard/app.py:s _ewapp_proxy) -
+// samma kommandon som mobilappens knappar, ingen egen hårdvarulogik här.
+async function postAction(path, body, okMsg) {
+  try {
+    const d = await api(path, { method: "POST", body: JSON.stringify(body || {}) });
+    toast(okMsg || d.msg || "Klart");
+    return d;
+  } catch (e) {
+    toast("⚠️ " + e.message);
+    throw e;
+  }
+}
+
 async function api(path, opts) {
   const r = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
   if (r.status === 401) { showLogin(); throw new Error("not authed"); }
@@ -285,11 +382,37 @@ async function renderVarmepump() {
       <div style="font-size:1.1rem;font-weight:700">♨️ Värmepump</div>
       <div class="note" style="margin-top:4px">Ute ${fmt(d.outdoor_temp, 1, "°C")} · Inne ${fmt(d.indoor_temp, 1, "°C")} (mål ${d.indoor_target.toFixed(0)}°C)</div>
     </div>
-    <div class="card">
+    <div class="card" style="margin-bottom:16px">
       <h2>🔋 Varmvattenberedaren som värmebatteri</h2>
       <div class="note">Laddas till ${d.heat_battery ? d.heat_battery.ceiling.toFixed(0) : "–"}°C när elen är billig eller solen räcker - töms (kompressorn vilar) när elen är dyr.</div>
       <div style="margin-top:18px">${heatBatteryHtml(d.heat_battery, false)}</div>
+    </div>
+    <div class="grid" style="margin-bottom:16px">
+      <div class="card">
+        <h2>🌡️ Rumsvärme</h2>
+        <div class="note" style="margin-bottom:8px">Auto = AI:n styr efter elpriset (normalläget). Tvinga PÅ/AV håller tills du väljer Auto igen.</div>
+        <div class="seg" id="heatseg">${["auto", "on", "off"].map(m => `<button data-m="${m}" class="${d.heat_mode === m ? "on" : ""}">${{ auto: "Auto", on: "Tvinga PÅ", off: "Tvinga AV" }[m]}</button>`).join("")}</div>
+      </div>
+      <div class="card">
+        <h2>🚿 Varmvatten</h2>
+        <div class="note" style="margin-bottom:8px">Samma princip som rumsvärmen, egen överstyrning.</div>
+        <div class="seg" id="hotwaterseg">${["auto", "on", "off"].map(m => `<button data-m="${m}" class="${d.hotwater_mode === m ? "on" : ""}">${{ auto: "Auto", on: "Tvinga PÅ", off: "Tvinga AV" }[m]}</button>`).join("")}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>🎯 Måltemperatur (Auto-läget)</h2>
+      <div class="note">Vid billig el / Auto: ${fmt(d.temp_cheap, 1, "°C")} · Vid dyr el: ${fmt(d.temp_expensive, 1, "°C")}</div>
+      <div class="numfield" style="margin-top:10px">Billigt: <input type="number" id="tempcheap" step="0.5" min="16" max="26" value="${d.temp_cheap != null ? d.temp_cheap : ""}"> °C
+        Dyrt: <input type="number" id="tempexpensive" step="0.5" min="14" max="24" value="${d.temp_expensive != null ? d.temp_expensive : ""}"> °C
+        <button class="icobtn" id="savetempbtn">Spara</button></div>
     </div>`;
+  document.querySelectorAll("#heatseg button").forEach(b => b.onclick = () => postAction("api/home-action/heat", { value: b.dataset.m }).then(renderVarmepump));
+  document.querySelectorAll("#hotwaterseg button").forEach(b => b.onclick = () => postAction("api/home-action/hotwater", { value: b.dataset.m }).then(renderVarmepump));
+  document.getElementById("savetempbtn").onclick = async () => {
+    await postAction("api/settings-action", { key: "temp_cheap", value: parseFloat(document.getElementById("tempcheap").value) });
+    await postAction("api/settings-action", { key: "temp_expensive", value: parseFloat(document.getElementById("tempexpensive").value) });
+    renderVarmepump();
+  };
 }
 
 async function renderSystem() {
