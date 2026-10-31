@@ -66,6 +66,8 @@ services:
       - EASEE_CHARGER_ID=${EASEE_CHARGER_ID}
       - EASEE_CARPORT_ID=${EASEE_CARPORT_ID}
       - HOUSE_CONFIG_PATH=/house_config.yaml
+      - PRICE_SOURCE=${PRICE_SOURCE:-elprisetjustnu}
+      - NORDPOOL_HA_ENTITY=${NORDPOOL_HA_ENTITY:-sensor.nordpool}
 
   ####################################################################
   # Dashboard: Streamlit (Den Visuella "Glassmorphism" Frontenden)
@@ -95,6 +97,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - HA_IP=${HA_IP}
       - HA_TOKEN=${HA_TOKEN}
+      - PRICE_SOURCE=${PRICE_SOURCE:-elprisetjustnu}
 
   ####################################################################
   # EnergyWizard Mobil: lätt mobilsida (PWA) för laddning, bredvid Streamlit. Nås på /m/ (nginx)
