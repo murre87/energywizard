@@ -29,6 +29,24 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   kommandon - värt att återanvända som skyddsnät oavsett vems beslutslogik
   `gpm.py` till slut bygger på.
 
+  **Princip, gäller alla externa projekt vi tittar på, inte bara batteriet:**
+  vi ska luta oss mot redan underhållen kod (Predbat, HA:s egna
+  integrationer) så mycket som möjligt istället för att bygga och underhålla
+  en egen optimerare - minimal egen kodyta, inte en konkurrerande
+  implementation. Konkret, i prioritetsordning:
+  1. **Läsning, ingen skrivning** (byggbart nu, litet): räkna in Predbats
+     faktiska batterieffekt (via `GenericBatteryDriver.read_state()`) i
+     `gpm.py`:s solöverskottsberäkning, så elbil/värmepump inte tror sig ha
+     mer överskott än vad som faktiskt är ledigt efter att Predbat tagit sin
+     del. Ingen ny skrivbehörighet, ingen konkurrerande beslutslogik.
+  2. **Dubbelriktad samplanering** (större, senare): publicera
+     EnergyWizards planerade laster (t.ex. elbilens laddfönster) som en HA-
+     sensor Predbat kan läsa in som extra förväntad last i sin egen prognos -
+     den riktiga "pratar med varandra"-biten, men beror på hur stabilt
+     Predbats indataformat är mellan versioner.
+  Vi bygger INTE en egen batterioptimerare som konkurrerar med Predbats -
+  målet är att komplettera den, inte ersätta den.
+
 - **OCPP-laddare via Home Assistants egen OCPP-integration, ingen egen
   server.** [FTW](https://github.com/srcfl/ftw) kör en egen inbyggd
   OCPP 1.6J/2.0.1-server, men vi behöver inte bygga om det - det finns redan
