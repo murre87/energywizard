@@ -1,9 +1,43 @@
 # EnergyWizard Open
 
-Smart styrning av hus och elbilar efter elpriset — värmepump, elbilsladdning, solel
-och spabad, byggt på Home Assistant, Postgres och Tibber/Nordpool. Öppen källkod,
-inget abonnemang. Se [energywizard-sidan](https://murre87.github.io/energywizard/)
-för riktiga besparingssiffror och en kunskapsbank om hur styrningen fungerar.
+**Ett öppet styrsystem som fattar minut-för-minut-beslut för hela huset efter
+elpriset** - inte en punktlösning för en enda sak. Elbilsladdning, värmepump,
+solcellsexport, spabad och huvudsäkringen koordineras tillsammans, byggt
+ovanpå [Home Assistant](https://www.home-assistant.io/) så det pratar med
+hårdvara som redan fungerar där istället för att uppfinna ny protokollkod.
+Öppen källkod, gratis, inget abonnemang.
+
+<!-- SKÄRMDUMP: lägg in en bild av webdashboardens Översikt-sida här, t.ex.
+     docs/skarmdumpar/webdashboard-oversikt.png, när en finns tillgänglig -
+     ingen skärmdumpsmetod fanns i den här miljön (headless Chrome saknade
+     systembibliotek, ingen sudo för att installera dem). -->
+
+- 🚗 **Elbil** - laddar till vald tid/nivå på de billigaste timmarna.
+- 🌡️ **Värmepump** - sänker värmen automatiskt när elen är dyr, "laddar"
+  husets egen värmetröghet när den är billig.
+- ☀️ **Solcellsexport** - stänger av exporten automatiskt vid minuspris,
+  släpper den igen när priset går över 0.
+- 🛁 **Spabad** - värmer under de billiga timmarna.
+- ⚡ **Effektvakt** - håller koll på huvudsäkringen så du slipper överträdelser.
+- 📱 **Egen app** (`ewapp`, mobil/PWA) och **dator-/surfplattevy**
+  (`webdashboard`) med full styrning, inte bara avläsning.
+
+Se [energywizard-sidan](https://murre87.github.io/energywizard/) för riktiga
+besparingssiffror (mätt mot vad samma el hade kostat till dygnets snittpris,
+inte en gissad procentsats) och en kunskapsbank om hur styrningen fungerar.
+
+## Lokal inlärning, inte en svart låda
+
+Kärnan är en deterministisk prioritetsmotor (`smartbox/gpm.py`), inte en
+gissande AI - men den förstärks av enkel maskininlärning som tränas lokalt på
+**ditt eget hus** historik (`smartbox/learning.py`): hur fort huset och
+spabadet värms upp och svalnar, beroende på utetemperatur och solinstrålning.
+Modellerna räknas om automatiskt när ny data finns och används av
+`smartbox/mpc.py` för att förutsäga hur mycket uppvärmning som faktiskt
+behövs innan elen blir dyr. Ju längre systemet kört hos dig, desto bättre
+anpassat blir det till just ditt hus - men det är per hus, ingen data delas
+mellan installationer (en delad/poolad modell är en idé på
+[ROADMAP](ROADMAP.md), inte byggd än).
 
 **Status:** huvudstyrloopen (`smartbox/`) går sedan nyligen via en drivrutins-
 arkitektur (`smartbox/drivers/`, se `smartbox/house_config.py`) istället för
@@ -48,16 +82,17 @@ mot riktig hårdvara:
 
 | Delsystem    | Stödda märken idag           |
 |--------------|-------------------------------|
-| Värmepump    | Thermia/Husdata (Modbus)      |
+| Värmepump    | Thermia/Husdata (Modbus), + en generisk (HA:s `climate`-entitet - funkar för de flesta) |
 | Elbil        | Nissan, Tesla, + en generisk (läser valfri HA-entitet, funkar för de flesta bilar) |
-| Laddare      | Easee                         |
-| Solceller    | SolarEdge                     |
-| Spabad       | Gecko                         |
+| Laddare      | Easee, + en generisk (HA:s `switch`/`number`-entiteter) |
+| Solceller    | SolarEdge, + en generisk (HA:s `number`-entitet - funkar även för Solplanet, Sigenergy, Solis m.fl.) |
+| Spabad       | Gecko, Balboa (byggd mot HA:s officiella integration, väntar på verifiering mot riktig hårdvara) |
+| Husbatteri   | En generisk (läser SOC/effekt, kan sätta läge via HA:s `select`-entitet - läser bara, fattar inga automatiska laddningsbeslut än) |
 
-Saknas ditt märke? Den generiska elbils-drivrutinen (`generic_ev`) funkar redan
-för praktiskt taget vilken bil som helst som har SOC/laddstatus i Home Assistant.
-För övriga delsystem - se `smartbox/drivers/*.py` för gränssnitten och skicka
-gärna ett bidrag.
+Saknas ditt märke? De generiska drivrutinerna (`generic_*`) täcker redan de
+flesta fall så länge enheten redan fungerar i Home Assistant - ingen egen
+protokollkod behövs. För riktigt märkesspecifik styrning - se
+`smartbox/drivers/*.py` för gränssnitten och skicka gärna ett bidrag.
 
 Se [ROADMAP.md](ROADMAP.md) för vad som är nästa rimliga steg och varför.
 
