@@ -84,6 +84,46 @@ def build_charger_drivers(cfg: dict) -> dict:
     return out
 
 
+def build_physical_charger_drivers(cfg: dict) -> dict:
+    """{fysiskt_laddar_id: ChargerDriver} - samma drivrutiner som build_charger_drivers,
+    men nycklade på laddarens EGEN identitet istället för bilens. Det är poolen
+    smartbox/ev_handshake.py:s handskakning väljer ur när flera bilar kan dela samma
+    uppsättning laddare (Steg 4:4 - se husets config: evs[].charger.physical)."""
+    out = {}
+    for ev in cfg.get("evs", []):
+        charger_cfg = ev.get("charger")
+        if not charger_cfg:
+            continue
+        driver_name = charger_cfg.get("driver")
+        driver_cls = CHARGER_DRIVER_REGISTRY.get(driver_name, NullChargerDriver)
+        if driver_cls is EaseeChargerDriver:
+            get_id, reader = _EASEE_PHYSICAL.get(charger_cfg.get("physical"), (lambda: charger_cfg.get("id", ""), lambda: {}))
+            physical_id = get_id()
+            out[physical_id] = EaseeChargerDriver(id=physical_id, reader=reader)
+        else:
+            physical_id = charger_cfg.get("id", "")
+            out[physical_id] = driver_cls(id=physical_id)
+    return out
+
+
+def build_default_car_per_charger(cfg: dict) -> dict:
+    """{fysiskt_laddar_id: bil_id} - vilken bil husets config pekar ut som
+    "hemmahörande" på varje fysisk laddare. Prioriteras först av den bilen i
+    ev_handshake.resolve_charger_allocations() om flera bilar har kabeln i."""
+    out = {}
+    for ev in cfg.get("evs", []):
+        charger_cfg = ev.get("charger")
+        if not charger_cfg:
+            continue
+        driver_name = charger_cfg.get("driver")
+        if CHARGER_DRIVER_REGISTRY.get(driver_name) is EaseeChargerDriver:
+            get_id, _ = _EASEE_PHYSICAL.get(charger_cfg.get("physical"), (lambda: charger_cfg.get("id", ""), None))
+            out[get_id()] = ev.get("id", "")
+        else:
+            out[charger_cfg.get("id", "")] = ev.get("id", "")
+    return out
+
+
 def build_heat_pump_driver(cfg: dict) -> HeatPumpDriver:
     hp = cfg.get("heat_pump", {})
     if not hp.get("enabled"):

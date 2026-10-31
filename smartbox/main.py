@@ -21,6 +21,7 @@ import health            # Sensor-/länkövervakning (varnar när en sensor tyst
 import learning         # AI-modeller för temperatur och avsvalning
 import mpc               # Prediktiv förvärmnings-planerare (skuggläge + veckovis självvalidering)
 import house_config      # EnergyWizard Open: drivrutinsarkitektur (bil/laddare/värmepump/sol/spa)
+import ev_handshake      # Generisk laddar-handskakning (vilken fysisk laddare hör till vilken bil)
 import os
 
 # Tidszon för Sverige
@@ -32,11 +33,9 @@ EV_MAX_CHARGE_AMPS = 20
 _cached_ev_profiles = {'nissan': {}, 'tesla': {}}
 _cached_ev_profiles_time = None
 
-# Tillståndsminne för handskakning (vilken bil står var)
-ev_allocations = {
-    'easee_lite': None,
-    'carport': None
-}
+# Tillståndsminne för handskakning (vilken bil står var) - initieras med riktiga
+# fysiska laddar-id:n längre ner, efter att house_config.yaml lästs in.
+ev_allocations = {}
 
 # Tracker-state för GPS Hemkomst
 ev_gps_state = {
@@ -89,11 +88,15 @@ except Exception as e:
     house_cfg = {}
 car_drivers = house_config.build_car_drivers(house_cfg)
 charger_drivers = house_config.build_charger_drivers(house_cfg)
+physical_charger_drivers = house_config.build_physical_charger_drivers(house_cfg)
+default_car_per_charger = house_config.build_default_car_per_charger(house_cfg)
 heat_pump_driver = house_config.build_heat_pump_driver(house_cfg)
 solar_driver = house_config.build_solar_driver(house_cfg)
 spa_driver = house_config.build_spa_driver(house_cfg)
-print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar), värmepump={type(heat_pump_driver).__name__}, "
-      f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}")
+car_ids = [c.id for c in car_drivers] or ['nissan', 'tesla']  # tomt hus (inga bilar i configen än) faller tillbaka på dagens två, matchar gpm.py:s egen default
+ev_allocations = {physical_id: None for physical_id in physical_charger_drivers}
+print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar) ({car_ids}), värmepump={type(heat_pump_driver).__name__}, "
+      f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}, laddare={list(physical_charger_drivers.keys())}")
 
 # ============================================================
 # 🚀 UPPSTARTSKONTROLL
@@ -336,8 +339,7 @@ last_spa_boost_stop_time = None
 spa_solar_boost_grace_counter = 0
 spa_should_heat_now = False
 
-last_sent_ev_limit_nissan = None
-last_sent_ev_limit_tesla = None
+last_sent_ev_limit = {}  # {car_id: int|None} - ersätter de tidigare hårdkodade _nissan/_tesla-varianterna
 last_ev_full_notified = {"nissan": False, "tesla": False}
 raw_ev_schedule = settings.get_ev_schedule()
 ev_schedule = {}
@@ -502,7 +504,7 @@ def update_soc_tracker(car_id, car_data, charger_data, now, schedule):
             print(f"🚗 {car_id.capitalize()} SOC sjönk till {soc}%. Återställer laddningsstatus.")
 
     if state['last_status'] == 'charging' and current_status != 'charging' and is_connected:
-        last_sent_limit_for_car = last_sent_ev_limit_nissan if car_id == 'nissan' else last_sent_ev_limit_tesla
+        last_sent_limit_for_car = last_sent_ev_limit.get(car_id)
         if last_sent_limit_for_car is None or last_sent_limit_for_car > 0:
              soc = car_data.get("soc") if car_data else 0
              if soc is not None and soc >= 98:
@@ -843,80 +845,67 @@ while True:
                     spa_offline_since = None
                     spa_reboot_stage = 0
 
-            # Handshake och Bilallokering
+            # Handshake och Bilallokering (Steg 4:4 - generisk, se smartbox/ev_handshake.py)
             lite_status = ev_lite_data.get("status") if ev_lite_data else "offline"
             carport_status = ev_carport_data.get("status") if ev_carport_data else "offline"
             lite_conn = lite_status not in ['disconnected', 'offline', 'unknown', 'none', None, '']
             carport_conn = carport_status not in ['disconnected', 'offline', 'unknown', 'none', None, '']
-            
-            if not lite_conn: ev_allocations['easee_lite'] = None
-            if not carport_conn: ev_allocations['carport'] = None
+            # Easees två fysiska boxar läses idag via två namngivna homeassistant.py-funktioner
+            # (ingen generisk "läs valfri Easee-box" finns, se house_config.py:s _EASEE_PHYSICAL) -
+            # det är en förbefintlig, dokumenterad begränsning i HA-integrationen, inte något den
+            # här ihopkopplingen löser. Allokerings-ALGORITMEN nedan är däremot äkta generisk.
+            physical_charger_connected = {homeassistant.EASEE_LITE_ID: lite_conn, homeassistant.EASEE_CARPORT_ID: carport_conn}
+            physical_charger_data = {homeassistant.EASEE_LITE_ID: ev_lite_data, homeassistant.EASEE_CARPORT_ID: ev_carport_data}
 
-            # FIX: borttagen DÖD logik – read_nissan_data/read_tesla_data returnerar ALLTID en dict,
-            # så villkoret (not nissan_data or not tesla_data) kunde aldrig bli True. EV-styrningen
-            # körs alltid; saknad bildata (SOC=None m.m.) hanteras direkt i EV-logiken nedan.
-            handshake_error = False
-
-            t_plug = tesla_data.get("plugged_in") if tesla_data else 0
-            t_state = str(tesla_data.get("charging_state")).lower() if tesla_data else ""
             # FIX: Teslans charging_state är platsoberoende (sant även vid supercharger borta) →
-            # grinda plugged på GPS-hemma så en bil som laddar BORTA inte snor en hemma-laddare och
-            # blockerar den andra bilens anslutning (och därmed dess schema-justering). GPS EXKLUDERAR
-            # bara när den säkert säger borta; saknas GPS-koordinater litar vi på plugg-sensorn.
+            # grinda plugged på GPS-hemma så en bil som laddar BORTA inte snor en hemma-laddare.
             def _gps_home_or_unknown(lat, lon):
                 if lat is None or lon is None:
                     return True
                 return calc_distance(weather.LATITUDE, weather.LONGITUDE, lat, lon) <= 0.5
-            _t_home = _gps_home_or_unknown(trackers.get('tesla_lat'), trackers.get('tesla_lon'))
-            _n_home = _gps_home_or_unknown(trackers.get('nissan_lat'), trackers.get('nissan_lon'))
-            # FIX: Inkopplad i hemma-Easee ⟹ hemma, oavsett (stale) GPS. lite_conn/carport_conn =
-            # kabel sitter i den fysiska hemma-laddaren (easee_lite=Nissan, carport=Tesla).
-            _tesla_cable  = (t_plug == 1.0) or (t_state in ['charging', 'stopped', 'complete']) or (carport_conn and _t_home and trackers.get('tesla_lat') is not None)
-            # 2026-10-15: bilintegrationerna har inga kabelsensorer längre → upptagen hemma-laddare + bilens GPS hemma = kabel i (annars blev Nissans laddare 'guest')
-            _nissan_cable = (nissan_data.get("plugged_in") == 1.0 if nissan_data else False) or (lite_conn and _n_home and trackers.get('nissan_lat') is not None)
-            tesla_plugged  = _tesla_cable  and (_t_home or carport_conn)
-            nissan_plugged = _nissan_cable and (_n_home or lite_conn)
 
-            if lite_conn and ev_allocations['easee_lite'] is None:
-                if nissan_plugged and ev_allocations['carport'] != 'nissan':
-                    ev_allocations['easee_lite'] = 'nissan'
-                elif tesla_plugged and ev_allocations['carport'] != 'tesla':
-                    ev_allocations['easee_lite'] = 'tesla'
-                else:
-                    ev_allocations['easee_lite'] = 'guest'
-                    
-            if carport_conn and ev_allocations['carport'] is None:
-                if tesla_plugged and ev_allocations['easee_lite'] != 'tesla':
-                    ev_allocations['carport'] = 'tesla'
-                elif nissan_plugged and ev_allocations['easee_lite'] != 'nissan':
-                    ev_allocations['carport'] = 'nissan'
-                else:
-                    ev_allocations['carport'] = 'guest'
+            # "Är kabeln i?" är äkta bilspecifikt (olika märken rapporterar det olika) - en liten
+            # funktion per KÄNT bilmärke, inte en gissad gemensam formel (se ev_handshake.py:s
+            # docstring för varför). Ett bilmärke utan egen detektering byggd ger bara False,
+            # overksamt precis som en Null-drivrutin - kraschar inte.
+            def _car_cable_plugged(car_id):
+                if car_id == "tesla":
+                    t_plug = tesla_data.get("plugged_in") if tesla_data else 0
+                    t_state = str(tesla_data.get("charging_state")).lower() if tesla_data else ""
+                    t_home = _gps_home_or_unknown(trackers.get('tesla_lat'), trackers.get('tesla_lon'))
+                    cable = (t_plug == 1.0) or (t_state in ['charging', 'stopped', 'complete']) or (carport_conn and t_home and trackers.get('tesla_lat') is not None)
+                    return cable and (t_home or carport_conn)
+                if car_id == "nissan":
+                    n_home = _gps_home_or_unknown(trackers.get('nissan_lat'), trackers.get('nissan_lon'))
+                    # 2026-10-15: bilintegrationerna har inga kabelsensorer längre → upptagen
+                    # hemma-laddare + bilens GPS hemma = kabel i (annars blev laddaren 'guest').
+                    cable = (nissan_data.get("plugged_in") == 1.0 if nissan_data else False) or (lite_conn and n_home and trackers.get('nissan_lat') is not None)
+                    return cable and (n_home or lite_conn)
+                return False
 
-            nissan_charger_id = homeassistant.EASEE_LITE_ID
-            nissan_charger_data = ev_lite_data
-            tesla_charger_id = homeassistant.EASEE_CARPORT_ID
-            tesla_charger_data = ev_carport_data
-            
-            if not handshake_error:
-                if ev_allocations['easee_lite'] == 'tesla':
-                    tesla_charger_id = homeassistant.EASEE_LITE_ID
-                    tesla_charger_data = ev_lite_data
-                elif ev_allocations['easee_lite'] == 'nissan':
-                    nissan_charger_id = homeassistant.EASEE_LITE_ID
-                    nissan_charger_data = ev_lite_data
-                    
-                if ev_allocations['carport'] == 'nissan':
-                    nissan_charger_id = homeassistant.EASEE_CARPORT_ID
-                    nissan_charger_data = ev_carport_data
-                elif ev_allocations['carport'] == 'tesla':
-                    tesla_charger_id = homeassistant.EASEE_CARPORT_ID
-                    tesla_charger_data = ev_carport_data
-                    
-                if ev_allocations['easee_lite'] == 'tesla' or ev_allocations['carport'] == 'nissan':
-                    ai_thoughts.append("🔄 Handskakning aktiv: Bilarna har bytt laddplats med varandra! GPM styr rätt box.")
-            elif (lite_conn or carport_conn):
-                ai_thoughts.append("⚠️ Handskakning misslyckades: Bilarnas API-data saknas. Antar standard-parkering.")
+            car_plugged = {car_id: _car_cable_plugged(car_id) for car_id in car_ids}
+            ev_allocations = ev_handshake.resolve_charger_allocations(
+                physical_charger_connected, car_plugged, ev_allocations, default_car_per_charger
+            )
+
+            default_physical_for_car = {c: p for p, c in default_car_per_charger.items()}
+            car_charger_id = {}
+            car_charger_data = {}
+            swapped = False
+            for car_id in car_ids:
+                physical_id = next((p for p, c in ev_allocations.items() if c == car_id), None) or default_physical_for_car.get(car_id)
+                car_charger_id[car_id] = physical_id
+                car_charger_data[car_id] = physical_charger_data.get(physical_id)
+                if physical_id != default_physical_for_car.get(car_id, physical_id):
+                    swapped = True
+            if swapped:
+                ai_thoughts.append("🔄 Handskakning aktiv: Bilarna har bytt laddplats med varandra! GPM styr rätt box.")
+
+            # Bakåtkompatibla alias - resten av filen byts om delsystem för delsystem (se planen).
+            nissan_charger_id = car_charger_id.get('nissan')
+            nissan_charger_data = car_charger_data.get('nissan')
+            tesla_charger_id = car_charger_id.get('tesla')
+            tesla_charger_data = car_charger_data.get('tesla')
 
             update_soc_tracker('nissan', nissan_data, nissan_charger_data, now, ev_schedule)
             update_soc_tracker('tesla', tesla_data, tesla_charger_data, now, ev_schedule)
@@ -1470,77 +1459,59 @@ while True:
             ai_thoughts_list = gpm_actions["log"].copy()
             current_decision = gpm_actions["log"][-1] if gpm_actions["log"] else "Utvärderad"
             
-            nissan_amps = gpm_actions.get("nissan_limit_a", 0)
-            tesla_amps = gpm_actions.get("tesla_limit_a", 0)
-            
-            nissan_reason_stop, tesla_reason_stop = None, None
-            if nissan_amps == 0:
-                for log_msg in reversed(gpm_actions["log"]):
-                    if any(k in log_msg for k in ["EV", "PEAK", "Säkring"]) and "inaktiverat" not in log_msg:
-                        nissan_reason_stop = log_msg; break
-            if tesla_amps == 0:
-                for log_msg in reversed(gpm_actions["log"]):
-                    if any(k in log_msg for k in ["EV", "PEAK", "Säkring"]) and "inaktiverat" not in log_msg:
-                        tesla_reason_stop = log_msg; break
+            # EV-laddning: generisk loop över car_ids (Steg 4:4) - ersätter de tidigare
+            # duplicerade nissan/tesla-blocken. gpm_actions['ev'][car_id] byggs redan
+            # generiskt av gpm.py (se gpm.py:s kommentar vid actions['ev']); bara
+            # fas-/stall-/laddar-hanteringen nedan var kvar att generalisera.
+            ev_amps = {car_id: gpm_actions.get("ev", {}).get(car_id, {}).get("limit_a", 0) for car_id in car_ids}
+            ev_set_phases = {car_id: gpm_actions.get("ev", {}).get(car_id, {}).get("set_phases") for car_id in car_ids}
+
+            ev_reason_stop = {}
+            for car_id in car_ids:
+                if ev_amps[car_id] == 0:
+                    for log_msg in reversed(gpm_actions["log"]):
+                        if any(k in log_msg for k in ["EV", "PEAK", "Säkring"]) and "inaktiverat" not in log_msg:
+                            ev_reason_stop[car_id] = log_msg; break
 
             current_chosen_temp = int(gpm_actions["pump_target_temp"] * 10)
             current_chosen_water = decisions.WATER_ON if gpm_actions.get("pump_run_water") else decisions.WATER_OFF
             current_mode = gpm_actions["pump_mode"]
 
-            # Fasväxling
-            nissan_set_phases = gpm_actions.get("nissan_set_phases")
-            tesla_set_phases = gpm_actions.get("tesla_set_phases")
-            
-            # FIX: flagga pågående fasbyte så det vanliga EV-limit-blocket nedan inte skickar
-            # tillbaka ström på laddaren medan fasbytestråden förbereder kontaktorbrytning vid 0A.
-            nissan_phase_switch_active = False
-            tesla_phase_switch_active = False
-            if nissan_set_phases or tesla_set_phases:
+            # Fasväxling - FIX: flagga pågående fasbyte så det vanliga EV-limit-blocket
+            # nedan inte skickar tillbaka ström på laddaren medan fasbytestråden
+            # förbereder kontaktorbrytning vid 0A.
+            ev_phase_switch_active = {car_id: False for car_id in car_ids}
+            cars_switching = [c for c in car_ids if ev_set_phases[c]]
+            if cars_switching:
                 print("⚡ Fasbyte begärt! Asynkron omstart startad för säker kontaktor-brytning...")
-                def phase_switch_async():
-                    if nissan_set_phases: homeassistant.set_ev_dynamic_limit(nissan_charger_id, 0, reason="Fasbyte förbereds")
-                    if tesla_set_phases: homeassistant.set_ev_dynamic_limit(tesla_charger_id, 0, reason="Fasbyte förbereds")
+                def phase_switch_async(_cars=cars_switching, _ids=dict(car_charger_id), _phases=dict(ev_set_phases)):
+                    for c in _cars:
+                        homeassistant.set_ev_dynamic_limit(_ids[c], 0, reason="Fasbyte förbereds")
                     time.sleep(15)
-                    if nissan_set_phases: homeassistant.set_easee_phases(nissan_charger_id, nissan_set_phases)
-                    if tesla_set_phases: homeassistant.set_easee_phases(tesla_charger_id, tesla_set_phases)
+                    for c in _cars:
+                        homeassistant.set_easee_phases(_ids[c], _phases[c])
                 threading.Thread(target=phase_switch_async).start()
-                if nissan_set_phases:
-                    last_sent_ev_limit_nissan = 0
-                    nissan_phase_switch_active = True
-                if tesla_set_phases:
-                    last_sent_ev_limit_tesla = 0
-                    tesla_phase_switch_active = True
+                for car_id in cars_switching:
+                    last_sent_ev_limit[car_id] = 0
+                    ev_phase_switch_active[car_id] = True
 
             # EV Limit
-            nissan_charger_connected = nissan_charger_data and nissan_charger_data.get("status") not in ["disconnected", "offline", "unknown", None]
-            tesla_charger_connected = tesla_charger_data and tesla_charger_data.get("status") not in ["disconnected", "offline", "unknown", None]
-
-            _log_charger_status_if_changed("nissan", nissan_charger_data)
-            _log_charger_status_if_changed("tesla", tesla_charger_data)
-
-            if nissan_charger_connected:
-                # FIX: hoppa över ström-sättning under pågående fasbyte (laddaren ska ligga på 0A)
-                if not nissan_phase_switch_active:
-                    if nissan_amps != last_sent_ev_limit_nissan:
-                        if homeassistant.set_ev_dynamic_limit(nissan_charger_id, nissan_amps, reason=nissan_reason_stop):
-                            last_sent_ev_limit_nissan = nissan_amps
-                    if nissan_amps > 0 and nissan_charger_data.get("status") in ["awaiting_start", "paused", "off"]:
-                        homeassistant.turn_on_charger(nissan_charger_id)
-                    _check_ev_stall("nissan", nissan_amps, nissan_charger_data, nissan_charger_id, nissan_phase_switch_active, now)
-            else:
-                last_sent_ev_limit_nissan = None
-
-            if tesla_charger_connected:
-                # FIX: hoppa över ström-sättning under pågående fasbyte (laddaren ska ligga på 0A)
-                if not tesla_phase_switch_active:
-                    if tesla_amps != last_sent_ev_limit_tesla:
-                        if homeassistant.set_ev_dynamic_limit(tesla_charger_id, tesla_amps, reason=tesla_reason_stop):
-                            last_sent_ev_limit_tesla = tesla_amps
-                    if tesla_amps > 0 and tesla_charger_data.get("status") in ["awaiting_start", "paused", "off"]:
-                        homeassistant.turn_on_charger(tesla_charger_id)
-                    _check_ev_stall("tesla", tesla_amps, tesla_charger_data, tesla_charger_id, tesla_phase_switch_active, now)
-            else:
-                last_sent_ev_limit_tesla = None
+            for car_id in car_ids:
+                charger_data = car_charger_data.get(car_id)
+                charger_id = car_charger_id.get(car_id)
+                connected = charger_data and charger_data.get("status") not in ["disconnected", "offline", "unknown", None]
+                _log_charger_status_if_changed(car_id, charger_data)
+                if connected:
+                    # FIX: hoppa över ström-sättning under pågående fasbyte (laddaren ska ligga på 0A)
+                    if not ev_phase_switch_active[car_id]:
+                        if ev_amps[car_id] != last_sent_ev_limit.get(car_id):
+                            if homeassistant.set_ev_dynamic_limit(charger_id, ev_amps[car_id], reason=ev_reason_stop.get(car_id)):
+                                last_sent_ev_limit[car_id] = ev_amps[car_id]
+                        if ev_amps[car_id] > 0 and charger_data.get("status") in ["awaiting_start", "paused", "off"]:
+                            homeassistant.turn_on_charger(charger_id)
+                        _check_ev_stall(car_id, ev_amps[car_id], charger_data, charger_id, ev_phase_switch_active[car_id], now)
+                else:
+                    last_sent_ev_limit[car_id] = None
 
             # Pump Setpoint
             ov_smart_mode = all_overrides.get("pump_smart_mode", "auto")
@@ -1816,7 +1787,7 @@ while True:
                 },
                 pump_operating_mode=pump_operating_mode_from_pump,
                 shelly_l1_a=avg_hl1, shelly_l2_a=avg_hl2, shelly_l3_a=avg_hl3,
-                ev_avail_a=nissan_amps + tesla_amps,
+                ev_avail_a=sum(ev_amps.values()),
                 forecast_temp=forecast_temp, gecko=gecko_data, spa_power_w=spa_power_w,
                 mower_data=mower_data,
                 ai_action_log="\n\n".join(ai_thoughts_list),
