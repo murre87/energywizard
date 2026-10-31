@@ -188,6 +188,14 @@ async function runDiscovery() {
   if (!d.chargers.length) html += `<div class="note">Inga laddare hittades.</div>`;
   html += `</div>`;
 
+  html += `<div class="card" style="margin-bottom:16px"><h2>⚡ Elmätare / Tibber Pulse</h2>
+    <div class="note">Bara informativt än - EnergyWizard läser idag nätimport hårdkodat (Tibber Pulse), inte via en insticksbar drivrutin. Visas så du vet vilka entiteter som finns, oavsett om du har Pulse, en smartmätare (HAN/P1), eller båda.</div>`;
+  (d.grid_meters || []).forEach(g => {
+    html += `<div class="note" style="margin-top:6px">• ${g.kind === "pulse" ? "Tibber Pulse" : "Smartmätare"}: ${g.power_entity} (${g.maker || "okänt märke"})</div>`;
+  });
+  if (!(d.grid_meters || []).length) html += `<div class="note" style="margin-top:6px">Ingen hittades.</div>`;
+  html += `</div>`;
+
   html += `<button class="icobtn" id="genbtn" style="margin-top:6px">Generera house_config.yaml</button>`;
   results.innerHTML = html;
   document.getElementById("genbtn").onclick = generateConfig;

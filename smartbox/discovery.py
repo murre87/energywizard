@@ -31,6 +31,11 @@ INVERTER_MAKERS = re.compile(r"solaredge|huawei|fronius|sma\b|growatt|enphase|go
 HEATPUMP = re.compile(r"husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic", re.I)
 SPA = re.compile(r"balboa|gecko|spa\b|spabad|jacuzzi|hot ?tub|bubbelpool|lay-?z|intex|softub|arctic spa|bwa", re.I)
 CHARGER_MAKERS = re.compile(r"easee|zaptec|wallbox|charge ?amps|garo|ctek|go-?e|webasto|ensto|defa", re.I)
+# Nätimport/elmätare: ett hus kan ha Tibber Pulse, en smartmätare (HAN/P1-port) eller
+# båda samtidigt - inte antingen-eller (Emils egen poäng, 2026-10-30). Ingen av dem är
+# idag en pluggbar drivrutin i EnergyWizard (main.py läser Tibber Pulse hårdkodat via
+# TIBBER_ENTITIES i homeassistant.py) - visas här bara informativt tills det blir det.
+GRID = re.compile(r"tibber pulse|p1\b|han\b|power ?meter|elmätare|smart ?meter|nätimport|grid import|consumption", re.I)
 
 # Märke -> drivrutinsnyckel, bara för märken som FAKTISKT har en registrerad
 # drivrutin idag. Ett hittat märke som inte finns här flaggas som "ingen
@@ -153,6 +158,15 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             "maker": solar_e.get("m"), "driver": driver, "driver_known": driver in SOLAR_DRIVER_REGISTRY,
         }
 
+    # --- Elmätare/nätimport: Pulse, smartmätare, eller BÅDA samtidigt (inte
+    # antingen-eller) - alla matchande power-sensorer listas, inte bara den första.
+    grid_meters = []
+    for e in power:
+        if e is solar_e or not _has(_candidate(e) + " " + (e.get("n") or ""), GRID):
+            continue
+        kind = "pulse" if _has(_candidate(e), re.compile("tibber", re.I)) else "smartmätare"
+        grid_meters.append({"power_entity": e["e"], "maker": e.get("m"), "kind": kind})
+
     # --- Värmepump: enhet vars tillverkare/modell/namn matchar HEATPUMP ---
     heat_pump = None
     for device_id, ents in by_device.items():
@@ -194,4 +208,4 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             "driver": driver, "driver_known": driver in CHARGER_DRIVER_REGISTRY,
         })
 
-    return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers}
+    return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers, "grid_meters": grid_meters}

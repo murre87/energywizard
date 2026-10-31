@@ -55,6 +55,13 @@ SYNTHETIC_ENTITIES = [
     # Brus: en vanlig lampa, ska inte dyka upp i något fynd
     {"e": "light.vardagsrum", "n": "Vardagsrum", "a": "Vardagsrum", "d": "dev_light",
      "dn": "Lampa", "m": "IKEA", "mo": "TRADFRI", "dc": None, "u": None, "st": "on"},
+
+    # Elmätare: både Tibber Pulse OCH en separat smartmätare - ska hittas BÅDA
+    # (Emils egen poäng: inte antingen-eller).
+    {"e": "sensor.tibber_pulse_power", "n": "Tibber Pulse Power", "a": "El", "d": "dev_pulse",
+     "dn": "Tibber Pulse", "m": "Tibber", "mo": "Pulse", "dc": "power", "u": "W", "st": "1200"},
+    {"e": "sensor.han_power", "n": "Elmätare effekt", "a": "El", "d": "dev_han",
+     "dn": "HAN-läsare", "m": "Netmore", "mo": "HAN", "dc": "power", "u": "W", "st": "1180"},
 ]
 
 
@@ -115,4 +122,16 @@ def test_okant_varmepumpsmarke_flaggas_utan_drivrutin_inte_tyst_fel_eller_krasch
 
 def test_tomt_hus_ger_inga_fynd_kraschar_inte():
     result = discover_house([])
-    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": []}
+    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": []}
+
+
+def test_pulse_och_smartmatare_hittas_bada_inte_bara_en():
+    """Emils egen poäng (2026-10-30): ett hus kan ha Pulse, en smartmätare, eller
+    båda - discovery ska lista alla matchande, inte bara returnera den första."""
+    result = discover_house(SYNTHETIC_ENTITIES)
+    assert len(result["grid_meters"]) == 2
+    kinds = {g["kind"] for g in result["grid_meters"]}
+    assert kinds == {"pulse", "smartmätare"}
+    # Solcellssensorn (också en power-sensor) ska INTE räknas som elmätare.
+    grid_entities = {g["power_entity"] for g in result["grid_meters"]}
+    assert "sensor.solaredge_power" not in grid_entities
