@@ -23,6 +23,17 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   sortens skyddsnät ett framtida batteribeslut i `gpm.py` behöver, oavsett om
   vi återanvänder FTW:s kod eller bara mönstret.
 
+- **Egen OCPP-server för laddare, istället för en drivrutin per märke.**
+  [FTW](https://github.com/srcfl/ftw) har en inbyggd OCPP 1.6J/2.0.1-server -
+  vilken OCPP-kompatibel laddare som helst fungerar direkt, ingen
+  märkesspecifik drivrutin behövs. Vår `ChargerDriver`-arkitektur
+  (`smartbox/drivers/charger*.py`) kräver idag en drivrutin per märke (Easee,
+  generisk HA-switch/number) - en OCPP-server skulle täcka betydligt fler
+  laddare på en gång. Inget påbörjat, men värt en egen utredning: hur mycket
+  jobb är en minimal OCPP 1.6J-server jämfört med nästa märkesspecifika
+  drivrutin, och hamnar den bättre eller sämre placerad än att luta sig mot
+  HA:s egna OCPP-integrationer (om sådana finns och är tillräckligt generiska)?
+
 - **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
   arkitekturen (`smartbox/drivers/heatpump.py`) är byggd för det, men varje
   märke kräver en egen, verifierad implementation - bidrag välkomna.
