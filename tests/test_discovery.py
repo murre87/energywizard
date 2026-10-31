@@ -106,6 +106,19 @@ def test_gecko_spa_hittas():
     assert result["spa"]["driver"] == "gecko" and result["spa"]["driver_known"] is True
 
 
+def test_balboa_spa_hittas_med_egen_drivrutin():
+    """Balboa fick tidigare gissningsvis Geckos drivrutin (kommentar: "byggd mot
+    Balboa-liknande styrsystem") - rättat till en egen, verifierad drivrutin byggd
+    mot HA:s officiella balboa-integrations dokumenterade entitetsformer."""
+    balboa = [
+        {"e": "climate.balboa_spa", "n": "Balboa Spa", "a": "Trädgård", "d": "dev_balboa",
+         "dn": "Balboa Spa", "m": "Balboa", "mo": "BP Series", "dc": None, "u": None, "st": "heat"},
+    ]
+    result = discover_house(balboa)
+    assert result["spa"] is not None
+    assert result["spa"]["driver"] == "balboa" and result["spa"]["driver_known"] is True
+
+
 def test_easee_laddare_hittas():
     result = discover_house(SYNTHETIC_ENTITIES)
     assert len(result["chargers"]) == 1
