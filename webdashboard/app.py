@@ -8,6 +8,7 @@ Fas A: bara inloggning (delad med ewapp via smartbox/webauth.py), sidomeny-skal 
 alla 13 planerade sidor, och en testgraf som bevisar att ECharts-pipen fungerar.
 Ingen sida har riktigt innehåll än - det är Fas B och framåt.
 """
+import asyncio
 import math
 import os
 import sys
@@ -24,6 +25,7 @@ from sqlalchemy import create_engine, text
 import webauth
 import discovery
 import house_config
+import pump
 
 WATCHTOWER_URL = os.environ.get("WATCHTOWER_URL", "http://host.docker.internal:8090")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_API_TOKEN", "")
@@ -218,6 +220,20 @@ async def api_discover():
         return {"ok": True, **discovery.discover_house()}
     except Exception as e:
         return {"ok": False, "error": f"Kunde inte skanna Home Assistant: {e}"}
+
+
+@app.post("/api/discover-modbus")
+async def api_discover_modbus():
+    """Eget, valfritt steg - söker efter en Husdata-värmepump på det lokala nätverket
+    (för installationer utan PUMP_IP satt alls). EN RIKTIG nätverksoperation (probear
+    andra enheter på användarens LAN), därför en separat knapp i gränssnittet, aldrig
+    en del av /api/discover. Körs i tråd så den inte blockerar servern i upp till en
+    minut (pump.scan_for_husdata gör ett blockerande nätverksanrop per kandidat-IP)."""
+    try:
+        found = await asyncio.to_thread(pump.scan_for_husdata)
+        return {"ok": True, "found": found}
+    except Exception as e:
+        return {"ok": False, "error": f"Kunde inte söka på nätverket: {e}"}
 
 
 def _yaml_str(v) -> str:
