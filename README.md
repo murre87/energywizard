@@ -96,6 +96,19 @@ protokollkod behövs. För riktigt märkesspecifik styrning - se
 
 Se [ROADMAP.md](ROADMAP.md) för vad som är nästa rimliga steg och varför.
 
+## Telemetri (strikt opt-in, av som standard)
+
+Skickar absolut ingenting förrän du uttryckligen sätter `TELEMETRY_OPT_IN=true`
+och `TELEMETRY_ENDPOINT` i din `.env`. Slår du på det skickas bara: en hashad,
+oåterkallelig husidentifierare (`sha256(house_id)`, inte house_id i klartext),
+vilka drivrutinkategorier som är aktiva (t.ex. `solar:solaredge` - inga
+entity-id:n eller sensorvärden), feltyper vid kritiska fel i huvudloopen
+(exceptionens klassnamn, aldrig feltexten), en grov versionsindikator
+(git-commit-hash) och en tidsstämpel. Inget annat - ingen elprisdata, ingen
+sensorhistorik, ingen plats. Se `smartbox/telemetry.py` för exakt vad som
+skickas och `telemetry-collector/` för mottagarsidan (en separat, valfri
+tjänst - `docker compose --profile telemetry-collector up -d`).
+
 ## Struktur
 
 - `smartbox/` – styrmotorn (huvudloopen, drivrutinerna, prioritetsmotorn).
