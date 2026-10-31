@@ -51,6 +51,21 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   EnergyWizard redan gör. Inget konkret utkast än - en idé värd att utforska,
   inte ett beslutat nästa steg.
 
+- **"Lägg till i Home Assistant"-knapp för Supervisor/HAOS-användare** (samma
+  `my.home-assistant.io`-genväg som [EMHASS](https://github.com/davidusb-geek/emhass)
+  visar på sin egen GitHub-sida). Kräver riktig Supervisor-tilläggspaketering
+  (`config.yaml`/`repository.yaml` i ett eget tilläggsrepo) som inte finns än -
+  den befintliga `SUPERVISOR_TOKEN`-hanteringen i `homeassistant.py` är bara en
+  kodnivå-anpassning, inte paketering. Avsiktligt uppskjutet, inget beslutat
+  datum.
+
+- **Bil-lås/luckor i webdashboard.** Finns i mobilappen `ewapp` (kräver en
+  separat lösenords-omverifiering, `ew2`-flödet, innan ett lås-/luckokommando
+  går igenom), men webdashboard fick INTE den kontrollen när resten av sidorna
+  byggdes klara - en säkerhetsgräns av den här sorten förtjänar en egen, noga
+  testad implementation i webdashboard, inte något som hastas in i samma
+  omgång som vanliga skrivkontroller. Avsiktligt uppskjutet.
+
 ## Redan klart
 
 - Drivrutinsarkitektur kopplad till huvudstyrloopen (bil/laddare/värmepump/sol/spa)

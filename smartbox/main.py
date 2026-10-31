@@ -13,6 +13,7 @@ import settings  # Hanterar konfigurationsinställningar
 import weather   # Hämtar och cachelagrar väderprognos inkl. solprognos
 import homeassistant    # Hämtar data från Home Assistant (temperaturer + Easee-laddare)
 import notifier         # Skickar push-notiser till Emil
+from urllib.parse import urlsplit, urlunsplit
 import lawnmower        # Logik för robotgräsklippare
 import decisions        # Besluts- och styrlogik för pump och radiatorer
 import gpm              # Global Priority Manager (Master Logic Tree)
@@ -97,6 +98,29 @@ car_ids = [c.id for c in car_drivers] or ['nissan', 'tesla']  # tomt hus (inga b
 ev_allocations = {physical_id: None for physical_id in physical_charger_drivers}
 print(f"✅ house_config.yaml: {len(car_drivers)} bil(ar) ({car_ids}), värmepump={type(heat_pump_driver).__name__}, "
       f"sol={type(solar_driver).__name__}, spa={type(spa_driver).__name__}, laddare={list(physical_charger_drivers.keys())}")
+
+# Ny installation (house_config.yaml fortfarande i princip tomt) → EN envägs-notis i HA:s
+# eget notisfält (persistent_notification, ligger kvar tills användaren kryssar bort den -
+# ingen hourly-timer, ingen ny kanal att hålla koll på) som pekar mot entitetsväljaren.
+# Länken härleds från HA:s EGEN internal_url/external_url (redan korrekt ifylld av
+# användaren) - vi kan inte pålitligt gissa värdens LAN-IP inifrån en bridge-container.
+if not car_drivers and isinstance(heat_pump_driver, house_config.NullHeatPumpDriver) \
+        and isinstance(solar_driver, house_config.NullSolarDriver) and isinstance(spa_driver, house_config.NullSpaDriver):
+    ha_url = homeassistant.get_own_base_url()
+    if ha_url:
+        parts = urlsplit(ha_url)
+        # webdashboard terminerar ingen egen TLS (bekräftat: bara vanlig uvicorn-HTTP på
+        # 8503) - tvinga http:// oavsett HA:s eget schema, annars blir länken trasig.
+        dashboard_url = urlunsplit(("http", f"{parts.hostname}:8503", "", "", ""))
+        homeassistant.send_persistent_notification(
+            "energywizard_setup",
+            "🔆 EnergyWizard: slutför installationen",
+            f"Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren]({dashboard_url}) "
+            "för att hitta din värmepump, bilar, solceller m.m. automatiskt.",
+        )
+        print(f"🔆 Ny installation upptäckt - skickade en påminnelse till HA:s notisfält ({dashboard_url}).")
+    else:
+        print("⚠️ Ny installation upptäckt, men kunde inte läsa HA:s internal_url/external_url för att skicka en påminnelse.")
 
 # ============================================================
 # 🚀 UPPSTARTSKONTROLL
