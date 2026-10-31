@@ -287,14 +287,10 @@ def get_fixed_network_fee(dt):
     if dt.date() >= datetime(2026, 4, 1).date(): return 393.43
     return 351.00
 
-def full_buy_cost(spot_ex_vat):
-    # Formel: (Spot_ex * 1.25) + (Tibber fast 6.0 öre + Tibber rörlig 3.28 öre + Överföring 4.86 öre + Skatt 36.0 öre) * 1.25
-    # 50.14 öre ex moms * 1.25 = 62.675 öre ink moms (0.62675 kr/kWh)
-    return (spot_ex_vat * 1.25) + 0.62675
-
-def full_sell_income(spot_ex_vat):
-    # Formel: Spot_ex_vat + Jönköping Energi Nätnytta (1.7 öre ex moms * 1.25 = 2.125 öre ink moms)
-    return spot_ex_vat + 0.02125
+# Prismodell: nordpool.full_buy_cost/full_sell_income (delad med gpm.py/mpc.py/pump_runtime.py,
+# källoberoende - rätt formel oavsett om elpriser är moms-exklusiv eller -inklusiv).
+full_buy_cost = nordpool.full_buy_cost
+full_sell_income = nordpool.full_sell_income
 
 def load_storage_info():
     """Hämtar disk- och databasstorlek."""
@@ -2704,7 +2700,8 @@ def page_spa():
             """), engine)
             if not _spac.empty:
                 _kwh = float(_spac.iloc[0]['kwh'] or 0.0)
-                _kr = float(_spac.iloc[0]['spot_kr'] or 0.0) * 1.25 + _kwh * 0.62675  # full köpkostnad
+                _vat_mult = 1.0 if nordpool.prices_include_vat() else nordpool.VAT_FACTOR
+                _kr = float(_spac.iloc[0]['spot_kr'] or 0.0) * _vat_mult + _kwh * nordpool.BUY_FIXED_KR  # full köpkostnad
                 _e1, _e2 = st.columns(2)
                 _e1.metric("⚡ Idag: energi", f"{_kwh:.2f} kWh")
                 _e2.metric("💸 Idag: kostnad", f"{_kr:.2f} kr")
@@ -2716,20 +2713,21 @@ def page_spa():
     # 💰 Spa-ekonomi: kostnad & förbrukning för att ha spabadet igång
     st.subheader("💰 Spa-ekonomi")
     st.caption("Vad det kostar att ha spabadet igång. **Faktisk** = med solöverskott som ibland täcker badet; **Utan solceller** = allt köpt från nätet till fullpris.")
-    _CASE = "CASE WHEN net_power >= 0 THEN price*1.25+0.62675 ELSE price+0.02125 END"
+    _BUY = nordpool.sql_buy_cost_expr("price")
+    _CASE = f"CASE WHEN net_power >= 0 THEN {_BUY} ELSE {nordpool.sql_sell_income_expr('price')} END"
     try:
         _spam = pd.read_sql(text(f"""
             SELECT to_char(date_trunc('month', timestamp AT TIME ZONE 'Europe/Stockholm'),'YYYY-MM') AS man,
                    COALESCE(SUM(spa_power_w/1000.0/60.0),0) AS kwh,
                    COALESCE(SUM(spa_power_w/1000.0/60.0 * ({_CASE})),0) AS faktisk_kr,
-                   COALESCE(SUM(spa_power_w/1000.0/60.0 * (price*1.25+0.62675)),0) AS utan_sol_kr
+                   COALESCE(SUM(spa_power_w/1000.0/60.0 * {_BUY}),0) AS utan_sol_kr
             FROM sensor_log WHERE spa_power_w IS NOT NULL AND price IS NOT NULL
             GROUP BY 1 ORDER BY 1
         """), engine)
         _spatoday = pd.read_sql(text(f"""
             SELECT COALESCE(SUM(spa_power_w/1000.0/60.0),0) AS kwh,
                    COALESCE(SUM(spa_power_w/1000.0/60.0 * ({_CASE})),0) AS faktisk_kr,
-                   COALESCE(SUM(spa_power_w/1000.0/60.0 * (price*1.25+0.62675)),0) AS utan_sol_kr
+                   COALESCE(SUM(spa_power_w/1000.0/60.0 * {_BUY}),0) AS utan_sol_kr
             FROM sensor_log
             WHERE timestamp AT TIME ZONE 'Europe/Stockholm' >= date_trunc('day', NOW() AT TIME ZONE 'Europe/Stockholm')
               AND spa_power_w IS NOT NULL AND price IS NOT NULL
@@ -4418,7 +4416,8 @@ def page_economy():
                 df_hist_savings['month_ts'] = pd.to_datetime(df_hist_savings['month_ts']).dt.tz_localize(None)
                 df_avg_prices['month_ts'] = pd.to_datetime(df_avg_prices['month_ts']).dt.tz_localize(None)
                 df_hist_savings = pd.merge(df_hist_savings, df_avg_prices, on='month_ts')
-                df_hist_savings['actual_full_cost'] = (df_hist_savings['actual_spot_cost'] * 1.25) + (df_hist_savings['total_grid_kwh'] * 0.62675)
+                _vat_mult = 1.0 if nordpool.prices_include_vat() else nordpool.VAT_FACTOR
+                df_hist_savings['actual_full_cost'] = (df_hist_savings['actual_spot_cost'] * _vat_mult) + (df_hist_savings['total_grid_kwh'] * nordpool.BUY_FIXED_KR)
                 # Kund UTAN solceller (och utan smartstyrning): köper HELA lasten (import + egenanvänd
                 # sol) till månadens raka snitt och har ingen exportintäkt.
                 df_hist_savings['nosolar_cost'] = (df_hist_savings['total_grid_kwh'] + df_hist_savings['solar_self_kwh'].fillna(0)) * df_hist_savings['avg_spot_price'].apply(full_buy_cost)

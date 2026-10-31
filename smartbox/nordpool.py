@@ -20,6 +20,48 @@ NORDPOOL_HA_ENTITY = os.environ.get("NORDPOOL_HA_ENTITY", "sensor.nordpool").str
 
 from logger import get_db
 
+# Verklig köp-/säljkostnad kr/kWh - EN plats för formeln som annars var duplicerad i
+# gpm.py, mpc.py, pump_runtime.py och smartdashboard/app.py (källoberoende konstanter:
+# nätavgift+skatt+elhandlarens avgift är redan momsinklusive, oavsett vilken bas spotpriset
+# har). Sälj: ingen moms på sålt solöverskott (svenska skatteregler för mikroproduktion).
+BUY_FIXED_KR = 0.62675
+SELL_FIXED_KR = 0.02125
+VAT_FACTOR = 1.25
+
+
+def prices_include_vat() -> bool:
+    """True om elpriser.sek_per_kwh redan är momsinklusive (PRICE_SOURCE=ha_nordpool)."""
+    return PRICE_SOURCE == "ha_nordpool"
+
+
+def full_buy_cost(spot: float) -> float:
+    """Verklig köpkostnad kr/kWh inkl moms, nätöverföring och skatt. Dubbelräknar aldrig
+    moms oavsett vilken bas spotpriset har."""
+    if prices_include_vat():
+        return spot + BUY_FIXED_KR
+    return spot * VAT_FACTOR + BUY_FIXED_KR
+
+
+def full_sell_income(spot: float) -> float:
+    """Verklig försäljningsintäkt kr/kWh vid solexport - ingen moms på sålt överskott."""
+    if prices_include_vat():
+        return spot / VAT_FACTOR + SELL_FIXED_KR
+    return spot + SELL_FIXED_KR
+
+
+def sql_buy_cost_expr(col: str) -> str:
+    """Samma formel som SQL-uttryck (Postgres), för ställen som räknar i databasen
+    istället för rad-för-rad i Python (pump_runtime.py, smartdashboard)."""
+    if prices_include_vat():
+        return f"({col} + {BUY_FIXED_KR})"
+    return f"({col} * {VAT_FACTOR} + {BUY_FIXED_KR})"
+
+
+def sql_sell_income_expr(col: str) -> str:
+    if prices_include_vat():
+        return f"({col} / {VAT_FACTOR} + {SELL_FIXED_KR})"
+    return f"({col} + {SELL_FIXED_KR})"
+
 def init_db():
     try:
         with get_db() as conn:
@@ -249,8 +291,11 @@ def calculate_day_strategy(all_prices, cheap_hours_count):
     cheap_quarters = cheap_hours_count * 4
     dynamic_limit = sorted(all_prices)[cheap_quarters - 1] if len(all_prices) >= cheap_quarters else None
 
-    # Billig dag – kör bara ett fast komfortvärde, spara compressorn
-    if avg_p < 0.50 and spread < 0.30:
+    # Billig dag – kör bara ett fast komfortvärde, spara compressorn. Gränserna är kalibrerade
+    # mot momsexklusiva spotpriser - skala med VAT_FACTOR om elpriser nu är momsinklusive
+    # (PRICE_SOURCE=ha_nordpool), annars klassas dagar fel när prisnivån byter bas.
+    vat_scale = VAT_FACTOR if prices_include_vat() else 1.0
+    if avg_p < 0.50 * vat_scale and spread < 0.30 * vat_scale:
         return {
             "mode": "comfort",
             "hysteresis": 0.0,
