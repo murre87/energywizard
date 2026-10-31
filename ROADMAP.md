@@ -5,12 +5,16 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
 
 ## Övervägs, väntar på fler verkliga hus att verifiera mot
 
-- **Inbyggd husbatteri-drivrutin** (Powerwall, GivEnergy, Huawei Luna m.fl.).
-  Ett riktigt elbatteri är snabbt och konkurrerar direkt med sol/nät/elbilsladdning
-  om samma watt - en genuint annan optimeringsfråga än husets termiska tröghet som
-  redan styrs idag. Byggs när fler betatestare faktiskt har ett husbatteri att
-  testa mot, inte i förväg på gissningar. Fram tills dess: kör
-  [Predbat](https://github.com/springfall2008/batpred) parallellt - se
+- **Automatiserade laddnings-/urladdningsbeslut för husbatteri.** Ett riktigt
+  elbatteri är snabbt och konkurrerar direkt med sol/nät/elbilsladdning om
+  samma watt - en genuint annan optimeringsfråga än husets termiska tröghet
+  som redan styrs idag, och ingen betatestare har ännu ett riktigt batteri
+  att verifiera besluten mot. `gpm.py` fattar därför medvetet INGA beslut om
+  batteriet än. **Drivrutinslagret finns dock redan** (`drivers/battery.py`/
+  `battery_generic.py`, upptäcks av entitetsväljaren) - läser SOC/effekt och
+  kan sätta ett läge via valfri `select`-entitet, samma generiska
+  entitetsstyrning som [Predbat](https://github.com/springfall2008/batpred)
+  själv bygger på. Kör gärna Predbat parallellt tills vidare - se
   [kunskapsbanksartikeln](https://murre87.github.io/energywizard/kunskapsbank/husbatteri.html).
 
 - **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
@@ -23,6 +27,15 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   + MQTT till HA), nyare S-serie-pumpar har en inbyggd Modbus TCP-server med
   en helt annan registerkarta än Husdata/Thermia - kräver verifiering mot en
   riktig pump av varje typ, inte gissad kod.
+
+- **Balboa-spabad som egen, verifierad drivrutin.** `discovery.py` pekar redan
+  "balboa" mot `GeckoSpaDriver` (kommentar: "byggd mot Balboa-liknande
+  styrsystem") - men det är ett ANTAGANDE, aldrig verifierat mot ett riktigt
+  Balboa-system (bara Gecko). HA:s officiella `balboa`-integration exponerar
+  sannolikt en annan entitetsform än Gecko in.touch2 - samma risk som
+  Gecko-drivrutinens två tidigare misslyckade generaliseringsförsök denna
+  session. Byggs separat, verifierat, den dag en riktig Balboa-testare finns
+  - inte en snabb omskrivning av antagandet.
 
 - **Delad ML-modellträning på poolad data** från flera hus (bättre solprognoser,
   prismönster) - kräver den opt-in-telemetritjänst som redan är designad

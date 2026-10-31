@@ -203,6 +203,7 @@ async function runDiscovery() {
   html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? (d.heat_pump.note || `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)`) : "");
   html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `Effekt: ${d.solar.pv_power_entity || "-"} · Dagsenergi: ${d.solar.today_kwh_entity || "-"}` : "");
   html += simpleCard("🛁", "Spabad", d.spa, d.spa ? `Temp: ${d.spa.current_temp_entity || "-"} · Effekt: ${d.spa.power_entity || "-"}` : "");
+  html += simpleCard("🔋", "Husbatteri", d.battery, d.battery ? `SOC: ${d.battery.soc_entity || "-"} · Effekt: ${d.battery.power_entity || "-"} · bara läsning/enkel styrning, EnergyWizard fattar inga automatiska laddningsbeslut - kör Predbat parallellt för det.` : "");
 
   html += `<div class="card" style="margin-bottom:16px"><h2>🔌 Laddare (${d.chargers.length})</h2>`;
   d.chargers.forEach((c, i) => {
@@ -230,6 +231,7 @@ async function runDiscovery() {
   const itemForKey = (key) => key.startsWith("charger:") ? _discovered.chargers[key.split(":")[1]]
     : key === "Värmepump" ? _discovered.heat_pump
     : key === "Solceller" ? _discovered.solar
+    : key === "Husbatteri" ? _discovered.battery
     : null;
   document.querySelectorAll(".generic-pick").forEach(cb => {
     cb.onchange = () => {
@@ -248,7 +250,7 @@ async function runDiscovery() {
 }
 
 async function generateConfig() {
-  const sel = { cars: [], heat_pump: null, solar: null, spa: null };
+  const sel = { cars: [], heat_pump: null, solar: null, spa: null, battery: null };
   const pickedChargers = [];
   document.querySelectorAll(".charger-pick:checked").forEach(cb => pickedChargers.push(_discovered.chargers[cb.dataset.i]));
   document.querySelectorAll(".car-pick:checked").forEach((cb, idx) => {
@@ -266,6 +268,7 @@ async function generateConfig() {
     if (cat === "Värmepump") sel.heat_pump = _discovered.heat_pump;
     if (cat === "Solceller") sel.solar = _discovered.solar;
     if (cat === "Spabad") sel.spa = _discovered.spa;
+    if (cat === "Husbatteri") sel.battery = _discovered.battery;
   });
 
   const r = await fetch("api/generate-house-config", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sel) });

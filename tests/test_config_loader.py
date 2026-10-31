@@ -4,10 +4,11 @@ det är den konkreta bevisningen att "funkar utan något" håller, inte bara en 
 from pathlib import Path
 
 from house_config import (
-    build_car_drivers, build_charger_drivers, build_default_car_per_charger,
+    build_battery_driver, build_car_drivers, build_charger_drivers, build_default_car_per_charger,
     build_heat_pump_driver, build_physical_charger_drivers, build_solar_driver,
     build_spa_driver, load_house_config,
 )
+from drivers.battery import NullBatteryDriver
 from drivers.car import NullCarDriver
 from drivers.car_generic import NissanCarDriver, TeslaCarDriver
 from drivers.charger import NullChargerDriver
@@ -36,6 +37,7 @@ def test_tomt_hus_ger_bara_null_drivrutiner():
     assert isinstance(build_heat_pump_driver(cfg), NullHeatPumpDriver)
     assert isinstance(build_solar_driver(cfg), NullSolarDriver)
     assert isinstance(build_spa_driver(cfg), NullSpaDriver)
+    assert isinstance(build_battery_driver(cfg), NullBatteryDriver)
 
 
 def test_tomt_hus_null_drivrutiner_kraschar_inte_vid_anrop():

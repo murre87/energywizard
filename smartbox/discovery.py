@@ -23,6 +23,9 @@ from house_config import (
     CAR_DRIVER_REGISTRY, CHARGER_DRIVER_REGISTRY, HEAT_PUMP_DRIVER_REGISTRY,
     SOLAR_DRIVER_REGISTRY, SPA_DRIVER_REGISTRY,
 )
+# BATTERY_DRIVER_REGISTRY importeras medvetet INTE - ingen märkesspecifik batteri-
+# drivrutin finns eller planeras (se drivers/battery.py), så upptäckta batterier
+# föreslår alltid "generic" rakt av, aldrig en driver_known-koll mot registret.
 
 # --- Kategori-regexer, portade från Familjetavlas discovery.ts ---
 CAR_MAKERS = re.compile(r"tesla|nissan|volvo|polestar|kia|hyundai|volkswagen|vw|skoda|audi|bmw|mini|mercedes|renault|peugeot|citro|opel|toyota|lexus|ford|byd|porsche|cupra|seat|fiat|jaguar|zeekr|xpeng|nio|honda|mazda|subaru|smart", re.I)
@@ -32,6 +35,9 @@ INVERTER_MAKERS = re.compile(r"solaredge|huawei|fronius|sma\b|growatt|enphase|go
 HEATPUMP = re.compile(r"husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic", re.I)
 SPA = re.compile(r"balboa|gecko|spa\b|spabad|jacuzzi|hot ?tub|bubbelpool|lay-?z|intex|softub|arctic spa|bwa", re.I)
 CHARGER_MAKERS = re.compile(r"easee|zaptec|wallbox|charge ?amps|garo|ctek|go-?e|webasto|ensto|defa", re.I)
+# "tesla" ensamt är INTE med här (krockar med CAR_MAKERS - Powerwall kräver "powerwall"
+# uttryckligen i texten för att skiljas från en Tesla-bil).
+BATTERY_MAKERS = re.compile(r"givenergy|powerwall|huawei luna|luna2000|pytes|fox ?ess|alpha ?ess|sonnen|pylontech|lg (chem|ress)|byd battery|solax battery|victron battery", re.I)
 # Nätimport/elmätare: ett hus kan ha Tibber Pulse, en smartmätare (HAN/P1-port) eller
 # båda samtidigt - inte antingen-eller (Emils egen poäng, 2026-10-30). Ingen av dem är
 # idag en pluggbar drivrutin i EnergyWizard (main.py läser Tibber Pulse hårdkodat via
@@ -148,6 +154,7 @@ def discover_house(entities: list[dict] | None = None) -> dict:
 
     # --- Bilar: enhet med battery-% + (device_tracker eller känt bilmärke) ---
     cars = []
+    car_device_ids = set()
     for device_id, ents in by_device.items():
         battery = next((x for x in ents if x["e"].startswith("sensor.") and x.get("u") == "%"
                          and (x.get("dc") == "battery" or _has(x.get("n"), re.compile(r"battery|batteri|state of charge|soc\b|laddniv", re.I)))), None)
@@ -163,6 +170,7 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         plugged = next((x for x in ents if x["e"].startswith("binary_sensor.") and (x.get("dc") == "plug" or _has(x.get("n"), re.compile(r"plugged|ansluten", re.I)))), None)
         climate = next((x for x in ents if x["e"].startswith("climate.")), None)
         driver = "nissan" if _has(maker, re.compile("nissan", re.I)) else "tesla" if _has(maker, re.compile("tesla", re.I)) else "generic_ev"
+        car_device_ids.add(device_id)
         cars.append({
             "device_name": ents[0].get("dn") or maker, "maker": maker or None,
             "soc_entity": battery["e"], "plugged_in_entity": plugged["e"] if plugged else None,
@@ -279,4 +287,45 @@ def discover_house(entities: list[dict] | None = None) -> dict:
                 charger["generic_suggestion"] = {"driver": "generic", "entities": suggested}
         chargers.append(charger)
 
-    return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers, "grid_meters": grid_meters}
+    # --- Husbatteri: känt märke, ELLER en battery-%-sensor på en enhet som inte redan
+    # är en bil (viktig avgränsning - en bils batteriprocent ska aldrig feltolkas som
+    # ett husbatteri). Ingen märkesspecifik drivrutin finns eller planeras (Predbat
+    # underhåller redan den kompatibiliteten) - föreslår alltid "generic".
+    battery = None
+    for device_id, ents in by_device.items():
+        if device_id in car_device_ids:
+            continue
+        head = ents[0]
+        maker = head.get("m") or ""
+        if _has(maker, PHONE_MAKERS):
+            continue
+        is_known_brand = _has(_candidate(head), BATTERY_MAKERS)
+        soc_e = next((x for x in ents if x["e"].startswith("sensor.") and x.get("u") == "%"
+                      and (x.get("dc") == "battery" or _has(x.get("n"), re.compile(r"battery|batteri|state of charge|soc\b", re.I)))), None)
+        power_e = next((x for x in ents if x["e"].startswith("sensor.") and x.get("dc") == "power"), None)
+        # Ett eget batteri-%-värde räcker INTE ensamt (bekräftat live: en vanlig
+        # temperatur-/fuktgivare med eget myntcellsbatteri gav en falsk träff) - kräver
+        # också en effektsensor, om inget känt husbatterimärke redan matchat.
+        if not is_known_brand and not (soc_e and power_e):
+            continue
+        # Bekräftat live: SolarEdges integration skapar ALLTID en "Lagringsnivå"-sensor
+        # (på en egen enhet, inte ens växelriktarens - ett antagande om samma enhet
+        # höll INTE) oavsett om man faktiskt har batteri - state blir "unknown" utan
+        # ett. Ett SOC-värde vi inte ens kan läsa är inget att visa som "hittat".
+        if soc_e and soc_e.get("st") in (None, "unknown", "unavailable"):
+            continue
+        battery = {
+            "device_name": head.get("dn") or maker, "maker": maker or None,
+            "soc_entity": soc_e["e"] if soc_e else None, "power_entity": power_e["e"] if power_e else None,
+            "driver": None, "driver_known": False,
+        }
+        if soc_e or power_e:
+            suggested = {}
+            if soc_e:
+                suggested["soc"] = soc_e["e"]
+            if power_e:
+                suggested["power"] = power_e["e"]
+            battery["generic_suggestion"] = {"driver": "generic", "entities": suggested}
+        break
+
+    return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers, "grid_meters": grid_meters, "battery": battery}

@@ -8,10 +8,11 @@ klasserna (Easee/Thermia/SolarEdge behöver det inte), ett hål de generiska
 drivrutinerna skulle fallit rakt i annars."""
 from unittest.mock import MagicMock, patch
 
+from drivers.battery_generic import GenericBatteryDriver
 from drivers.charger_generic import GenericChargerDriver
 from drivers.heatpump_generic import GenericClimateHeatPumpDriver
 from drivers.solar_generic import GenericNumberSolarDriver
-from house_config import build_charger_drivers, build_heat_pump_driver, build_physical_charger_drivers, build_solar_driver
+from house_config import build_battery_driver, build_charger_drivers, build_heat_pump_driver, build_physical_charger_drivers, build_solar_driver
 
 
 # ---------- Laddare (GenericChargerDriver -> homeassistant.py) ----------
@@ -134,3 +135,43 @@ def test_build_solar_driver_skickar_med_entities_fran_configen():
     driver = build_solar_driver(cfg)
     assert isinstance(driver, GenericNumberSolarDriver)
     assert driver._e == {"export_limit_pct": "number.export"}
+
+
+# ---------- Husbatteri (GenericBatteryDriver -> homeassistant.py) ----------
+# OBS: bara läsning + enkel lägesstyrning - gpm.py importerar INTE det här alls
+# (se drivers/battery.py:s modulkommentar). Ingen produktionsverifiering möjlig
+# (Emils eget hus saknar batteri) - korrekthet bevisas här, mockat, inte live.
+
+def test_battery_read_state_lasar_generiska_sensorer():
+    with patch("drivers.battery_generic.homeassistant") as mock_ha:
+        mock_ha._get_numeric_state.side_effect = [72.0, -850.0]
+        state = GenericBatteryDriver(capacity_kwh=10.0, entities={"soc": "sensor.soc", "power": "sensor.power"}).read_state()
+    assert state == {"soc_pct": 72.0, "power_w": -850.0, "capacity_kwh": 10.0, "mode": None}
+
+
+def test_battery_supports_control_bara_om_mode_select_konfigurerad():
+    assert GenericBatteryDriver(entities={"mode_select": "select.mode"}).supports_control() is True
+    assert GenericBatteryDriver(entities={}).supports_control() is False
+
+
+def test_battery_set_mode_anropar_generisk_select():
+    with patch("drivers.battery_generic.homeassistant") as mock_ha:
+        mock_ha.set_select.return_value = True
+        ok = GenericBatteryDriver(entities={"mode_select": "select.mode"}).set_mode("charge")
+    mock_ha.set_select.assert_called_once_with("select.mode", "charge")
+    assert ok is True
+
+
+def test_battery_set_mode_utan_entitet_ger_false():
+    with patch("drivers.battery_generic.homeassistant") as mock_ha:
+        ok = GenericBatteryDriver(entities={}).set_mode("charge")
+    mock_ha.set_select.assert_not_called()
+    assert ok is False
+
+
+def test_build_battery_driver_skickar_med_entities_och_kapacitet():
+    cfg = {"battery": {"enabled": True, "driver": "generic", "capacity_kwh": 13.5, "entities": {"soc": "sensor.soc"}}}
+    driver = build_battery_driver(cfg)
+    assert isinstance(driver, GenericBatteryDriver)
+    assert driver.capacity_kwh == 13.5
+    assert driver._e == {"soc": "sensor.soc"}

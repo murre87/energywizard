@@ -322,6 +322,21 @@ def _build_house_config_yaml(sel: dict) -> str:
             lines.append(f"    power_w: {spa['power_entity']}")
     else:
         lines += ["spa:", "  enabled: false"]
+    lines.append("")
+
+    battery = sel.get("battery")
+    if battery:
+        lines += ["battery:", "  enabled: true", f"  driver: {battery.get('driver') or 'generic'}",
+                   "  capacity_kwh: 10  # FYLL I - batteriets kapacitet i kWh", "  entities:"]
+        battery_entities = (battery.get("entities") or {}).copy()
+        if battery.get("soc_entity"):
+            battery_entities.setdefault("soc", battery["soc_entity"])
+        if battery.get("power_entity"):
+            battery_entities.setdefault("power", battery["power_entity"])
+        for key, val in battery_entities.items():
+            lines.append(f"    {key}: {val}")
+    else:
+        lines += ["battery:", "  enabled: false"]
     lines += ["", "fuse:", "  main_fuse_a: 25  # FYLL I - din huvudsäkring i Ampere"]
 
     return "\n".join(lines) + "\n"
@@ -343,6 +358,7 @@ async def api_generate_house_config(request: Request):
             house_config.build_heat_pump_driver(cfg)
             house_config.build_solar_driver(cfg)
             house_config.build_spa_driver(cfg)
+            house_config.build_battery_driver(cfg)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"Den genererade filen gick inte att läsa in: {e}"}, status_code=500)
     from fastapi.responses import Response

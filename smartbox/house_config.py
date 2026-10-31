@@ -16,6 +16,8 @@ from __future__ import annotations
 import yaml
 
 import homeassistant
+from drivers.battery import BatteryDriver, NullBatteryDriver
+from drivers.battery_generic import GenericBatteryDriver
 from drivers.car import NullCarDriver
 from drivers.car_generic import GenericEvCarDriver, NissanCarDriver, TeslaCarDriver
 from drivers.charger import NullChargerDriver
@@ -35,6 +37,7 @@ CHARGER_DRIVER_REGISTRY = {"easee": EaseeChargerDriver, "generic": GenericCharge
 HEAT_PUMP_DRIVER_REGISTRY = {"thermia_husdata": ThermiaHusdataHeatPumpDriver, "generic_climate": GenericClimateHeatPumpDriver}
 SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver, "generic_number": GenericNumberSolarDriver}
 SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver}
+BATTERY_DRIVER_REGISTRY = {"generic": GenericBatteryDriver}
 
 # Easees två fysiska boxar har var sin läsfunktion i homeassistant.py (ingen generisk
 # "läs valfri Easee-box"-funktion finns) - charger-configen pekar ut vilken via
@@ -54,6 +57,7 @@ def load_house_config(path: str) -> dict:
     cfg.setdefault("heat_pump", {"enabled": False})
     cfg.setdefault("solar", {"enabled": False})
     cfg.setdefault("spa", {"enabled": False})
+    cfg.setdefault("battery", {"enabled": False})
     cfg.setdefault("fuse", {"main_fuse_a": 25})
     return cfg
 
@@ -157,4 +161,16 @@ def build_spa_driver(cfg: dict) -> SpaDriver:
     if not spa.get("enabled"):
         return NullSpaDriver()
     driver_cls = SPA_DRIVER_REGISTRY.get(spa.get("driver"), NullSpaDriver)
+    return driver_cls()
+
+
+def build_battery_driver(cfg: dict) -> BatteryDriver:
+    """OBS: bara läsning + enkel lägesstyrning - gpm.py importerar INTE detta för
+    automatiserade beslut (se drivers/battery.py:s modulkommentar för varför)."""
+    bat = cfg.get("battery", {})
+    if not bat.get("enabled"):
+        return NullBatteryDriver()
+    driver_cls = BATTERY_DRIVER_REGISTRY.get(bat.get("driver"), NullBatteryDriver)
+    if driver_cls is GenericBatteryDriver:
+        return GenericBatteryDriver(capacity_kwh=bat.get("capacity_kwh"), entities=bat.get("entities", {}))
     return driver_cls()
