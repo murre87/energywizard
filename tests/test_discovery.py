@@ -135,6 +135,63 @@ def test_okant_varmepumpsmarke_flaggas_utan_drivrutin_inte_tyst_fel_eller_krasch
     assert result["heat_pump"]["driver_known"] is False
 
 
+def test_okant_varmepumpsmarke_med_climate_entitet_foreslar_generisk_drivrutin():
+    """Samma NIBE-scenario, men med en climate-entitet på enheten (vanligt för
+    integrationer som exponerar värmepumpen via HA:s climate-domän) - ska föreslå
+    GenericClimateHeatPumpDriver istället för att bara vara en återvändsgränd."""
+    nibe_with_climate = [e for e in SYNTHETIC_ENTITIES if e["d"] == "dev_nibe"] + [
+        {"e": "climate.nibe_heatpump", "n": "NIBE Climate", "a": "Källare", "d": "dev_nibe",
+         "dn": "NIBE F750", "m": "NIBE", "mo": "F750", "dc": None, "u": None, "st": "heat"},
+    ]
+    result = discover_house(nibe_with_climate)
+    assert result["heat_pump"]["driver"] is None
+    assert result["heat_pump"]["generic_suggestion"] == {
+        "driver": "generic_climate", "entities": {"climate": "climate.nibe_heatpump"},
+    }
+
+
+def test_okant_laddarmarke_med_switch_foreslar_generisk_drivrutin():
+    zaptec = [
+        {"e": "sensor.zaptec_status", "n": "Zaptec Status", "a": "Garage", "d": "dev_zaptec",
+         "dn": "Zaptec Go", "m": "Zaptec", "mo": "Go", "dc": None, "u": None, "st": "charging"},
+        {"e": "switch.zaptec_charging", "n": "Zaptec Charging", "a": "Garage", "d": "dev_zaptec",
+         "dn": "Zaptec Go", "m": "Zaptec", "mo": "Go", "dc": None, "u": None, "st": "on"},
+    ]
+    result = discover_house(zaptec)
+    assert len(result["chargers"]) == 1
+    assert result["chargers"][0]["driver"] is None
+    assert result["chargers"][0]["generic_suggestion"] == {
+        "driver": "generic", "entities": {"switch": "switch.zaptec_charging", "status": "sensor.zaptec_status"},
+    }
+
+
+def test_okant_laddarmarke_utan_switch_far_inget_forslag():
+    """Ingen switch-entitet alls = inget att koppla GenericChargerDriver mot -
+    ska flaggas utan drivrutin, inte föreslå en drivrutin som ändå inte kan göra något."""
+    zaptec_no_switch = [
+        {"e": "sensor.zaptec_status", "n": "Zaptec Status", "a": "Garage", "d": "dev_zaptec2",
+         "dn": "Zaptec Go", "m": "Zaptec", "mo": "Go", "dc": None, "u": None, "st": "charging"},
+    ]
+    result = discover_house(zaptec_no_switch)
+    assert result["chargers"][0]["driver"] is None
+    assert "generic_suggestion" not in result["chargers"][0]
+
+
+def test_okant_solcellsmarke_med_exportgrans_foreslar_generisk_drivrutin():
+    fronius = [
+        {"e": "sensor.fronius_power", "n": "Fronius Solar Power", "a": "Garage", "d": "dev_fronius",
+         "dn": "Fronius Inverter", "m": "Fronius", "mo": "Symo", "dc": "power", "u": "W", "st": "3200"},
+        {"e": "number.fronius_export_limit", "n": "Export Limit", "a": "Garage", "d": "dev_fronius",
+         "dn": "Fronius Inverter", "m": "Fronius", "mo": "Symo", "dc": None, "u": "%", "st": "100"},
+    ]
+    result = discover_house(fronius)
+    assert result["solar"]["driver"] is None
+    assert result["solar"]["generic_suggestion"] == {
+        "driver": "generic_number",
+        "entities": {"pv_power_w": "sensor.fronius_power", "export_limit_pct": "number.fronius_export_limit"},
+    }
+
+
 def test_tomt_hus_ger_inga_fynd_kraschar_inte():
     with patch("discovery._check_configured_heat_pump", return_value=None):
         result = discover_house([])

@@ -184,6 +184,17 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             "pv_power_entity": solar_e["e"], "today_kwh_entity": today_kwh["e"] if today_kwh else None,
             "maker": solar_e.get("m"), "driver": driver, "driver_known": driver in SOLAR_DRIVER_REGISTRY,
         }
+        if driver is None:
+            # Känt märke saknas, men finns en number-entitet för exportgräns på samma
+            # enhet kan grundläggande strypning ändå fungera via GenericNumberSolarDriver.
+            limit_e = next((e for e in entities if e["e"].startswith("number.") and e.get("d") == solar_e.get("d")
+                             and _has(e.get("n"), re.compile("export|limit|gräns|power.?limit", re.I))), None)
+            suggested = {"pv_power_w": solar_e["e"]}
+            if today_kwh:
+                suggested["today_kwh"] = today_kwh["e"]
+            if limit_e:
+                suggested["export_limit_pct"] = limit_e["e"]
+            solar["generic_suggestion"] = {"driver": "generic_number", "entities": suggested}
 
     # --- Elmätare/nätimport: Pulse, smartmätare, eller BÅDA samtidigt (inte
     # antingen-eller) - alla matchande power-sensorer listas, inte bara den första.
@@ -206,6 +217,13 @@ def discover_house(entities: list[dict] | None = None) -> dict:
                 "driver": driver, "driver_known": driver in HEAT_PUMP_DRIVER_REGISTRY,
                 "entity_count": len(ents),
             }
+            if driver is None:
+                # Känt märke saknas, men finns en climate-entitet kan grundläggande
+                # prisstyrning ändå fungera via GenericClimateHeatPumpDriver - föreslå
+                # det istället för en ren återvändsgränd.
+                climate_e = next((e for e in ents if e["e"].startswith("climate.")), None)
+                if climate_e:
+                    heat_pump["generic_suggestion"] = {"driver": "generic_climate", "entities": {"climate": climate_e["e"]}}
             break
     if heat_pump is None:
         # HA-skanningen gav inget, men pumpen kan redan prata Modbus DIREKT med smartbox
@@ -240,10 +258,25 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             continue
         brand = next((b for b in _CHARGER_BRAND_TO_DRIVER if _has(_candidate(head), re.compile(b, re.I))), None)
         driver = _CHARGER_BRAND_TO_DRIVER.get(brand)
-        chargers.append({
+        charger = {
             "device_name": head.get("dn") or head.get("m"), "maker": head.get("m"),
             "status_entity": status_e["e"] if status_e else None,
             "driver": driver, "driver_known": driver in CHARGER_DRIVER_REGISTRY,
-        })
+        }
+        if driver is None:
+            # Känt märke saknas, men finns en switch-entitet kan grundläggande på/av-
+            # styrning ändå fungera via GenericChargerDriver - föreslå det istället för
+            # en ren återvändsgränd. Strömgräns (number) är valfri, inte ett krav.
+            switch_e = next((e for e in ents if e["e"].startswith("switch.")), None)
+            if switch_e:
+                suggested = {"switch": switch_e["e"]}
+                if status_e:
+                    suggested["status"] = status_e["e"]
+                number_e = next((e for e in ents if e["e"].startswith("number.")
+                                  and _has(e.get("n"), re.compile("current|ström|limit|gräns", re.I))), None)
+                if number_e:
+                    suggested["current_limit"] = number_e["e"]
+                charger["generic_suggestion"] = {"driver": "generic", "entities": suggested}
+        chargers.append(charger)
 
     return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers, "grid_meters": grid_meters}

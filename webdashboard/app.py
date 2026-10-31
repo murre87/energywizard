@@ -265,7 +265,7 @@ def _build_house_config_yaml(sel: dict) -> str:
             lines.append(f"      climate: {c['climate_entity']}")
         charger = c.get("charger")
         if charger:
-            charger_driver = charger.get("driver") or "generic_charger"
+            charger_driver = charger.get("driver") or "generic"
             lines.append("    charger:")
             lines.append(f"      id: {charger.get('device_name') or car_id + '_laddare'}")
             lines.append(f"      driver: {charger_driver}  # ihopparningen bil<->laddare är en gissning (ordning på vad du kryssade i) - dubbelkolla den")
@@ -277,26 +277,38 @@ def _build_house_config_yaml(sel: dict) -> str:
                 else:
                     lines.append("      physical: lite  # FYLL I - vilken av dina Easee-boxar (lite/carport, bara namn - byt om du vill)")
             lines.append("      entities:")
+            charger_entities = (charger.get("entities") or {}).copy()
             if charger.get("status_entity"):
-                lines.append(f"        status: {charger['status_entity']}")
+                charger_entities.setdefault("status", charger["status_entity"])
+            for key, val in charger_entities.items():
+                lines.append(f"        {key}: {val}")
     lines.append("")
 
     hp = sel.get("heat_pump")
     if hp:
-        lines += ["heat_pump:", "  enabled: true", f"  driver: {hp.get('driver') or 'generic_heatpump'}",
-                   "  connection:", "    modbus_host: 192.168.1.XXX  # FYLL I - värmepumpens IP/gateway, kan inte upptäckas automatiskt",
-                   "    modbus_port: 502", "    unit_id: 1"]
+        hp_driver = hp.get("driver") or "generic_climate"
+        lines += ["heat_pump:", "  enabled: true", f"  driver: {hp_driver}"]
+        if hp_driver == "generic_climate":
+            lines += ["  entities:"]
+            for key, val in (hp.get("entities") or {}).items():
+                lines.append(f"    {key}: {val}")
+        else:
+            lines += ["  connection:", "    modbus_host: 192.168.1.XXX  # FYLL I - värmepumpens IP/gateway, kan inte upptäckas automatiskt",
+                       "    modbus_port: 502", "    unit_id: 1"]
     else:
         lines += ["heat_pump:", "  enabled: false"]
     lines.append("")
 
     solar = sel.get("solar")
     if solar:
-        lines += ["solar:", "  enabled: true", f"  driver: {solar.get('driver') or 'ha_entity_passthrough'}", "  entities:"]
+        lines += ["solar:", "  enabled: true", f"  driver: {solar.get('driver') or 'generic_number'}", "  entities:"]
+        solar_entities = (solar.get("entities") or {}).copy()
         if solar.get("pv_power_entity"):
-            lines.append(f"    pv_power_w: {solar['pv_power_entity']}")
+            solar_entities.setdefault("pv_power_w", solar["pv_power_entity"])
         if solar.get("today_kwh_entity"):
-            lines.append(f"    today_kwh: {solar['today_kwh_entity']}")
+            solar_entities.setdefault("today_kwh", solar["today_kwh_entity"])
+        for key, val in solar_entities.items():
+            lines.append(f"    {key}: {val}")
     else:
         lines += ["solar:", "  enabled: false"]
     lines.append("")

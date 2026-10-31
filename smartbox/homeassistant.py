@@ -672,6 +672,65 @@ def toggle_spa_plug(turn_on: bool):
         return False
 
 
+def set_climate_temperature(entity_id: str, target_c: float) -> bool:
+    """Genuint generisk climate.set_temperature på en valfri entitet - samma
+    HA-tjänst set_car_climate() redan använder, men utan bilspecifik loggning/
+    hvac_mode-växling. Återanvänds av generiska drivrutiner (t.ex. värmepump)."""
+    try:
+        r = requests.post(
+            f"{_BASE}/services/climate/set_temperature",
+            headers=_HEADERS,
+            json={"entity_id": entity_id, "temperature": target_c},
+            timeout=10,
+            verify=_VERIFY,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid climate.set_temperature på {entity_id}: {e}")
+        return False
+
+
+def set_switch(entity_id: str, turn_on: bool) -> bool:
+    """Genuint generisk switch.turn_on/turn_off på en valfri entitet - samma HA-anrop
+    som toggle_mower_plug/toggle_spa_plug/turn_on_charger redan gör var för sig mot
+    hårdkodade entiteter, men återanvändbar av GENERISKA drivrutiner (laddare m.fl.)
+    som får sin entitet från husets config istället."""
+    service = "turn_on" if turn_on else "turn_off"
+    try:
+        r = requests.post(
+            f"{_BASE}/services/switch/{service}",
+            headers=_HEADERS,
+            json={"entity_id": entity_id},
+            timeout=5,
+            verify=_VERIFY,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid switch.{service} på {entity_id}: {e}")
+        return False
+
+
+def set_number(entity_id: str, value: float) -> bool:
+    """Genuint generisk number.set_value på en valfri entitet - samma mönster som
+    set_solaredge_limit redan gör mot en hårdkodad entitet, återanvändbar av generiska
+    drivrutiner (laddström, exportgräns m.fl.)."""
+    try:
+        r = requests.post(
+            f"{_BASE}/services/number/set_value",
+            headers=_HEADERS,
+            json={"entity_id": entity_id, "value": str(value)},
+            timeout=5,
+            verify=_VERIFY,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"❌ Fel vid number.set_value på {entity_id}: {e}")
+        return False
+
+
 def toggle_mower_plug(turn_on: bool):
     """Slår på eller av strömmen till robotgräsklipparen."""
     service = "turn_on" if turn_on else "turn_off"
