@@ -70,6 +70,11 @@ async def guard(request: Request, call_next):
     resp.headers.update(webauth.SECURITY_HEADERS)
     if request.url.path.startswith("/api/"):
         resp.headers["Cache-Control"] = "no-store"
+    elif request.url.path.startswith("/static/") or request.url.path == "/":
+        # Statiska filer (JS/CSS/HTML) ska alltid hämtas om - annars ser man kvarbliven
+        # gammal kod efter en uppdatering tills man själv tömmer webbläsarens cache
+        # (upptäckt 2026-10-31 - samma fix som ewapp redan hade för sina statiska filer).
+        resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 
