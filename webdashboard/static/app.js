@@ -253,6 +253,7 @@ async function generateConfig() {
 function openPage(id) {
   currentPage = id;
   renderSidebar();
+  closeMobileMenu();
   if (id === "oversikt") {
     renderOversikt();
   } else if (id === "varmepump") {
@@ -287,5 +288,15 @@ document.getElementById("loginform").onsubmit = async (e) => {
 };
 
 document.getElementById("logoutbtn").onclick = async () => { await api("api/logout", { method: "POST" }); showLogin(); };
+
+function closeMobileMenu() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarbackdrop").classList.remove("open");
+}
+document.getElementById("menubtn").onclick = () => {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("sidebarbackdrop").classList.toggle("open");
+};
+document.getElementById("sidebarbackdrop").onclick = closeMobileMenu;
 
 boot();
