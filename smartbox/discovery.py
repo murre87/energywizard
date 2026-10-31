@@ -18,6 +18,7 @@ import re
 import requests
 
 import homeassistant
+from logger import get_db
 from house_config import (
     CAR_DRIVER_REGISTRY, CHARGER_DRIVER_REGISTRY, HEAT_PUMP_DRIVER_REGISTRY,
     SOLAR_DRIVER_REGISTRY, SPA_DRIVER_REGISTRY,
@@ -108,6 +109,32 @@ def _candidate(e: dict) -> str:
     return f"{e.get('m') or ''} {e.get('mo') or ''} {e.get('n') or ''} {e.get('dn') or ''}"
 
 
+def _check_configured_heat_pump() -> dict | None:
+    """Pumpen kan redan prata Modbus DIREKT med smartbox (husets PUMP_IP) utan att gå via
+    HA alls - main.py anropar redan pump.read_sensors() varje cykel och loggar resultatet
+    till sensor_log. Läser BARA den loggen (ingen ny Modbus-anslutning härifrån - en andra,
+    parallell anslutning till samma pump skulle riskera att störa den körande styrningen).
+    Returnerar None om ingen färsk rad finns, annars ett fynd i samma form som HA-sökningen."""
+    try:
+        with get_db() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT 1 FROM sensor_log
+                WHERE indoor_temp IS NOT NULL AND timestamp > NOW() - INTERVAL '10 minutes'
+                ORDER BY timestamp DESC LIMIT 1
+            """)
+            if cur.fetchone() is None:
+                return None
+    except Exception as e:
+        print(f"⚠️ discovery: kunde inte kolla sensor_log för redan konfigurerad värmepump: {e}")
+        return None
+    return {
+        "device_name": "Husdata (redan ansluten)", "maker": "Husdata",
+        "driver": "thermia_husdata", "driver_known": True,
+        "source": "modbus_configured_on_server",
+        "note": "Redan ansluten via Modbus direkt på den här servern (PUMP_IP) - går inte via Home Assistant.",
+    }
+
+
 def discover_house(entities: list[dict] | None = None) -> dict:
     """Returnerar kandidater per EnergyWizard-kategori. `entities` kan skickas
     in (t.ex. i tester mot ett syntetiskt svar) - annars hämtas de live."""
@@ -180,6 +207,11 @@ def discover_house(entities: list[dict] | None = None) -> dict:
                 "entity_count": len(ents),
             }
             break
+    if heat_pump is None:
+        # HA-skanningen gav inget, men pumpen kan redan prata Modbus DIREKT med smartbox
+        # (husets PUMP_IP, går aldrig via HA) - kolla om den faktiskt svarar innan vi ger
+        # upp, istället för att visa en onödig återvändsgränd.
+        heat_pump = _check_configured_heat_pump()
 
     # --- Spa: climate/water_heater-entitet, eller enhet, som matchar SPA ---
     spa = None
