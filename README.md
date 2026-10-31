@@ -7,10 +7,7 @@ ovanpå [Home Assistant](https://www.home-assistant.io/) så det pratar med
 hårdvara som redan fungerar där istället för att uppfinna ny protokollkod.
 Öppen källkod, gratis, inget abonnemang.
 
-<!-- SKÄRMDUMP: lägg in en bild av webdashboardens Översikt-sida här, t.ex.
-     docs/skarmdumpar/webdashboard-oversikt.png, när en finns tillgänglig -
-     ingen skärmdumpsmetod fanns i den här miljön (headless Chrome saknade
-     systembibliotek, ingen sudo för att installera dem). -->
+![EnergyWizard webdashboard - Översikt](docs/skarmdumpar/webdashboard-oversikt.png)
 
 - 🚗 **Elbil** - laddar till vald tid/nivå på de billigaste timmarna.
 - 🌡️ **Värmepump** - sänker värmen automatiskt när elen är dyr, "laddar"
