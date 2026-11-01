@@ -1,7 +1,7 @@
-"""Inloggningen krävde tidigare bara ett TOMT användarnamn + rätt lösenord för ägarrollen
-(Emils egen "lämna tomt som ägare"). Bytt till att kräva det explicita användarnamnet
-'admin' istället - tydligare i gränssnittet, mindre förvirrande när flera roller finns.
-Bevisar att bytet faktiskt skedde och inte råkar tappas bort i en framtida ändring."""
+"""Inloggningen accepterar både 'admin' och ett tomt användarnamn som ägare.
+Tomt fält togs bort en gång (för tydlighet), men blev i praktiken en
+återkommande fälla - folk lämnar fältet tomt och skriver bara lösenordet.
+Återinfört 2026-11-01 eftersom verkligheten vann över principen."""
 import asyncio
 
 import pytest
@@ -38,12 +38,14 @@ def test_admin_skiftlage_spelar_ingen_roll(monkeypatch):
     assert r.status_code == 200
 
 
-def test_tomt_anvandarnamn_fungerar_inte_langre(monkeypatch):
-    """Det gamla beteendet (tomt fält = ägare) ska INTE längre fungera - admin krävs nu."""
+def test_tomt_anvandarnamn_ger_owner(monkeypatch):
+    """Tomt fält = ägare, precis som 'admin' - den vanligaste felaktiga ifyllnaden
+    annars (bara lösenordet ifyllt) ska inte misslyckas i onödan."""
     monkeypatch.setattr(webauth, "PASSWORD", "hemligt123")
     auth = webauth.Auth(salt="test")
-    with pytest.raises(Exception):
-        _login(auth, {"user": "", "password": "hemligt123"})
+    r = _login(auth, {"user": "", "password": "hemligt123"})
+    assert r.status_code == 200
+    assert "ew=" in r.headers.get("set-cookie", "")
 
 
 def test_fel_losenord_avvisas(monkeypatch):
