@@ -1,0 +1,20 @@
+name: "EnergyWizard"
+version: "1.0.0"
+slug: "smartbox"
+description: "Minut-för-minut styrning av elbil, värmepump, solcellsexport, spabad och huvudsäkring efter spotpriset - helt via Home Assistants egna entiteter."
+url: "https://github.com/murre87/energywizard"
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+homeassistant_api: true
+map:
+  - type: addon_config
+    read_only: false
+options:
+  telemetry_opt_in: false
+  telemetry_endpoint: "https://energywizzard.profitalgos.com/telemetry"
+schema:
+  telemetry_opt_in: bool
+  telemetry_endpoint: "str?"

@@ -42,7 +42,17 @@ hårdkodat mot ett specifikt hus. Det gör det genuint möjligt för andra att k
 in sin egen hårdvara - men bara för de märken som redan har en drivrutin (se
 nedan). Fler märken är ett väntat, naturligt sätt att bidra.
 
-## Komma igång
+## Kör som Home Assistant-tillägg (Supervisor/HAOS)
+
+[![Open your Home Assistant instance and show the add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmurre87%2Fenergywizard)
+
+Paketerar idag bara huvudmotorn (`smartbox`) - mobilappen/webdashboarden
+kräver fortfarande docker-compose-vägen nedan. Se
+[ha-addon/smartbox/DOCS.md](ha-addon/smartbox/DOCS.md) för vad som är
+verifierat och vad som inte är det (aldrig testat mot en riktig Supervisor-
+installation).
+
+## Komma igång (docker-compose, alla gränssnitt)
 
 1. Klona repot och kopiera `.env.example` till `.env` - fyll i dina egna värden
    (Home Assistant-IP/token, Postgres-lösenord osv). `.env` checkas aldrig in.
