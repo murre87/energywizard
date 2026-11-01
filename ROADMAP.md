@@ -102,14 +102,16 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   verkliga installation som behövs för att bekräfta den.
 
 - **Delad ML-modellträning på poolad data** från flera hus (bättre solprognoser,
-  prismönster). **Telemetrilagret finns nu** (`smartbox/telemetry.py`,
-  strikt opt-in och av som standard - skickar bara hashad husidentifierare,
-  aktiva drivrutinkategorier, feltyp och version, ingen sensorhistorik) och
-  samlartjänsten (`telemetry-collector/`) är byggd och testad lokalt - men
-  INTE publikt nåbar än, behöver en domän/reverse proxy (samma mönster som
-  `ha-gateway`) innan betatestares instanser kan skicka in något. Själva den
-  poolade modellträningen är fortfarande inte byggd - det här är bara
-  grunden som data kan börja samlas på.
+  prismönster). **Telemetrilagret finns nu och är publikt nåbart**
+  (`smartbox/telemetry.py`, strikt opt-in och av som standard - skickar bara
+  hashad husidentifierare, aktiva drivrutinkategorier, feltyp och version,
+  ingen sensorhistorik), på
+  `https://energywizzard.profitalgos.com/telemetry` (standard i
+  `.env.example`), med en reservväg via `ha-gateway`
+  (`murrehtpc.axfors.se:8198/telemetry/`, overifierad utifrån - kräver
+  portvidarebefordran i routern om den ska användas). Själva den poolade
+  modellträningen är fortfarande inte byggd - det här är bara grunden som
+  data kan börja samlas på.
 
 - **EMHASS ([emhass.readthedocs.io](https://emhass.readthedocs.io/en/latest/),
   [GitHub](https://github.com/davidusb-geek/emhass)) som ett valfritt,
