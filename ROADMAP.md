@@ -114,6 +114,18 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   värmepumpsstöd efter att NIBE-lokal-drivrutinen ovan är verifierad eller
   övergiven.
 
+- **Termisk säkringsmodell för effektvakten (Prio 10), inte byggd.**
+  [FTW:s `safety.md`](https://github.com/srcfl/ftw/blob/master/docs/safety.md)
+  beskriver en mer nyanserad modell för elbilsladdning än vår nuvarande:
+  kvadrerad fasström lågpassfiltrerad med 60 s tidskonstant, stryper vid
+  verklig överbelastning (eller omedelbart över 1,2× säkringens märkvärde)
+  men tillåter korta toppar, med separat, längre återhämtningsfönster (ingen
+  ökning inom 20 s efter en strypning). Vår nuvarande `gpm.py`-logik (Prio
+  10) bygger på energibudget per timme + direkt tillgängliga-ampere-avdrag -
+  enklare, men stryper troligen onödigt ofta vid korta effekttoppar som en
+  riktig säkring ändå skulle klara. Värt att undersöka, ingen brådska -
+  nuvarande modell är säker, bara möjligen för försiktig.
+
 - **Balboa-spabad: drivrutin byggd, väntar på verifiering mot riktig
   hårdvara.** `drivers/spa_balboa.py` finns nu - byggd mot HA:s officiella
   `balboa`-integrations DOKUMENTERADE entitetsformer (climate/select/switch/
