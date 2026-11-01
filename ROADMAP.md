@@ -100,19 +100,32 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   installation som behövs för att identifiera de saknade registren och
   bekräfta resten.
 
-- **NIBE/Bosch/Atlantic/Daikin via myUplink (NIBE:s delade molnplattform) -
-  inte byggt, möjligt högre värde än den lokala REST-drivrutinen ovan.**
+- **NIBE/Bosch/Atlantic/Daikin via myUplink - drivrutin byggd, aldrig körd mot
+  ett riktigt konto.** `drivers/heatpump_myuplink.py` pratar med NIBE:s delade
+  molnplattform myUplink, som enligt
   [FTW:s enhetskatalog](https://srcfl.github.io/device-drivers/drivers.json)
-  listar en `myuplink`-drivrutin som pratar molnbaserat (OAuth) med
-  myUplink - NIBE:s officiella plattform, delad av flera märken (Bosch,
-  Atlantic, Daikin bekräftat i katalogen). EN drivrutin där skulle alltså
-  kunna täcka flera värmepumpsmärken samtidigt, istället för en lokal
-  REST-/Modbus-drivrutin per märke. Avvägningen att vara ärlig om: det är en
-  genuint annan ansats än allt annat i EnergyWizard - kräver ett molnkonto/
-  OAuth-autentisering, inte lokalt-first som resten av projektet medvetet
-  prioriterar. Inget byggt än - nästa, högre prioriterade steg för
-  värmepumpsstöd efter att NIBE-lokal-drivrutinen ovan är verifierad eller
-  övergiven.
+  även används av Bosch, Atlantic och Daikin - EN drivrutin täcker alltså
+  flera märken. **Bekräftat mot myUplinks officiella OpenAPI-spec**
+  (`https://api.myuplink.com/swagger/docs/public-v2/swagger.json`): bas-URL,
+  `GET /v2/systems/me`, `GET`/`PATCH /v2/devices/{deviceId}/points`,
+  token-URL, scopes READSYSTEM/WRITESYSTEM, och `ParameterData`-fälten
+  (parameterId/parameterName/value/writable/min/max). **PATCH-kroppens form**
+  (`{"<parameterId>": "<värde som sträng>"}`) är bekräftad via två oberoende
+  community-rapporterade riktiga anrop (en Home Assistant- och en
+  openHAB-issue), inte direkt citerad ur spec-filen - ett steg svagare källa
+  än allt annat i drivrutinen, dokumenterat i modulens docstring.
+
+  Genuint annan autentisering än resten av EnergyWizard: specens
+  säkerhetsschema heter missvisande "Client Credentials", men en riktig,
+  fungerande klient (home-assistant-myuplink) bekräftar att en INTERAKTIV
+  webbläsarinloggning + samtycke krävs EN gång. `scripts/myuplink_authorize.py`
+  gör det engångssteget och skriver ut en `refresh_token` att lägga i `.env` -
+  headless därefter (ingen webbläsare behövs för normal drift). Som NIBE-lokal
+  gissar drivrutinen inte på vilket parameterId som betyder vad för ett visst
+  märke - användaren konfigurerar själv `heat_pump.entities` i
+  `house_config.yaml` med parameterId:n hen hittar via `GET
+  /v2/devices/{deviceId}/points`. 9 mockade tester, grönt - **aldrig körd mot
+  ett riktigt myUplink-konto**, inget hus i projektet har ett.
 
 - **Termisk säkringsmodell för effektvakten (Prio 10), inte byggd.**
   [FTW:s `safety.md`](https://github.com/srcfl/ftw/blob/master/docs/safety.md)

@@ -25,6 +25,7 @@ from drivers.charger_easee import EaseeChargerDriver
 from drivers.charger_generic import GenericChargerDriver
 from drivers.heatpump import HeatPumpDriver, NullHeatPumpDriver
 from drivers.heatpump_generic import GenericClimateHeatPumpDriver
+from drivers.heatpump_myuplink import MyUplinkHeatPumpDriver
 from drivers.heatpump_nibe_local import NibeLocalHeatPumpDriver
 from drivers.heatpump_thermia import ThermiaHusdataHeatPumpDriver
 from drivers.solar import NullSolarDriver, SolarDriver
@@ -43,6 +44,11 @@ HEAT_PUMP_DRIVER_REGISTRY = {
     # Easee ovan. Se drivers/heatpump_nibe_local.py - ALDRIG verifierad mot en
     # riktig pump, bara mot NIBE S-seriens dokumenterade lokala REST-API.
     "nibe_local": NibeLocalHeatPumpDriver,
+    # Molnbaserad (myUplink, OAuth) - täcker NIBE/Bosch/Atlantic/Daikin med EN
+    # drivrutin, se drivers/heatpump_myuplink.py. Autentisering (client_id/secret/
+    # refresh_token) från .env (MYUPLINK_*), samma "driftsspecifikt" princip som
+    # NIBE_LOCAL_* ovan. ALDRIG verifierad mot ett riktigt myUplink-konto.
+    "myuplink": MyUplinkHeatPumpDriver,
 }
 SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver, "generic_number": GenericNumberSolarDriver}
 SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver, "balboa": BalboaSpaDriver}
@@ -152,6 +158,8 @@ def build_heat_pump_driver(cfg: dict) -> HeatPumpDriver:
     driver_cls = HEAT_PUMP_DRIVER_REGISTRY.get(hp.get("driver"), NullHeatPumpDriver)
     if driver_cls is GenericClimateHeatPumpDriver:
         return GenericClimateHeatPumpDriver(entity_id=hp.get("entities", {}).get("climate"))
+    if driver_cls is MyUplinkHeatPumpDriver:
+        return MyUplinkHeatPumpDriver(entities=hp.get("entities", {}))
     return driver_cls()
 
 
