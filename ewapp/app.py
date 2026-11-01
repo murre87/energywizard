@@ -97,7 +97,7 @@ async def login(request: Request):
     body = await request.json()
     user, pw = str(body.get("user", "")).strip(), str(body.get("password", ""))
     role = who = None
-    if not user and PASSWORD and hmac.compare_digest(pw, PASSWORD):
+    if user.lower() in ("", "admin") and PASSWORD and hmac.compare_digest(pw, PASSWORD):
         role, who = "owner", "owner"
     elif user.lower() in EXTRA_USERS and hmac.compare_digest(pw, EXTRA_USERS[user.lower()]):
         role, who = EXTRA_ROLES.get(user.lower(), "family"), user.lower()
