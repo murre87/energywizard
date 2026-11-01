@@ -145,15 +145,23 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   EnergyWizard redan gör. Inget konkret utkast än - en idé värd att utforska,
   inte ett beslutat nästa steg.
 
-- **"Lägg till i Home Assistant"-knapp för Supervisor/HAOS-användare** (samma
-  `my.home-assistant.io`-genväg som [EMHASS](https://github.com/davidusb-geek/emhass)
-  visar på sin egen GitHub-sida). Kräver riktig Supervisor-tilläggspaketering
-  (`config.yaml`/`repository.yaml` i ett eget tilläggsrepo) som inte finns än -
-  den befintliga `SUPERVISOR_TOKEN`-hanteringen i `homeassistant.py` är bara en
-  kodnivå-anpassning, inte paketering. Avsiktligt uppskjutet, inget beslutat
-  datum.
-
 ## Redan klart
+
+- **"Lägg till i Home Assistant"-knapp för Supervisor/HAOS-användare**
+  (`ha-addon/smartbox/`, `repository.yaml`, samma `my.home-assistant.io`-
+  genväg som [EMHASS](https://github.com/davidusb-geek/emhass)). Paketerar
+  idag BARA huvudmotorn (`smartbox`), inte `webdashboard`/`ewapp` - de kräver
+  fortfarande docker-compose-vägen. Postgres bundlas lokalt i
+  tilläggscontainern (ett enkelt startskript, inte s6-overlay - dokumenterat
+  avsteg i Dockerfile-kommentaren). **Verifierat:** bygger och startar
+  fristående i Docker, Postgres initieras och databasen skapas, huvudloopen
+  kör utan att krascha, och koden tar rätt väg (`http://supervisor/core/api`)
+  när `SUPERVISOR_TOKEN` finns. **Overifierat:** har aldrig körts mot en
+  riktig HAOS/Supervisor-installation - "Lägg till repository"-flödet,
+  Supervisorns egen validering av `config.yaml`, och den riktiga
+  `homeassistant_api`-proxyn är alla otestade här. Första installationens
+  engångs-notis pekar fortfarande mot en webdashboard-adress som inte finns
+  i den här driftformen - känd brist tills gränssnitten också paketeras.
 
 - Drivrutinsarkitektur kopplad till huvudstyrloopen (bil/laddare/värmepump/sol/spa)
   - genuint insticksbart, inte bara ett löfte.
