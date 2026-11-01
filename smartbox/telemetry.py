@@ -1,5 +1,7 @@
-"""Strikt opt-in-telemetri: AV som standard, PÅ bara om TELEMETRY_OPT_IN=true
-sätts uttryckligen i .env. När den är av skickas absolut ingenting - ingen
+"""Telemetri: PÅ som standard, mot en publik samlare Emil driftsätter
+(https://energywizzard.profitalgos.com/telemetry) - stäng av med
+TELEMETRY_OPT_IN=false i .env om du inte vill skicka något alls, eller peka
+om med TELEMETRY_ENDPOINT. Avstängt skickas absolut ingenting - ingen
 nätverksanrop görs ens.
 
 Vad som skickas när den är PÅ (och bara det):
@@ -25,8 +27,9 @@ from pathlib import Path
 
 import requests
 
-OPT_IN = os.environ.get("TELEMETRY_OPT_IN", "").strip().lower() in ("true", "1", "yes")
-ENDPOINT = os.environ.get("TELEMETRY_ENDPOINT", "").strip().rstrip("/")
+# På som standard - TELEMETRY_OPT_IN=false (eller "0"/"no") stänger av helt.
+OPT_IN = os.environ.get("TELEMETRY_OPT_IN", "true").strip().lower() not in ("false", "0", "no")
+ENDPOINT = os.environ.get("TELEMETRY_ENDPOINT", "https://energywizzard.profitalgos.com/telemetry").strip().rstrip("/")
 
 _ERROR_SEEN: dict[str, datetime] = {}  # (modul, feltyp) -> senast skickad, i minnet räcker - processen kör kontinuerligt
 
