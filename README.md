@@ -103,21 +103,22 @@ protokollkod behövs. För riktigt märkesspecifik styrning - se
 
 Se [ROADMAP.md](ROADMAP.md) för vad som är nästa rimliga steg och varför.
 
-## Telemetri (strikt opt-in, av som standard)
+## Telemetri (på som standard, lätt att stänga av)
 
-Skickar absolut ingenting förrän du uttryckligen sätter `TELEMETRY_OPT_IN=true`
-och `TELEMETRY_ENDPOINT` i din `.env`. Slår du på det skickas bara: en hashad,
-oåterkallelig husidentifierare (`sha256(house_id)`, inte house_id i klartext),
-vilka drivrutinkategorier som är aktiva (t.ex. `solar:solaredge` - inga
-entity-id:n eller sensorvärden), feltyper vid kritiska fel i huvudloopen
-(exceptionens klassnamn, aldrig feltexten), en grov versionsindikator
-(git-commit-hash) och en tidsstämpel. Inget annat - ingen elprisdata, ingen
-sensorhistorik, ingen plats. Se `smartbox/telemetry.py` för exakt vad som
-skickas och `telemetry-collector/` för mottagarsidan (en separat, valfri
+Skickar bara: en hashad, oåterkallelig husidentifierare (`sha256(house_id)`,
+inte house_id i klartext), vilka drivrutinkategorier som är aktiva (t.ex.
+`solar:solaredge` - inga entity-id:n eller sensorvärden), feltyper vid
+kritiska fel i huvudloopen (exceptionens klassnamn, aldrig feltexten), en
+grov versionsindikator (git-commit-hash) och en tidsstämpel. Inget annat -
+ingen elprisdata, ingen sensorhistorik, ingen plats. Går till den centrala,
+publika mottagaren (`https://energywizzard.profitalgos.com/telemetry`) som
+standard - det hjälper utvecklaren upptäcka fel i andras installationer utan
+att de behöver höra av sig själva. Se `smartbox/telemetry.py` för exakt vad
+som skickas och `telemetry-collector/` för mottagarsidan (en separat, valfri
 tjänst - `docker compose --profile telemetry-collector up -d` om du vill
-köra din egen). Vill du hjälpa till genom att skicka in fel till utvecklaren,
-sätt `TELEMETRY_ENDPOINT=https://energywizzard.profitalgos.com/telemetry` i
-din `.env` - det är den centrala, publika mottagaren.
+köra din egen).
+
+Vill du inte skicka något alls, sätt `TELEMETRY_OPT_IN=false` i din `.env`.
 
 ## Struktur
 
