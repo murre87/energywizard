@@ -60,38 +60,59 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
     batteri + Predbat ännu att prova mot. Avsiktligt uppskjutet tills en
     sådan finns.
 
-- **OCPP-laddare via Home Assistants egen OCPP-integration, ingen egen
-  server.** [FTW](https://github.com/srcfl/ftw) kör en egen inbyggd
-  OCPP 1.6J/2.0.1-server, men vi behöver inte bygga om det - det finns redan
-  en mogen, aktivt underhållen HA-integration som gör exakt samma sak:
-  [lbbrhzn/ocpp](https://github.com/lbbrhzn/ocpp) (HACS, stödjer
-  1.6J/2.0.1/2.1) kör OCPP-servern inuti Home Assistant och exponerar en
-  `switch` ("Charge Control") + `number` (`number.<cpid>_maximum_current`) -
-  samma entitetsformer som vår befintliga `GenericChargerDriver` redan läser/
-  skriver. Borde alltså redan fungera mot vilken OCPP-laddare som helst utan
-  ny drivrutinskod - återstår bara att verifiera mot en riktig OCPP-laddare,
-  och eventuellt lägga till entitetsnamnet i `discovery.py` så
-  entitetsväljaren känner igen och föreslår den.
+- **OCPP-laddare via Home Assistants egen OCPP-integration - kod+regex klar,
+  overifierad mot riktig laddare.** [lbbrhzn/ocpp](https://github.com/lbbrhzn/ocpp)
+  (HACS, mogen, stödjer 1.6J/2.0.1/2.1) kör OCPP-servern inuti Home Assistant
+  och exponerar en `switch` (`*_charge_control`) + `number`
+  (`*_maximum_current`) - samma entitetsformer `GenericChargerDriver` redan
+  läser/skriver. `smartbox/discovery.py` matchar nu entitets-ID:ets suffix
+  (inte märkestext - laddarens egen tillverkarsträng, inte "OCPP", syns i HA)
+  och föreslår `generic`-drivrutinen automatiskt, med ett nytt regressionstest
+  (`tests/test_discovery.py`). Mockat/syntetiskt verifierat, ALDRIG kört mot
+  en riktig OCPP-laddare.
 
-- **Fler värmepumpsmärken** (NIBE, IVT, CTC, Mitsubishi, Viessmann m.fl.) -
+- **Fler värmepumpsmärken** (IVT, CTC, Mitsubishi, Viessmann m.fl.) -
   arkitekturen (`smartbox/drivers/heatpump.py`) är byggd för det, men varje
   märke kräver en egen, verifierad implementation - bidrag välkomna.
-  NIBE är redan sökbar via Home Assistant-skanningen (`HEATPUMP`-regexen i
-  `smartbox/discovery.py` matchar den), flaggas bara `driver_known: False`
-  tills en riktig drivrutin finns. Anslutningssättet varierar med modell -
-  äldre pumpar pratar RS485 (t.ex. via [NibePi](https://energy.anerdins-iot.se/)
-  + MQTT till HA) - kräver verifiering mot en riktig pump av varje typ, inte
-  gissad kod. **Nyare S-serie-pumpar (S735/S1255/S1155/S320 m.fl.) har en
-  lokal REST-API, inte rå Modbus TCP** - rättad slutsats efter att ha läst
+
+- **NIBE S-serie: drivrutin byggd, overifierad mot riktig hårdvara.**
+  `drivers/heatpump_nibe_local.py` (`nibe_local` i
+  `HEAT_PUMP_DRIVER_REGISTRY`) pratar S-seriens (S735/S1255/S1155/S320 m.fl.)
+  lokala REST-API - HTTPS-port 8443, Basic-auth, certifikatet PINNAS (SHA-256-
+  fingeravtryck, TLS-verifiering stängs aldrig av) - byggd mot
   [srcfl/ftw](https://github.com/srcfl/ftw)s
-  [nibe-local-dokumentation](https://github.com/srcfl/ftw/blob/master/docs/nibe-local.md):
-  HTTPS-port 8443, aktiveras i installatörsmeny 7.5, certifikatet pinnas
-  (SHA-256-fingeravtryck) istället för att verifieringen stängs av, ~980
-  datapunkter med Modbus-registernummer som metadata. Deras egen drivrutin är
-  medvetet read-only - en opt-in skrivväg finns bara för solöverskott
-  (register 2107/2109), inte generell styrning. Bra konkret referens för en
-  framtida EnergyWizard-drivrutin mot S-serien, men fortfarande overifierad
-  mot en riktig pump här.
+  [nibe-local-dokumentation](https://github.com/srcfl/ftw/blob/master/docs/nibe-local.md)
+  och den faktiska drivrutinskällan (`srcfl/device-drivers`), inte gissad.
+  **Ärlig avgränsning:** bara anslutning/enhetsidentifiering + en rå
+  datapunktsläsning är bekräftad mot källan - vi har INGEN bekräftad karta
+  mellan våra normaliserade fält (`indoor_temp`/`outdoor_temp`/driftläge) och
+  NIBE:s faktiska registernummer för dem (källan dokumenterar bara register
+  2107/2109, en solöverskott-funktion, inget annat). `read_sensors()`
+  returnerar därför bara rådata (antal datapunkter), och ALLA
+  `set_*`-metoder returnerar medvetet `False` - exakt samma princip som
+  `GenericClimateHeatPumpDriver` redan använder för Husdatas
+  registernivå-funktioner. Ansluts via `.env` (`NIBE_LOCAL_HOST`/
+  `_USERNAME`/`_PASSWORD`/`_TLS_PIN_SHA256`), inte auto-upptäckt av
+  entitetsväljaren (den pratar direkt med pumpen, aldrig via HA - samma skäl
+  som Husdata/Thermia inte är HA-upptäckt). Mockade tester bevisar att koden
+  anropar rätt endpoints med rätt fält - ALDRIG kört mot en riktig pump. Har
+  du en NIBE S-serie-pump? Hör av dig, det är precis den sortens verkliga
+  installation som behövs för att identifiera de saknade registren och
+  bekräfta resten.
+
+- **NIBE/Bosch/Atlantic/Daikin via myUplink (NIBE:s delade molnplattform) -
+  inte byggt, möjligt högre värde än den lokala REST-drivrutinen ovan.**
+  [FTW:s enhetskatalog](https://srcfl.github.io/device-drivers/drivers.json)
+  listar en `myuplink`-drivrutin som pratar molnbaserat (OAuth) med
+  myUplink - NIBE:s officiella plattform, delad av flera märken (Bosch,
+  Atlantic, Daikin bekräftat i katalogen). EN drivrutin där skulle alltså
+  kunna täcka flera värmepumpsmärken samtidigt, istället för en lokal
+  REST-/Modbus-drivrutin per märke. Avvägningen att vara ärlig om: det är en
+  genuint annan ansats än allt annat i EnergyWizard - kräver ett molnkonto/
+  OAuth-autentisering, inte lokalt-first som resten av projektet medvetet
+  prioriterar. Inget byggt än - nästa, högre prioriterade steg för
+  värmepumpsstöd efter att NIBE-lokal-drivrutinen ovan är verifierad eller
+  övergiven.
 
 - **Balboa-spabad: drivrutin byggd, väntar på verifiering mot riktig
   hårdvara.** `drivers/spa_balboa.py` finns nu - byggd mot HA:s officiella
