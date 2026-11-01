@@ -35,6 +35,12 @@ INVERTER_MAKERS = re.compile(r"solaredge|huawei|fronius|sma\b|growatt|enphase|go
 HEATPUMP = re.compile(r"husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic", re.I)
 SPA = re.compile(r"balboa|gecko|spa\b|spabad|jacuzzi|hot ?tub|bubbelpool|lay-?z|intex|softub|arctic spa|bwa", re.I)
 CHARGER_MAKERS = re.compile(r"easee|zaptec|wallbox|charge ?amps|garo|ctek|go-?e|webasto|ensto|defa", re.I)
+# lbbrhzn/ocpp (den vanliga HA-integrationen som kör en OCPP-server inuti Home
+# Assistant) namnger entiteterna efter laddarens egen "charge point ID", inte efter
+# ett märke - entitets-ID:t, inte enhetens tillverkartext, är den pålitliga signalen.
+# Matchar alltså mot entity_id-suffix, inte mot CHARGER_MAKERS/_candidate().
+OCPP_SWITCH_SUFFIX = re.compile(r"charge_control$", re.I)
+OCPP_NUMBER_SUFFIX = re.compile(r"maximum_current$", re.I)
 # "tesla" ensamt är INTE med här (krockar med CAR_MAKERS - Powerwall kräver "powerwall"
 # uttryckligen i texten för att skiljas från en Tesla-bil).
 BATTERY_MAKERS = re.compile(r"givenergy|powerwall|huawei luna|luna2000|pytes|fox ?ess|alpha ?ess|sonnen|pylontech|lg (chem|ress)|byd battery|solax battery|victron battery", re.I)
@@ -255,7 +261,11 @@ def discover_house(entities: list[dict] | None = None) -> dict:
     chargers = []
     for device_id, ents in by_device.items():
         head = ents[0]
-        if not _has(_candidate(head), CHARGER_MAKERS):
+        is_ocpp = (
+            any(e["e"].startswith("switch.") and OCPP_SWITCH_SUFFIX.search(e["e"]) for e in ents)
+            and any(e["e"].startswith("number.") and OCPP_NUMBER_SUFFIX.search(e["e"]) for e in ents)
+        )
+        if not (_has(_candidate(head), CHARGER_MAKERS) or is_ocpp):
             continue
         status_e = next((e for e in ents if e["e"].startswith("sensor.") and _has(e.get("n"), re.compile("status", re.I))), None)
         if not status_e:

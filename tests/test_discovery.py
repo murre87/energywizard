@@ -137,6 +137,28 @@ def test_easee_hubbenhet_utan_statussensor_listas_inte_som_laddare():
     assert result["chargers"][0]["device_name"] == "Easee Home"
 
 
+def test_ocpp_laddare_hittas_via_entity_id_inte_markestext():
+    """lbbrhzn/ocpp (HA:s OCPP-serverintegration) namnger entiteter efter laddpunktens
+    "charge point ID", inte efter ett märke - en Zaptec-laddare kopplad via OCPP har t.ex.
+    ingen "Zaptec" i tillverkartexten. Matchning sker därför mot entity_id-suffixet
+    (switch.<cpid>_charge_control / number.<cpid>_maximum_current), inte CHARGER_MAKERS."""
+    ocpp = [
+        {"e": "switch.laddpunkt1_charge_control", "n": "Charge Control", "a": "Garage",
+         "d": "dev_ocpp", "dn": "Laddpunkt 1", "m": None, "mo": None, "dc": None, "u": None, "st": "on"},
+        {"e": "number.laddpunkt1_maximum_current", "n": "Maximum Current", "a": "Garage",
+         "d": "dev_ocpp", "dn": "Laddpunkt 1", "m": None, "mo": None, "dc": None, "u": "A", "st": "16"},
+        {"e": "sensor.laddpunkt1_status", "n": "Status", "a": "Garage",
+         "d": "dev_ocpp", "dn": "Laddpunkt 1", "m": None, "mo": None, "dc": None, "u": None, "st": "Charging"},
+    ]
+    result = discover_house(ocpp)
+    assert len(result["chargers"]) == 1
+    charger = result["chargers"][0]
+    assert charger["driver"] is None and charger["driver_known"] is False
+    assert charger["generic_suggestion"]["driver"] == "generic"
+    assert charger["generic_suggestion"]["entities"]["switch"] == "switch.laddpunkt1_charge_control"
+    assert charger["generic_suggestion"]["entities"]["current_limit"] == "number.laddpunkt1_maximum_current"
+
+
 def test_okant_varmepumpsmarke_flaggas_utan_drivrutin_inte_tyst_fel_eller_kraschar():
     """NIBE hittas (matchar HEATPUMP-regexen) men har ingen registrerad drivrutin -
     ska synas med driver_known=False, inte krascha och inte tyst väljas som Husdata."""

@@ -25,6 +25,7 @@ from drivers.charger_easee import EaseeChargerDriver
 from drivers.charger_generic import GenericChargerDriver
 from drivers.heatpump import HeatPumpDriver, NullHeatPumpDriver
 from drivers.heatpump_generic import GenericClimateHeatPumpDriver
+from drivers.heatpump_nibe_local import NibeLocalHeatPumpDriver
 from drivers.heatpump_thermia import ThermiaHusdataHeatPumpDriver
 from drivers.solar import NullSolarDriver, SolarDriver
 from drivers.solar_generic import GenericNumberSolarDriver
@@ -35,7 +36,14 @@ from drivers.spa_gecko import GeckoSpaDriver
 
 CAR_DRIVER_REGISTRY = {"generic_ev": GenericEvCarDriver, "nissan": NissanCarDriver, "tesla": TeslaCarDriver}
 CHARGER_DRIVER_REGISTRY = {"easee": EaseeChargerDriver, "generic": GenericChargerDriver}
-HEAT_PUMP_DRIVER_REGISTRY = {"thermia_husdata": ThermiaHusdataHeatPumpDriver, "generic_climate": GenericClimateHeatPumpDriver}
+HEAT_PUMP_DRIVER_REGISTRY = {
+    "thermia_husdata": ThermiaHusdataHeatPumpDriver, "generic_climate": GenericClimateHeatPumpDriver,
+    # Anslutning/autentisering (host/användare/lösenord/cert-pin) kommer från .env
+    # (NIBE_LOCAL_*), samma "driftsspecifikt, inte i checkad-in YAML"-princip som
+    # Easee ovan. Se drivers/heatpump_nibe_local.py - ALDRIG verifierad mot en
+    # riktig pump, bara mot NIBE S-seriens dokumenterade lokala REST-API.
+    "nibe_local": NibeLocalHeatPumpDriver,
+}
 SOLAR_DRIVER_REGISTRY = {"solaredge": SolarEdgeSolarDriver, "generic_number": GenericNumberSolarDriver}
 SPA_DRIVER_REGISTRY = {"gecko": GeckoSpaDriver, "balboa": BalboaSpaDriver}
 BATTERY_DRIVER_REGISTRY = {"generic": GenericBatteryDriver}
