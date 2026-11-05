@@ -60,6 +60,10 @@ heat_pump:
 #     port: 8443
 #     device_index: 0
 #     expected_product: "NIBE S1255"  # ersätt med exakt upptäckt produktnamn
+#     # Rapporterar pumpen tomt produktnamn (vissa S1255): välj registerkartan med model
+#     # och lås identiteten med serienumret i stället för expected_product.
+#     # model: "S1255"
+#     # expected_serial: "06xxxxxxxxxxxx"
 
 # --- Solceller (valfri) ---
 solar:

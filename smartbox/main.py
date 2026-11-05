@@ -1209,7 +1209,11 @@ while True:
                     notifier.alert_indoor_temp_sensor_offline()
                     ha_temp_alert_sent = True
 
+            # Thermia/Husdata (pump.py) ger "water_temp_top", drivrutinerna (NIBE lokalt, myUplink,
+            # HeishaMon ...) ger "water_temp". Utan fallback blev varmvattnet alltid None -> 50 °C (#145).
             water_temp   = pump_data.get("water_temp_top")    if pump_data else None
+            if water_temp is None and pump_data:
+                water_temp = pump_data.get("water_temp")
             forward_temp = pump_data.get("forward_temp")      if pump_data else None
             return_temp  = pump_data.get("return_temp")       if pump_data else None
             calc_forward = pump_data.get("calc_forward_temp") if pump_data else None

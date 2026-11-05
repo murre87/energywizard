@@ -71,6 +71,11 @@ def _request(host, port, pin, method, path, timeout, payload=None):
             raise LocalRestError("request rejected")
         chunks, size = [], 0
         while True:
+            # http.client stänger svaret (och med Connection: close även socketen) så fort
+            # Content-Length är uppfylld. Då är kroppen komplett - fråga inte den stängda
+            # socketen om timeout, det ger "Bad file descriptor" mot riktig S1255 (#145).
+            if response.isclosed():
+                break
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise LocalRestError("request deadline exceeded")
@@ -120,6 +125,9 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
         self._index = cfg.get("device_index", 0)
         self._expected_product = cfg.get("expected_product")
         self._expected_serial = cfg.get("expected_serial")
+        # Vissa S1255 rapporterar tomt product.name (#145) - då väljs registerförinställningen
+        # på den konfigurerade modellen i stället, t.ex. model: "S1255".
+        self._model = str(cfg.get("model") or "")
         if (not 1 <= self._port <= 65535 or not math.isfinite(self._timeout) or not 0 < self._timeout <= 30
                 or isinstance(self._index, bool) or not isinstance(self._index, int) or self._index < 0):
             raise ValueError("Invalid NIBE local connection configuration")
@@ -143,10 +151,24 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
                       f"NIBE_LOCAL_USERNAME/_PASSWORD/_TLS_PIN_SHA256.", flush=True)
             raise LocalRestError("missing connection, credentials or valid SHA-256 pin")
         try:
-            return _request(self._host, self._port, pin, method, path, self._timeout, payload)
-        except Exception:
-            # Never expose credentials, device response bodies or auth headers in logs.
+            result = _request(self._host, self._port, pin, method, path, self._timeout, payload)
+        except Exception as exc:
+            # Never expose credentials, device response bodies or auth headers in logs:
+            # only the exception TYPE, plus our own fixed LocalRestError texts / OS errno (#145).
+            if isinstance(exc, LocalRestError):
+                reason = str(exc)
+            elif isinstance(exc, OSError) and exc.errno is not None:
+                reason = f"{type(exc).__name__} errno {exc.errno}"
+            else:
+                reason = type(exc).__name__
+            if reason != getattr(self, "_last_failure", None):   # logga vid ändring, inte varje varv
+                self._last_failure = reason
+                log.warning("NIBE local REST %s %s failed: %s", method, path.split("?")[0], reason)
             raise LocalRestError("local request could not be confirmed") from None
+        if getattr(self, "_last_failure", None) is not None:
+            log.info("NIBE local REST responding again")
+            self._last_failure = None
+        return result
 
     def _read_points(self):
         if self._device is None:
@@ -158,10 +180,19 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
             product = matches[0].get("product", {})
             if not isinstance(product, dict):
                 raise LocalRestError("invalid device identity")
-            if ((self._expected_product and product.get("name") != self._expected_product)
+            name = str(product.get("name") or "").strip()
+            if not name and not getattr(self, "_warned_noname", False):
+                self._warned_noname = True
+                hint = (f"använder konfigurerad modell '{self._model}' för registervalet" if self._model else
+                        "sätt heat_pump.connection.model (t.ex. \"S1255\") eller egna points-bindningar, "
+                        "annars läses inga värden")
+                if self._expected_product:
+                    hint += "; expected_product kan inte matchas mot ett tomt namn - använd expected_serial i stället"
+                print(f"⚠️ NIBE lokalt REST: pumpen rapporterar inget produktnamn - {hint}.", flush=True)
+            if ((self._expected_product and name != self._expected_product)
                     or (self._expected_serial and product.get("serialNumber") != self._expected_serial)):
                 raise LocalRestError("device identity mismatch")
-            self._product, self._device = str(product.get("name", "")), str(self._index)
+            self._product, self._device = name or self._model, str(self._index)
         points = self._call("GET", f"/api/v1/devices/{self._device}/points")
         if not isinstance(points, dict):
             raise LocalRestError("invalid point response")
@@ -226,7 +257,8 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
         return result
 
     def _write(self, field, value):
-        if not self._control or not self._expected_product or field not in self._bindings:
+        # Skrivning kräver en låst identitet: produktnamn eller (för S1255 med tomt namn, #145) serienummer.
+        if not self._control or not (self._expected_product or self._expected_serial) or field not in self._bindings:
             return False
         binding = self._bindings[field]
         if not isinstance(binding, dict):

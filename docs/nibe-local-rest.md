@@ -79,7 +79,18 @@ heat_pump:
 ```
 
 `expected_serial` is an optional additional identity check. Writes require an exact
-`expected_product` match as well as `control_enabled: true`.
+`expected_product` or `expected_serial` match as well as `control_enabled: true`.
+
+Some S1255 units report an empty `product.name` from `/api/v1/devices` (#145). The
+S1155/S1255 read preset is then not selected automatically: set `model: "S1255"`
+under `connection` to choose it, and use `expected_serial` (not `expected_product`,
+which cannot match an empty name) to pin the device identity. The driver prints a
+one-time hint when the name is empty. The preset registers (outdoor 1, supply 5,
+return 7, hot-water top 8, room 26, compressor 1100) were confirmed against a real
+S1255 in #145.
+
+Failed requests log the exception type once per change (for example
+`OSError errno 9`), never credentials, headers or response bodies.
 
 The optional `points` mapping accepts read keys from the driver contract
 (`indoor_temp`, `outdoor_temp`, `forward_temp`, `return_temp`, `water_temp`,

@@ -263,6 +263,9 @@ class FakeHTTPS:
         chunk, self.body = self.body[:count], self.body[count:]
         return chunk
 
+    def isclosed(self):
+        return False      # som http.client utan Content-Length: EOF upptäcks via tom read1
+
 
 def test_certificate_is_verified_before_any_credentials_are_sent(monkeypatch):
     conn = FakeHTTPS(cert=b"wrong")
@@ -286,3 +289,122 @@ def test_pinned_transport_parses_json_and_closes_connection(monkeypatch):
     monkeypatch.setattr(nibe.http.client, "HTTPSConnection", lambda *a, **kw: conn)
     result = nibe._request("heater.invalid", 8443, hashlib.sha256(b"certificate").hexdigest(), "GET", "/", 1)
     assert result == {"devices": []} and conn.closed
+
+
+
+# ── Tomt product.name på riktig S1255 (issue #145) ───────────────────────────
+def test_empty_product_name_reads_nothing_without_model_but_warns_once(heater, capsys):
+    heater.product = ""
+    d = nibe.NibeLocalHeatPumpDriver()
+    assert d.read_sensors()["water_temp"] is None
+    d.read_sensors()
+    assert capsys.readouterr().out.count("inget produktnamn") == 1
+
+
+def test_empty_product_name_uses_configured_model_preset(heater):
+    heater.product = ""
+    values = nibe.NibeLocalHeatPumpDriver(connection={"model": "S1255"}).read_sensors()
+    assert values["outdoor_temp"] == -3.5 and values["water_temp"] == 50.4
+
+
+def test_empty_product_name_can_be_pinned_by_serial_for_writes(heater):
+    heater.product = ""
+    d = nibe.NibeLocalHeatPumpDriver(connection={"model": "S1255", "expected_serial": "example"},
+                                     control_enabled=True, points={"room_target": binding(variable_id=3699)})
+    assert d.set_room_temp(42.5) and heater.writes
+    wrong = nibe.NibeLocalHeatPumpDriver(connection={"model": "S1255", "expected_serial": "other"},
+                                         control_enabled=True, points={"room_target": binding()})
+    assert wrong.read_sensors() == {} and not wrong.set_room_temp(21)
+
+
+def test_request_failure_logs_type_but_never_secrets(heater, monkeypatch, caplog):
+    def boom(*a, **k):
+        raise OSError(9, "Bad file descriptor test-password")
+    monkeypatch.setattr(nibe, "_request", boom)
+    d = driver()
+    with caplog.at_level("WARNING"):
+        assert d.read_sensors() == {}
+        assert d.read_sensors() == {}
+    msgs = [r.getMessage() for r in caplog.records if "NIBE local REST" in r.getMessage()]
+    assert msgs == ["NIBE local REST GET /api/v1/devices failed: OSError errno 9"]
+    assert "test-password" not in caplog.text and "test-user" not in caplog.text
+
+# ── Riktig lokal TLS-server (issue #145) ─────────────────────────────────────
+# Tidigare testades _request() bara mot mockar. En riktig S1255 stänger anslutningen
+# efter svaret (Connection: close), och då gav läsloopen "OSError: [Errno 9] Bad file
+# descriptor" i stället för data. De här testerna kör en riktig TLS-handskakning.
+import shutil
+import socket
+import ssl
+import subprocess
+import threading
+
+
+@pytest.fixture(scope="module")
+def tls_cert(tmp_path_factory):
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl saknas")
+    d = tmp_path_factory.mktemp("nibe-tls")
+    cert, key = d / "cert.pem", d / "key.pem"
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                    "-subj", "/CN=localhost", "-keyout", str(key), "-out", str(cert)],
+                   check=True, capture_output=True)
+    der = ssl.PEM_cert_to_DER_cert(cert.read_text())
+    return str(cert), str(key), hashlib.sha256(der).hexdigest()
+
+
+def _serve_once(cert, key, body, framing):
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert, key)
+    listener = socket.create_server(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+
+    def run():
+        with listener:
+            raw, _ = listener.accept()
+            try:
+                _handle(ctx.wrap_socket(raw, server_side=True))
+            except (OSError, ssl.SSLError):
+                pass                               # klienten avbröt (t.ex. pin-fel) - inte serverns sak
+
+    def _handle(sock):
+            with sock as s:
+                req = b""
+                while b"\r\n\r\n" not in req:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        return
+                    req += chunk
+                head = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                if framing == "close":            # som riktiga S1255: ingen längd, stäng efter svaret
+                    s.sendall((head + "Connection: close\r\n\r\n").encode() + body)
+                elif framing == "close-length":
+                    s.sendall((head + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode() + body)
+                elif framing == "chunked":
+                    s.sendall((head + "Transfer-Encoding: chunked\r\n\r\n").encode()
+                              + f"{len(body):x}\r\n".encode() + body + b"\r\n0\r\n\r\n")
+                else:                              # keep-alive med Content-Length
+                    s.sendall((head + f"Content-Length: {len(body)}\r\n\r\n").encode() + body)
+                    s.recv(1)                      # håll öppet tills klienten stänger
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    return port, t
+
+
+@pytest.mark.parametrize("framing", ["close", "close-length", "chunked", "keep-alive"])
+def test_request_against_real_tls_server(tls_cert, monkeypatch, framing):
+    cert, key, pin = tls_cert
+    monkeypatch.setattr(nibe, "_USERNAME", "u")
+    monkeypatch.setattr(nibe, "_PASSWORD", "p")
+    payload = {"devices": [{"deviceIndex": 0, "product": {"name": "", "serialNumber": "x"}}]}
+    port, t = _serve_once(cert, key, json.dumps(payload).encode(), framing)
+    assert nibe._request("127.0.0.1", port, pin, "GET", "/api/v1/devices", 5) == payload
+    t.join(5)
+
+
+def test_request_real_tls_pin_mismatch(tls_cert, monkeypatch):
+    cert, key, _ = tls_cert
+    port, _t = _serve_once(cert, key, b"{}", "close")
+    with pytest.raises(nibe.LocalRestError, match="pin mismatch"):
+        nibe._request("127.0.0.1", port, "0" * 64, "GET", "/api/v1/devices", 5)
