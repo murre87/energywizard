@@ -422,6 +422,10 @@ def log_status(
             _ensure_car_column(k, m.group(2))
             data[k] = (1 if v else 0) if m.group(2) == "charge_completed" else v
 
+        # sensor_log har inga BOOLEAN-kolumner - flaggorna är SMALLINT 0/1. Drivrutinskontraktet ger bool
+        # (compressor_running från NIBE lokalt/myUplink/HeishaMon), och Postgres castar inte bool -> smallint,
+        # så hela raden föll ("column compressor_running is of type smallint", #145).
+        data = {k: (int(v) if isinstance(v, bool) else v) for k, v in data.items()}
         columns = ", ".join(data.keys())
         placeholders = ", ".join(["%s"] * len(data))
         values = tuple(data.values())
