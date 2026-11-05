@@ -554,6 +554,7 @@ def get_vp_recovery_model(max_age_hours=24):
 
 _cached_solar_profile = None
 _cached_solar_time = None
+_solar_too_little_until = None
 
 def get_solar_profile(max_age_hours=24, force_recalculation=False):
     """
@@ -568,6 +569,11 @@ def get_solar_profile(max_age_hours=24, force_recalculation=False):
     if not force_recalculation and _cached_solar_profile and _cached_solar_time:
         if (now - _cached_solar_time) < timedelta(hours=max_age_hours):
             return _cached_solar_profile
+    # För lite historik (ny installation): försök igen om en timme, inte vid varje anrop (#145: dussintals
+    # "Tränar ML-modell"-rader och DB-frågor per minut).
+    global _solar_too_little_until
+    if not force_recalculation and _solar_too_little_until and now < _solar_too_little_until:
+        return {}
             
     try:
         with sm_logger.get_db() as conn:
@@ -601,6 +607,8 @@ def get_solar_profile(max_age_hours=24, force_recalculation=False):
             """, conn)
             
         if df.empty or len(df) < 100:
+            _solar_too_little_until = now + timedelta(hours=1)
+            print(f"ℹ️ Solcellsprofil: för lite historik ({len(df)} rader, behöver 100) - försöker igen om en timme.")
             return {}
             
         df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
@@ -629,6 +637,7 @@ def get_solar_profile(max_age_hours=24, force_recalculation=False):
 
 _cached_base_load_profile = None
 _cached_base_load_time = None
+_base_load_too_little_until = None
 
 def get_base_load_profile(max_age_hours=24, force_recalculation=False):
     """
@@ -644,6 +653,9 @@ def get_base_load_profile(max_age_hours=24, force_recalculation=False):
     if not force_recalculation and _cached_base_load_profile and _cached_base_load_time:
         if (now - _cached_base_load_time) < timedelta(hours=max_age_hours):
             return _cached_base_load_profile
+    global _base_load_too_little_until
+    if not force_recalculation and _base_load_too_little_until and now < _base_load_too_little_until:
+        return {}
             
     try:
         with sm_logger.get_db() as conn:
@@ -682,6 +694,8 @@ def get_base_load_profile(max_age_hours=24, force_recalculation=False):
             """, conn)
             
         if df.empty or len(df) < 1000:
+            _base_load_too_little_until = now + timedelta(hours=1)
+            print(f"ℹ️ Baslastprofil: för lite historik ({len(df)} rader, behöver 1000) - försöker igen om en timme.")
             return {}
 
         df['ts'] = pd.to_datetime(df['ts']).dt.tz_localize(None)
@@ -701,6 +715,8 @@ def get_base_load_profile(max_age_hours=24, force_recalculation=False):
             print(f"❌ Fel vid sparande av base_load_profile till databasen: {e}")
             traceback.print_exc()
             
+        _cached_base_load_profile = profile      # förut bara i databasen - lästes om vid varje anrop
+        _cached_base_load_time = now
         print("✅ Dynamisk baslast-modell genererad.")
         return profile
     except Exception as e:
