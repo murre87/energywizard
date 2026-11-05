@@ -1833,7 +1833,9 @@ while True:
                 
                 if needs_update:
                     print(f"🔧 Sätter pumpens måltemp till {current_chosen_temp/10.0}°C...")
-                    if heat_pump_driver.set_room_temp(current_chosen_temp): last_sent_temp = current_chosen_temp
+                    # current_chosen_temp är i tiondelar (Thermia-arv), gränssnittet tar °C (#145: NIBE/myUplink/HA-climate
+                    # fick 200 i stället för 20.0 - avvisades, eller skickades rakt till HA).
+                    if heat_pump_driver.set_room_temp(current_chosen_temp / 10.0): last_sent_temp = current_chosen_temp
             else:
                 ov_pump_mode = all_overrides.get("pump_operating_mode", "auto")
                 try:

@@ -199,3 +199,13 @@ def test_build_battery_driver_skickar_med_entities_och_kapacitet():
     assert isinstance(driver, GenericBatteryDriver)
     assert driver.capacity_kwh == 13.5
     assert driver._e == {"soc": "sensor.soc"}
+
+
+def test_thermia_set_room_temp_tar_celsius_och_skriver_tiondelar(monkeypatch):
+    """Gränssnittet är °C för alla drivrutiner; Thermias register 15 vill ha tiondelar (#145)."""
+    import pump
+    from drivers.heatpump_thermia import ThermiaHusdataHeatPumpDriver
+    sent = []
+    monkeypatch.setattr(pump, "set_room_temp", lambda v: sent.append(v) or True)
+    assert ThermiaHusdataHeatPumpDriver().set_room_temp(20.5) is True
+    assert sent == [205] and type(sent[0]) is int
