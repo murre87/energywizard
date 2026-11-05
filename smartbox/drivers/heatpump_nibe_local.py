@@ -68,7 +68,8 @@ def _request(host, port, pin, method, path, timeout, payload=None):
                      "Accept": "application/json", "Content-Type": "application/json"})
         response = conn.getresponse()
         if response.status != 200:
-            raise LocalRestError("request rejected")
+            # Statuskoden (aldrig kroppen) i felet - t.ex. 403 "changes are not permitted" när 7.5.15 är skrivskyddad.
+            raise LocalRestError(f"request rejected: HTTP {response.status}")
         chunks, size = [], 0
         while True:
             # http.client stänger svaret (och med Connection: close även socketen) så fort
@@ -318,7 +319,12 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
             if actual["value"]["integerValue"] != int(raw):
                 return False
             self._pending = None
-            return isinstance(status, dict) and status.get(key) == "modified"
+            # Pumpens svar per punkt: "modified" (dokumenterat) eller - som S1255 i #145 - hela den uppdaterade
+            # punkten. Godta båda när värdet stämmer; den oberoende återläsningen ovan är ändå avgörande.
+            echoed = status.get(key) if isinstance(status, dict) else None
+            if isinstance(echoed, dict):
+                echoed = (echoed.get("value") or {}).get("integerValue") == int(raw)
+            return echoed == "modified" or echoed is True
         except (LocalRestError, KeyError, TypeError, ValueError, OverflowError):
             log.warning("NIBE local setting not confirmed; no automatic replay")
             return False

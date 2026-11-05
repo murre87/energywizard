@@ -408,3 +408,57 @@ def test_request_real_tls_pin_mismatch(tls_cert, monkeypatch):
     port, _t = _serve_once(cert, key, b"{}", "close")
     with pytest.raises(nibe.LocalRestError, match="pin mismatch"):
         nibe._request("127.0.0.1", port, "0" * 64, "GET", "/api/v1/devices", 5)
+
+
+
+# ── PATCH-svar från riktig S1255 (#145): hela punkten i stället för "modified" ──
+def test_patch_response_echoing_full_point_counts_as_confirmed(heater):
+    original = heater.request
+
+    def echo_point(host, port, pin, method, path, timeout, payload=None):
+        result = original(host, port, pin, method, path, timeout, payload)
+        if method == "PATCH":
+            return {k: deepcopy(heater.points[k]) for k in result}
+        return result
+    heater.request = echo_point
+    nibe._request = echo_point
+    assert driver(control_enabled=True, points={"room_target": binding(variable_id=3699)}).set_room_temp(42.5)
+
+
+def test_patch_response_echoing_wrong_value_is_not_confirmed(heater):
+    original = heater.request
+
+    def echo_stale(host, port, pin, method, path, timeout, payload=None):
+        result = original(host, port, pin, method, path, timeout, payload)
+        if method == "PATCH":
+            point = deepcopy(heater.points[next(iter(result))])
+            point["value"]["integerValue"] = 1
+            return {k: point for k in result}
+        return result
+    nibe._request = echo_stale
+    assert not driver(control_enabled=True, points={"room_target": binding(variable_id=3699)}).set_room_temp(42.5)
+
+
+def test_rejected_request_reports_http_status(tls_cert, monkeypatch):
+    cert, key, pin = tls_cert
+    monkeypatch.setattr(nibe, "_USERNAME", "u")
+    monkeypatch.setattr(nibe, "_PASSWORD", "p")
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert, key)
+    listener = socket.create_server(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    body = b'{"error":"changes are not permitted"}'
+
+    def run():
+        with listener:
+            raw, _ = listener.accept()
+            try:
+                with ctx.wrap_socket(raw, server_side=True) as s:
+                    s.recv(65536)
+                    s.sendall(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Type: application/json\r\n"
+                              + f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
+            except OSError:
+                pass
+    threading.Thread(target=run, daemon=True).start()
+    with pytest.raises(nibe.LocalRestError, match="HTTP 403$"):
+        nibe._request("127.0.0.1", port, pin, "PATCH", "/api/v1/devices/0/points", 5, [])
