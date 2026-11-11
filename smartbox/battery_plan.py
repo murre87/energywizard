@@ -335,14 +335,20 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
         t += timedelta(minutes=15)
     if not slots:
         return None
-    r = optimize(slots, soc_pct / 100.0 * cap, cap, settings["reserve_soc"] / 100.0 * cap, settings["max_soc"] / 100.0 * cap,
-                 settings.get("charge_kw") or settings["max_power_w"] / 1000.0,
-                 settings.get("discharge_kw") or settings["max_power_w"] / 1000.0, eff=settings.get("efficiency", 0.9),
-                 allowed=supported, cycle_cost=settings.get("cycle_cost", 0.30),
-                 terminal_pct=terminal_pct, allow_export=allow_export,
-                 charge_wear_cost_sek_per_kwh=settings.get("charge_wear_cost_sek_per_kwh", 0.0),
-                 discharge_wear_cost_sek_per_kwh=settings.get("discharge_wear_cost_sek_per_kwh", 0.0),
-                 reversal_cost_sek=settings.get("reversal_cost_sek", 0.0))
+    params = dict(soc0_kwh=soc_pct / 100.0 * cap, capacity_kwh=cap,
+                  reserve_kwh=settings["reserve_soc"] / 100.0 * cap,
+                  max_kwh=settings["max_soc"] / 100.0 * cap,
+                  charge_kw=settings.get("charge_kw") or settings["max_power_w"] / 1000.0,
+                  discharge_kw=settings.get("discharge_kw") or settings["max_power_w"] / 1000.0,
+                  eff=settings.get("efficiency", 0.9), allowed=tuple(supported),
+                  cycle_cost=settings.get("cycle_cost", 0.30), terminal_pct=terminal_pct,
+                  allow_export=allow_export,
+                  charge_wear_cost_sek_per_kwh=settings.get("charge_wear_cost_sek_per_kwh", 0.0),
+                  discharge_wear_cost_sek_per_kwh=settings.get("discharge_wear_cost_sek_per_kwh", 0.0),
+                  reversal_cost_sek=settings.get("reversal_cost_sek", 0.0))
+    r = optimize(slots, **params)
+    import plan_snapshot
+    r["plan_id"] = plan_snapshot.capture(slots, params, r, now)
     r["style"], r["allow_export"] = style, allow_export
     try:
         with engine.begin() as c:
