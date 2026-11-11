@@ -31,6 +31,16 @@ import webauth
 import discovery
 import house_config
 import pump
+from image_updates import ImageUpdates
+
+IMAGE_UPDATES = ImageUpdates()
+_image_update_task = None
+
+
+async def _image_update_loop():
+    while True:
+        await asyncio.to_thread(IMAGE_UPDATES.check)
+        await asyncio.sleep(60)
 
 WATCHTOWER_URL = os.environ.get("WATCHTOWER_URL", "http://host.docker.internal:8090")
 WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_API_TOKEN", "")
@@ -127,6 +137,28 @@ PAGES = [
 ]
 
 app = FastAPI(title="EnergyWizard Webdashboard")
+
+
+@app.on_event("startup")
+async def _start_image_checks():
+    global _image_update_task
+    _image_update_task = asyncio.create_task(_image_update_loop())
+
+
+@app.on_event("shutdown")
+async def _stop_image_checks():
+    if _image_update_task:
+        _image_update_task.cancel()
+        try:
+            await _image_update_task
+        except asyncio.CancelledError:
+            pass
+
+
+@app.get("/api/image-updates")
+async def image_updates(request: Request, force: bool = False):
+    return await asyncio.to_thread(IMAGE_UPDATES.check, force)
+
 try:
     import ew_journal
     ew_journal.install("webb")                 # installationens logg (smartbox/ew_journal.py)

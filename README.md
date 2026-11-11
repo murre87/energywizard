@@ -1,5 +1,8 @@
 # EnergyWizard Open
 
+Versionskontroll för Docker/Kubernetes med schemalagda och manuella kontroller:
+[konfigurationsguide](docs/image-updates.md).
+
 **🇸🇪 Svenska · 🇬🇧 [English](README.en.md)**
 
 [![Sponsra på GitHub](https://img.shields.io/badge/Sponsra-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/murre87)

@@ -2227,5 +2227,17 @@
  "Bara ägaren kan ändra solprognosen": "Only the owner can change the solar forecast",
  "Okänd källa för solprognosen": "Unknown solar forecast source",
  "Välj högst sju giltiga sensorentiteter": "Select at most seven valid sensor entities",
- "Välj minst en Solcast-prognossensor": "Select at least one Solcast forecast sensor"
+ "Välj minst en Solcast-prognossensor": "Select at least one Solcast forecast sensor",
+ "Kontrollerar uppdateringar…": "Checking for updates…",
+ "Ny version tillgänglig": "Update available",
+ "Kunde inte kontrollera uppdateringar": "Unable to check for updates",
+ "Versionskontroll är inte konfigurerad": "Update checks are not configured",
+ "EnergyWizard – uppdateringar": "EnergyWizard – updates",
+ "Senast kontrollerad utan fel": "Last successful check",
+ "Installationen behöver ange image och körande digest. Se guiden för versionskontroll.": "Configure the image and running digest for this installation. See the update check guide.",
+ "Automatisk kontroll var # timme. Manuella kontroller har # sekunders väntetid.": "Automatic check every # hours. Manual checks have a # second cooldown.",
+ "Sök efter uppdateringar": "Check for updates",
+ "Kunde inte kontrollera uppdateringar.": "Unable to check for updates.",
+ "Försök igen": "Try again",
+ "har en nyare version - Watchtower uppdaterar den vid nästa schemalagda körning": "has a newer version - Watchtower updates it at the next scheduled run"
 }
