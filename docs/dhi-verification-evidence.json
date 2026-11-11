@@ -1,0 +1,203 @@
+{
+  "source_commit": "51022369a518ee551f7b9beb7ee505cc4f5ae220",
+  "signature": {
+    "checked_at": "2026-11-11T20:35:05.457880+00:00",
+    "key_url": "https://registry.scout.docker.com/keyring/dhi/latest.pub",
+    "key_sha256": "1d02bbccf149283ae6288d96264dcad3fb23ee1911d90324a48eab28e4cb8a5f",
+    "results": [
+      {
+        "base": "builder",
+        "reference": "dhi.io/python:3.11-debian13-dev@sha256:e78bcf38fb9df94be5d2d8a34ad41e38a4ff8a743976c5e53f58b41b51ea822b",
+        "platform": "linux/amd64",
+        "manifest_digest": "sha256:ab916ee9dc2b6f5b39585069089ac062d7e073e1c88b5e530ff43d7e79cfc501",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "61614e19f4bd8f272cdccf51dc8ea89cc36d8756a94872644e8dbcc4c77f0ccb",
+        "statuses": {
+          "not_affected": 1010,
+          "under_investigation": 16
+        },
+        "unresolved": [
+          "CVE-2024-2236",
+          "CVE-2025-12781",
+          "CVE-2026-18508",
+          "CVE-2026-3446",
+          "CVE-2026-54411"
+        ]
+      },
+      {
+        "base": "builder",
+        "reference": "dhi.io/python:3.11-debian13-dev@sha256:e78bcf38fb9df94be5d2d8a34ad41e38a4ff8a743976c5e53f58b41b51ea822b",
+        "platform": "linux/arm64",
+        "manifest_digest": "sha256:61e2115a3f6c95fa33d03c7475df4ace18a6883b2f07ab0875918b1248da7c1d",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "d7f5d55b38ae54acf45dc76d2f6b27eb42481838c20fc9e788bd4933b932373b",
+        "statuses": {
+          "not_affected": 1010,
+          "under_investigation": 16
+        },
+        "unresolved": [
+          "CVE-2024-2236",
+          "CVE-2025-12781",
+          "CVE-2026-18508",
+          "CVE-2026-3446",
+          "CVE-2026-54411"
+        ]
+      },
+      {
+        "base": "runtime",
+        "reference": "dhi.io/python:3.11-debian13@sha256:65ba5f9799f9d684d649cc3649abeb80776f2942d47ec9cb3495f6b30db39f33",
+        "platform": "linux/amd64",
+        "manifest_digest": "sha256:fa44631687e64a95e3f3f939636b785d1e2edbaf69f80223b65ecbbb0225d593",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "f2cb684ca965dcaf791fee562491711d51ef5fa5d2acd0f894d0c51f3ab89446",
+        "statuses": {
+          "not_affected": 184,
+          "under_investigation": 2
+        },
+        "unresolved": [
+          "CVE-2025-12781",
+          "CVE-2026-3446"
+        ]
+      },
+      {
+        "base": "runtime",
+        "reference": "dhi.io/python:3.11-debian13@sha256:65ba5f9799f9d684d649cc3649abeb80776f2942d47ec9cb3495f6b30db39f33",
+        "platform": "linux/arm64",
+        "manifest_digest": "sha256:f6dc4329b7b4aff132fda30d25710b01cc195f9a1b0bb85c9ae711b2d506a41b",
+        "verification": "docker-key-and-transparency-log",
+        "vex_sha256": "9d54e7b5a9cf07c1ea3967081d1906e1f501aa75650a6c8880f4f34c233165fb",
+        "statuses": {
+          "not_affected": 184,
+          "under_investigation": 2
+        },
+        "unresolved": [
+          "CVE-2025-12781",
+          "CVE-2026-3446"
+        ]
+      }
+    ]
+  },
+  "runtime": {
+    "checked_at": "2026-11-11T20:41:00.393297+00:00",
+    "scope": "Isolated startup and synthetic root-owned volumes; no device control",
+    "results": [
+      {
+        "component": "smartbox",
+        "platform": "linux/amd64",
+        "image_id": "sha256:7691637a10ac536a0f0acf7d6a395ea7b94e5cc4d15e7ed9b3e143781892e461",
+        "readiness": "installation-wait",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      },
+      {
+        "component": "webdashboard",
+        "platform": "linux/amd64",
+        "image_id": "sha256:89a11b924a1da9d7473489d5037a45379c83aadf27521b984e32e3d75289f7dc",
+        "readiness": "/api/ping",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      },
+      {
+        "component": "ewapp",
+        "platform": "linux/amd64",
+        "image_id": "sha256:ad936a7aeaee726dd67cdae06319980697539f965c6012db0d6429a8e03df346",
+        "readiness": "/api/ping",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      },
+      {
+        "component": "telemetry-collector",
+        "platform": "linux/amd64",
+        "image_id": "sha256:0ed425b05b2f97c0a8ff29f2e16321a250cb500a90b08d24e0d0a29c92b20303",
+        "readiness": "/api/stats",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      }
+    ]
+  },
+  "scans": [
+    {
+      "component": "smartbox",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    },
+    {
+      "component": "webdashboard",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    },
+    {
+      "component": "ewapp",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    },
+    {
+      "component": "telemetry-collector",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    }
+  ],
+  "policy": {
+    "kev_source": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+    "kev_released": "2026-11-10T19:03:29.8375Z",
+    "kev_count": 1779,
+    "results": [
+      {
+        "component": "smartbox",
+        "blocked": []
+      },
+      {
+        "component": "webdashboard",
+        "blocked": []
+      },
+      {
+        "component": "ewapp",
+        "blocked": []
+      },
+      {
+        "component": "telemetry-collector",
+        "blocked": []
+      }
+    ]
+  }
+}
