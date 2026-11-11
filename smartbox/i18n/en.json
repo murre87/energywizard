@@ -486,7 +486,7 @@
  "Grundläge: Gråzon (# kr). Ligger kvar i läge '#'": "Base mode: Grey zone (# SEK). Staying in mode '#'",
  "Grundläge: Gråzon (# kr). Ligger kvar i läge '#'.": "Base mode: Grey zone (# SEK). Staying in mode '#'.",
  "Grupperade över alla hus": "Grouped over all houses",
- "Grupperade över alla hus. Rött = programfel att rätta, grått = tillfälliga nätverksfel": "Grouped over all houses. Red = program errors to fix, grey = temporary network errors",
+ "Grupperade över alla hus. Rött = fel att undersöka, grått = tillfälliga nätverksfel": "Grouped over all houses. Red = errors to investigate, grey = temporary network errors",
  "Gräns": "Limit",
  "Gräns:": "Limit:",
  "Grönt = billigare än dygnets snittpris, rött = dyrare. Senaste # dagarna": "Green = cheaper than the day's average price, red = more expensive. Last # days",

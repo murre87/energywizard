@@ -103,8 +103,10 @@ def test_error_groups_grupperar_utan_hus(monkeypatch):
     assert c.get("/api/error-groups").status_code == 403
     g = c.get("/api/error-groups", headers={"X-Stats-Token": "hemlig"}).json()["groups"]
     assert g[0]["key"] == "logger.log_data: UndefinedColumn" and g[0]["houses"] == 2 and g[0]["reports"] == 3
+    assert g[0]["versions"] == ["1.50"]
     assert "a" * 16 not in str(g)
     s = c.get("/api/stats", headers={"X-Stats-Token": "hemlig"}).json()
+    assert s["error_groups"][0]["versions"] == ["1.50"]
     assert s["houses"][0]["errors"] == ["logger.log_data: UndefinedColumn"] and s["houses"][0]["version"] == "1.50"
 
 

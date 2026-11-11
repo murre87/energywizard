@@ -501,10 +501,12 @@ class GlobalPriorityManager:
 
             # 1-fasbilar ska alltid vara på 1-fas; bilar som kan växla återställs till 3-fas
             for c in car_ids:
-                _ph = state.get(f'{c}_phases')
-                if specs[c]["phases"] == "1" and _ph and 'Three' in _ph:
+                # ChargerDriver permits integer phase counts; HA also supplies
+                # numeric strings and labels such as SinglePhase/ThreePhase.
+                _ph = str(state.get(f'{c}_phases') or '')
+                if specs[c]["phases"] == "1" and ('Three' in _ph or _ph == '3'):
                     actions[f"{c}_set_phases"] = 1
-                elif specs[c]["phases"] != "1" and _ph and 'Single' in _ph:
+                elif specs[c]["phases"] != "1" and ('Single' in _ph or _ph == '1'):
                     actions[f"{c}_set_phases"] = 3
                     actions["log"].append(f"☀️ Prio 3.5 (SOLAR EV): Ingen sol-laddning aktiv. Återställer {specs[c]['name']} till 3-fas.")
 

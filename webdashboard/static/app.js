@@ -1748,10 +1748,10 @@ async function renderInstalls() {
     <div class="note" style="margin-top:8px">Anonymt numrerade i den ordning de kom. Bara drivrutin och märke, aldrig vem eller var. Tillfälliga nätverksfel (Home Assistant eller ett moln svarade inte en stund) räknas inte som fel.</div></div>`;
   const groups = (d.error_groups || []);
   const gRow = (g) => { const t = TRANS.test(g.key); return `<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line)">
-      <span style="flex:0 0 22px">${t ? "🌐" : "⚠️"}</span><span style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere${t ? ";color:var(--mut)" : ";color:#e74c3c;font-weight:600"}">${esc(g.key)}</span>
+      <span style="flex:0 0 22px">${t ? "🌐" : "⚠️"}</span><span style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere"><span style="${t ? "color:var(--mut)" : "color:#e74c3c;font-weight:600"}">${esc(g.key)}</span>${(g.versions || []).length ? `<span class="note" style="display:block">Version: ${g.versions.map(esc).join(", ")}</span>` : ""}</span>
       <span class="note" style="flex:0 0 auto;white-space:nowrap">${g.houses} hus · ${g.reports} ggr · ${ago(g.last)} sedan</span></div>`; };
   const errCard = groups.length ? `<div class="card" style="margin-bottom:16px"><h2 style="margin:0 0 4px">Fel senaste 48 h</h2>
-    <div class="note">Grupperade över alla hus. Rött = programfel att rätta, grått = tillfälliga nätverksfel.</div>
+    <div class="note">Grupperade över alla hus. Rött = fel att undersöka, grått = tillfälliga nätverksfel.</div>
     ${groups.filter((g) => !TRANS.test(g.key)).map(gRow).join("")}
     ${groups.some((g) => TRANS.test(g.key)) ? `<details style="margin-top:6px"><summary class="note" style="cursor:pointer">${groups.filter((g) => TRANS.test(g.key)).length} tillfälliga nätverksfel</summary>${groups.filter((g) => TRANS.test(g.key)).map(gRow).join("")}</details>` : ""}</div>` : "";
   let flt = "alla";

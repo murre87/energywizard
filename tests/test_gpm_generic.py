@@ -3,6 +3,7 @@ alls - det är den konkreta bevisningen att "funkar utan något" håller för de
 styrlogiken (inte bara config-laddningen, som redan testas i test_config_loader.py)."""
 import os
 import sys
+import pytest
 from datetime import datetime, timedelta, timezone
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "smartbox")))
@@ -83,6 +84,21 @@ def _engine():
     from unittest.mock import patch
     with patch.object(GlobalPriorityManager, "_restore_compressor_lock", lambda self: None):
         return GlobalPriorityManager()
+
+
+@pytest.mark.parametrize('configured, reported, expected', [
+    ('1', 3, 1), ('1', '3', 1), ('1', 'ThreePhase', 1),
+    ('auto', 1, 3), ('auto', '1', 3), ('auto', 'SinglePhase', 3),
+    ('1', 1, None), ('auto', 3, None), ('auto', None, None),
+])
+def test_phase_reset_accepts_numeric_driver_states(configured, reported, expected):
+    actions = _engine().evaluate({
+        'now': datetime(2026, 11, 11, 12, tzinfo=timezone.utc),
+        'current_price': 0.3, 'avg_net_w': 0,
+        'car_ids': ['car'], 'car_specs': {'car': {'phases': configured}},
+        'car_phases': reported, 'car_connected': False,
+    })
+    assert actions['car_set_phases'] == expected
 
 
 def test_plan_laddar_bilar_med_andra_namn_och_egna_faser():
