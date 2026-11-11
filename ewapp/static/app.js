@@ -143,6 +143,7 @@ function planChart(p, cars) {
 }
 function pageBil() {
   if (!S) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
+  if (!S.cars.length) return `<div class="page"><section class="card"><div class="note">${S.ok === false ? esc(S.error || (S.health || []).join(" · ")) : "Inga bilar hittades"}</div></section></div>`;
   const p = primary(), main = S.cars.find((c) => c.key === p) || S.cars[0], other = S.cars.find((c) => c !== main), simple = LS.get("ew_simple", "") === "1";
   const carseg = `<div class="seg carseg">${S.cars.map((c) => `<button data-a="swap" data-c="${c.key}" class="${c.key === main.key ? "on" : ""}">${esc(c.name.split(" ")[0])} · ${c.soc ?? "–"} %</button>`).join("")}</div>`;
   const ec = EC && window.EWJournal ? EWJournal.evCostHtml(EC, { compact: true, unit: moneyUnit() }) : "";     // laddat och vad det kostade (ev_cost.py)
@@ -399,7 +400,7 @@ function pageHistorik() {
 }
 // ---- ram, render, laddning ----------------------------------------------------------------------------------------------------------
 function render() {
-  if (page === "bil" && !primary() && S) return chooseCar();
+  if (page === "bil" && !primary() && S && S.cars.length) return chooseCar();
   const warn = S && S.health && S.health.length;
   if (!TABS[ER()].includes(page)) page = "bil";
   const body = { hem: pageHem, bil: pageBil, hus: pageHus, plan: pagePlan, historik: pageHistorik }[page]();
