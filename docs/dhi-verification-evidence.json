@@ -1,5 +1,5 @@
 {
-  "source_commit": "51022369a518ee551f7b9beb7ee505cc4f5ae220",
+  "source_commit": "533f7a841fe648f9439b8865926f79a406aa701a",
   "signature": {
     "checked_at": "2026-11-11T20:35:05.457880+00:00",
     "key_url": "https://registry.scout.docker.com/keyring/dhi/latest.pub",
@@ -78,7 +78,7 @@
     ]
   },
   "runtime": {
-    "checked_at": "2026-11-11T20:41:00.393297+00:00",
+    "checked_at": "2026-11-11T21:12:44.500456+00:00",
     "scope": "Isolated startup and synthetic root-owned volumes; no device control",
     "results": [
       {
@@ -178,6 +178,146 @@
     }
   ],
   "policy": {
+    "kev_source": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+    "kev_released": "2026-11-10T19:03:29.8375Z",
+    "kev_count": 1779,
+    "results": [
+      {
+        "component": "smartbox",
+        "blocked": []
+      },
+      {
+        "component": "webdashboard",
+        "blocked": []
+      },
+      {
+        "component": "ewapp",
+        "blocked": []
+      },
+      {
+        "component": "telemetry-collector",
+        "blocked": []
+      }
+    ]
+  },
+  "runtime_arm64": {
+    "checked_at": "2026-11-11T21:16:08.836983+00:00",
+    "scope": "Isolated startup and synthetic root-owned volumes; no device control",
+    "results": [
+      {
+        "component": "smartbox",
+        "platform": "linux/arm64",
+        "image_id": "sha256:80e5aee0d97c9cb4cb8f59c72680e7c2780be00b6e64e16c659b0e5e30f9de3f",
+        "readiness": "installation-wait",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      },
+      {
+        "component": "webdashboard",
+        "platform": "linux/arm64",
+        "image_id": "sha256:8fdaf5ec18301f8f486daf58e081bcefff57dd2d23e877f9d4bfc9846ddc31e5",
+        "readiness": "/api/ping",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      },
+      {
+        "component": "ewapp",
+        "platform": "linux/arm64",
+        "image_id": "sha256:49ea977f667946c33d79c7f856191996194539dfd6ed4e9daeea48c5cfe0ce4a",
+        "readiness": "/api/ping",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      },
+      {
+        "component": "telemetry-collector",
+        "platform": "linux/arm64",
+        "image_id": "sha256:a304caf321d8255184b845e33e9860ecb1e752183cdb6fb434167e55571b3120",
+        "readiness": "/api/stats",
+        "root_owned_volume": "passed",
+        "status": "passed"
+      }
+    ]
+  },
+  "emulation": {
+    "host_architecture": "amd64",
+    "guest_architecture": "arm64",
+    "tool_image": "tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0",
+    "version": "binfmt/e29e7d7 qemu/v10.2.3 go/1.26.4",
+    "registration_removed": true,
+    "preexisting_handlers_preserved": [
+      "WSLInterop",
+      "python3.12"
+    ],
+    "native_arm64_hardware_tested": false
+  },
+  "dependency_integrity": {
+    "command": "python -m pip check",
+    "amd64": "all four passed",
+    "arm64": "all four passed"
+  },
+  "scans_arm64": [
+    {
+      "component": "smartbox",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    },
+    {
+      "component": "webdashboard",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    },
+    {
+      "component": "ewapp",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    },
+    {
+      "component": "telemetry-collector",
+      "active_matches": 30,
+      "ignored_matches": 150,
+      "active_cves": [
+        "CVE-2026-107496",
+        "CVE-2026-88822",
+        "CVE-2026-88823",
+        "CVE-2026-95691",
+        "CVE-2026-95692"
+      ],
+      "python_advisories": 0,
+      "grype_version": "0.121.3",
+      "grype_database_built": "2026-11-11T06:21:32Z"
+    }
+  ],
+  "policy_arm64": {
     "kev_source": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
     "kev_released": "2026-11-10T19:03:29.8375Z",
     "kev_count": 1779,

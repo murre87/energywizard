@@ -91,11 +91,13 @@ has no shell or package manager. All four amd64 images build locally; the base
 manifests offer arm64 but those optional builds are not yet runtime-validated.
 Native dependency import checks passed for smartbox (including NumPy,
 scikit-learn, Lua, cryptography and psycopg), webdashboard and ewapp. The isolated
-AMD64 evaluation now also starts all four services against synthetic root-owned
+AMD64 and emulated ARM64 evaluation now also starts all four services against
+synthetic root-owned
 mode-0600 data. It verifies authenticated UI health requests, telemetry stats,
 settings writes and the engine's safe installation-wait state after database
-bootstrap. No devices or production volumes are contacted. ARM64 application
-runtime and complete configured-controller behavior remain unverified.
+bootstrap. Dependency integrity checks pass on both architectures. No devices or
+production volumes are contacted. Native ARM64 performance and complete
+configured-controller behavior remain unverified.
 The prototypes explicitly retain UID 0 to preserve existing root-owned volumes;
 they do not provide a nonroot migration. The shell/PostgreSQL all-in-one startup
 is deliberately retained on its current base until a compatible design is tested.
@@ -107,9 +109,8 @@ Docker's documented key-only mode, explicitly recorded rather than described as
 transparency-log verification. Bad signatures and other errors still fail closed.
 The runtime documents each retain two CVEs under investigation, not suppressed
 as unaffected. See [DHI verification evidence](dhi-verification.md) for commands,
-results and remaining limits. DHI is not selected by the release workflow until
-the remaining architecture and application qualification is complete. These
-optional builds are an evaluation, not a security certification.
+results and remaining limits. The release workflow continues using the standard
+images. These optional builds are an evaluation, not a security certification.
 
 ## Primary references
 

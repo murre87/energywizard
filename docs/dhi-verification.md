@@ -39,28 +39,32 @@ python3 scripts/verify_dhi_vex.py --scout /path/to/docker-scout --output /tmp/ew
 python3 scripts/verify_dhi_runtime.py --output /tmp/ew-dhi-runtime/amd64.json
 ```
 
-## AMD64 application and volume checks
+## Application and volume checks
 
-All four actual optional images built and passed isolated checks. The engine
+All four actual optional images built and passed isolated checks on AMD64 and
+under QEMU ARM64 emulation. The engine
 completed database bootstrap and reached its unconfigured installation-wait
 state. Dashboard and mobile passed owner login and authenticated health requests;
 telemetry passed its stats endpoint. Synthetic root-owned mode-0600 files could
 be read/written, and application settings updates succeeded. Existing UID 0 is
-preserved; this does not validate a nonroot migration.
+preserved; this does not validate a nonroot migration. `pip check` also passed
+for every image on both architectures; the probe now enforces that check.
 
 The probe uses a disposable PostgreSQL 17 instance on an internal network with
 no published ports, synthetic settings and no HA/device configuration. The UI
 probe forwards its synthetic secure session cookie as the TLS-terminating proxy
 would. Authentication and cookie safeguards in the application are unchanged.
 Containers, networks and synthetic volumes were removed after the checks. The
-four `ew-dhi-verify-*-amd64` image tags remain until scanning is complete; remove
+`ew-dhi-verify-*` image tags remain until scanning is complete; remove
 only those evaluation tags after use.
 
 ## Actual installed packages and VEX-aware scans
 
-All four installed-Python inventories passed pip-audit 2.10.1 with no known
+All eight installed-Python inventories (four services on each architecture)
+passed pip-audit 2.10.1 with no known
 advisories. Digest-pinned Grype 0.121.3 used its November 11 database and the
-verified AMD64 runtime VEX. Each final image had 150 VEX-ignored matches and 30
+verified runtime VEX for its architecture. Each final image had 150 VEX-ignored
+matches and 30
 remaining matches across five OpenSSL CVEs:
 
 - CVE-2026-107496
@@ -77,13 +81,34 @@ blanket suppression. Comparison with the November 10 CISA feed (1,779 entries)
 found no matching KEVs and no findings blocked by the existing image policy.
 That policy result does not mean CVE-free or establish non-exploitability.
 
+The follow-up source review found these conditions in the upstream advisory:
+
+| CVE | Affected operation |
+| --- | --- |
+| CVE-2026-88822 | QUIC peer-address detection |
+| CVE-2026-95691 | Retransmitted QUIC CRYPTO frames |
+| CVE-2026-88823 | AES-GCM-SIV with an empty incremental AAD fragment |
+| CVE-2026-95692 | AES-GCM-SIV with an unusual IV length |
+| CVE-2026-107496 | CMS encryption to an EC certificate with group order one |
+
+No direct QUIC, AES-GCM-SIV or CMS-encryption calls were found in the application
+sources. `smartbox/lua_host.py` uses `AESGCM`, a different cipher. This limited
+source search does not establish that every dependency or runtime configuration
+is unaffected; no additional VEX exemption or scanner exclusion is introduced.
+Both DHI tags were rechecked and still point to the pinned digests. Keep the
+findings tracked until a vendor update or signed assessment resolves them, then
+repeat both-architecture startup/volume and installed-image security checks.
+
 ## Remaining adoption limits
 
-ARM64 base manifests and signatures are verified, but ARM64 application execution
-is not: this local Docker host lacks ARM64 emulation and returned an exec-format
-error. No privileged emulator registration or host reconfiguration was performed.
-Use a native ARM64 test host, or an already emulation-capable host, with the
-probe's `--platform linux/arm64` option before adoption.
+ARM64 application execution is now verified under QEMU 10.2.3 on an AMD64 Docker
+host, including the same authenticated endpoints, database bootstrap and volume
+checks. This is functional emulation evidence, not native ARM64 performance or
+physical-hardware certification. The emulator image was pinned by digest; only
+the task's ARM64 registration was added temporarily. Its registration is removed
+after the checks, preserving the existing WSL/Python handlers. The evidence
+records the emulator version and cleanup result. The probe's
+`--platform linux/arm64` option can also run on a native ARM64 test host.
 
 Configured engine/device behavior, real deployment volumes, nonroot ownership
 migration and all-in-one shell/PostgreSQL compatibility remain outside these
