@@ -1851,6 +1851,7 @@ while True:
                 print(f"⚠️ Kunde inte spara sol-laddningsläge: {_e}")
             # --- Husbatteriet: beslut med hela husets läge som indata (battery_control.py) ---
             battery_state = {}
+            _battery["decision_rule"] = None
             try:
                 battery_state = _battery_early or battery_driver.read_state() or {}   # redan läst ovan (husets förbrukning)
                 if solar_data is not None:
@@ -1908,6 +1909,7 @@ while True:
                         if battery_driver.apply_intent(_bdec["intent"], _bdec.get("power_w")):
                             _battery.update(last=_bdec, at=now)
                             print(f"🔋 Batteri: {_bdec['intent']} - {_bdec['reason']}")
+                    _battery["decision_rule"] = _bdec.get("rule")
                     # Följer batteriet det vi säger åt det? (battery_follow.py) - visas i appen/webben, notis vid avvikelse
                     if battery_cfg["control"] == "styr" and _battery.get("last"):
                         _bl = _battery["last"]
@@ -2325,7 +2327,10 @@ while True:
                 avg_hl1, avg_hl2, avg_hl3, avg_tot,  # Använder Tibber faser för loggning här
                 consumed_kwh, current_kwh,
                 cloud_cover, wind_speed, avg_net, wind_dir,
-                solar_now, pump_data, dict(solar_data or {}, limit_pct=current_solar_limit_pct), ha_temps,
+                solar_now, pump_data, dict(solar_data or {}, limit_pct=current_solar_limit_pct,
+                    battery_plan_id=((_battery.get("plan") or {}).get("plan_id")
+                                     if battery_cfg["control"] == "styr" and battery_cfg.get("plan") else None),
+                    battery_plan_rule=_battery.get("decision_rule")), ha_temps,
                 # Laddboxarna loggas i installationens ordning (första -> ev_*, andra -> ev_carport_*) och bilarna under
                 # sina egna id:n (<bil>_soc, <bil>_soc_stale ...; logger.py skapar kolumnerna för nya bilar).
                 (_charger_list[0] if _charger_list else None), cop=cop, ev_carport=(_charger_list[1] if len(_charger_list) > 1 else None),
