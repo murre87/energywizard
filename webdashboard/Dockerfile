@@ -1,4 +1,7 @@
 FROM python:3.11-slim
+# Container builds intentionally install as root; keep pip notices build-only.
+ARG PIP_ROOT_USER_ACTION=ignore
+ARG PIP_DISABLE_PIP_VERSION_CHECK=1
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
 WORKDIR /wd
