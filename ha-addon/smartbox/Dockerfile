@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.18-slim-trixie@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535
 # Container builds intentionally install as root; keep pip notices build-only.
 ARG PIP_ROOT_USER_ACTION=ignore
 ARG PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -12,9 +12,10 @@ ARG PIP_DISABLE_PIP_VERSION_CHECK=1
 # kopiorna). Avsteg, dokumenterat i DOCS.md: kräver internetåtkomst vid bygge
 # (precis som pip/apt redan gör), och är pinnad mot en specifik gren/tagg.
 ARG ENERGYWIZARD_REF=main
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         postgresql postgresql-contrib git \
     && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --no-cache-dir --only-binary=:all: --upgrade pip==26.3 setuptools==84.2.1 wheel==0.46.3
 
 # Commit-id:t gör att byggcachen inte återanvänder en gammal klon (sätts av CI, tomt annars).
 ARG ENERGYWIZARD_COMMIT=

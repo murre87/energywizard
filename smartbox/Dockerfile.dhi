@@ -1,0 +1,23 @@
+# Optional hardened build; authenticate to dhi.io before building.
+FROM dhi.io/python:3.11-debian13-dev@sha256:e78bcf38fb9df94be5d2d8a34ad41e38a4ff8a743976c5e53f58b41b51ea822b AS builder
+WORKDIR /app
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN python -m pip install --no-cache-dir --only-binary=:all: pip==26.3 setuptools==84.2.1 wheel==0.46.3
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY *.py .
+COPY drivers/ ./drivers/
+COPY ftw_drivers/ ./ftw_drivers/
+COPY LICENSE ./LICENSE
+COPY i18n/ ./i18n/
+
+FROM dhi.io/python:3.11-debian13@sha256:65ba5f9799f9d684d649cc3649abeb80776f2942d47ec9cb3495f6b30db39f33
+# Retain access to existing root-owned volumes; nonroot requires an ownership migration.
+USER 0
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION PATH="/opt/venv/bin:$PATH"
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app /app
+CMD ["/opt/venv/bin/python", "-u", "main.py"]

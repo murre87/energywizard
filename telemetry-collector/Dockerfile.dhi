@@ -1,0 +1,18 @@
+# Optional hardened build: docker build -f Dockerfile.dhi . (requires dhi.io login).
+FROM dhi.io/python:3.11-debian13-dev@sha256:e78bcf38fb9df94be5d2d8a34ad41e38a4ff8a743976c5e53f58b41b51ea822b AS builder
+WORKDIR /app
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN python -m pip install --no-cache-dir --only-binary=:all: pip==26.3 setuptools==84.2.1 wheel==0.46.3 \
+    && pip install --no-cache-dir fastapi "uvicorn[standard]"
+COPY . .
+
+FROM dhi.io/python:3.11-debian13@sha256:65ba5f9799f9d684d649cc3649abeb80776f2942d47ec9cb3495f6b30db39f33
+# Preserve access to existing root-owned /data volumes; changing their owner is a migration.
+USER 0
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app /app
+ENV PATH="/opt/venv/bin:$PATH"
+EXPOSE 8504
+CMD ["/opt/venv/bin/python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8504"]

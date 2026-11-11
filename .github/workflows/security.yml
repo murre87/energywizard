@@ -1,0 +1,47 @@
+name: image-security
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "47 4 * * *"
+permissions:
+  contents: read
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: smartbox, context: smartbox, platform: linux/amd64}
+          - {name: webdashboard, context: webdashboard, platform: linux/amd64}
+          - {name: ewapp, context: ewapp, platform: linux/amd64}
+          - {name: telemetry, context: telemetry-collector, platform: linux/amd64}
+          - {name: addon-amd64, context: ha-addon/smartbox, platform: linux/amd64}
+          - {name: addon-arm64, context: ha-addon/smartbox, platform: linux/arm64}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: matrix.platform == 'linux/arm64'
+        with:
+          platforms: arm64
+      - name: Build exact source without publishing
+        env:
+          EW_CONTEXT: ${{ matrix.context }}
+          EW_PLATFORM: ${{ matrix.platform }}
+          EW_REF: ${{ github.head_ref || github.ref_name }}
+          EW_REPO: ${{ github.event.pull_request.head.repo.clone_url || format('https://github.com/{0}', github.repository) }}
+          EW_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          docker build --pull --platform "$EW_PLATFORM" \
+            --build-arg ENERGYWIZARD_REF="$EW_REF" \
+            --build-arg ENERGYWIZARD_REPO="$EW_REPO" \
+            --build-arg ENERGYWIZARD_COMMIT="$EW_COMMIT" \
+            -t ew-audit "$EW_CONTEXT"
+      - uses: ./.github/actions/audit-image
+        with:
+          image: ew-audit
+          report-name: security-${{ matrix.name }}
