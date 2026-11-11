@@ -264,7 +264,7 @@ class GlobalPriorityManager:
         # Tidstariffen räknas in (#179): dynamic_limit är rangordnad på spot + tariff, så priset jämförs likadant.
         # Utan tidstariff är tillägget 0 och allt är som förut.
         tou_now = nordpool.tou_spot_extra(now) if price is not None else 0.0
-        price_cmp = (price if price is not None else 0.0) + tou_now if tou_now else (price if price is not None else 0.0)
+        price_cmp = nordpool.planning_buy_price(price, now)
         if price_cmp <= (dyn_limit - hysteresis):
             self.last_price_mode = "CHEAP"
         elif price_cmp >= (dyn_limit + hysteresis):

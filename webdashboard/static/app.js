@@ -1156,7 +1156,7 @@ async function postAction(path, body, okMsg) {
 async function api(path, opts) {
   const r = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
   if (r.status === 401) { showLogin(); throw new Error("not authed"); }
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText || `Servern svarade med fel ${r.status}`);   // HTTP/2 (Ingress) har ingen statustext
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || e.error || r.statusText || `Servern svarade med fel ${r.status}`); }   // HTTP/2 (Ingress) har ingen statustext
   return r.json();
 }
 
@@ -1356,7 +1356,7 @@ async function mountSensorSettings() {
 }
 
 async function mountPriceSettings() {
-  let d;
+  let d, schedules = [];
   try { d = await api("api/price-settings"); } catch (e) { return; }
   const card = document.getElementById("pricecard"), body = document.getElementById("pricebody");
   if (!card || !d.ok) return;
@@ -1377,11 +1377,54 @@ async function mountPriceSettings() {
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
         ${field("ptimezone", "Price timezone", d.timezone, "E.g. Australia/Sydney, Australia/Brisbane or Australia/Adelaide", "text")}
         ${field("pvat", "Moms (%)", d.vat_pct, `Standard för ${esc(c.name)}: ${String(c.vat_pct).replace(".", ",")} %`)}
-        ${field("pbuy", `Avgifter vid köp (${sym}/kWh, inkl. moms)`, d.buy_extra, "Nätöverföring + energiskatt + elhandlarens påslag")}
-        ${field("psell", `Ersättning vid försäljning (${sym}/kWh)`, d.sell_extra, "Utöver spotpriset, t.ex. nätnytta")}
+        ${field("pbuy", `<span>Avgifter vid köp</span> (${esc(sym)}/kWh, <span>inkl. moms</span>)`, d.buy_extra, "Nätöverföring + energiskatt + elhandlarens påslag")}
+        ${field("psell", `<span>Ersättning vid försäljning</span> (${esc(sym)}/kWh)`, d.sell_extra, "Utöver spotpriset, t.ex. nätnytta")}
       </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <label style="display:flex;flex-direction:column;gap:4px;flex:1 1 170px;min-width:0"><span class="note">Köpavtal</span><select id="pbuymode"><option value="spot"${!["fixed", "hdo"].includes(d.buy_mode) ? " selected" : ""}>Spotpris</option><option value="fixed"${d.buy_mode === "fixed" ? " selected" : ""}>Fast pris</option>${d.country === "CZ" ? `<option value="hdo"${d.buy_mode === "hdo" ? " selected" : ""}>NT/VT enligt HDO</option>` : ""}</select></label>
+        ${field("pbuyfixed", `<span>Fast inköpspris</span> (${esc(sym)}/kWh, <span>inkl. moms</span>)`, d.buy_fixed ?? "", "Endast elhandel; avgifter och distribution läggs till separat")}
+        <label style="display:flex;flex-direction:column;gap:4px;flex:1 1 170px;min-width:0"><span class="note">Säljavtal</span><select id="psellmode"><option value="spot"${d.sell_mode !== "fixed" ? " selected" : ""}>Spotpris</option><option value="fixed"${d.sell_mode === "fixed" ? " selected" : ""}>Fast pris</option></select></label>
+        ${field("psellfixed", `<span>Fast försäljningspris</span> (${esc(sym)}/kWh)`, d.sell_fixed ?? "", "Slutpris enligt avtal; justeringen ovan läggs till")}
+      </div>
+      <div class="note">Även fasta priser och HDO kräver en fungerande spotprissensor för EnergyWizards planering och försäljningspris.</div>
+      <details id="phdodetails" style="margin-top:12px"${d.country !== "CZ" ? " hidden" : ""}${(d.hdo_entity || d.buy_mode === "hdo") && d.country === "CZ" ? " open" : ""}><summary><b>HDO-schema och distribution</b></summary>
+        <label style="display:flex;flex-direction:column;margin-top:8px"><span class="note">HDO-schema från Home Assistant</span>
+          <select id="phdo"><option value="">Av</option>${schedules.map(e => `<option value="${esc(e.entity_id)}"${e.entity_id === d.hdo_entity ? " selected" : ""}>${esc(e.name)} · ${esc(e.entity_id)}</option>`).join("")}${d.hdo_entity && !schedules.some(e => e.entity_id === d.hdo_entity) ? `<option value="${esc(d.hdo_entity)}" selected>${esc(d.hdo_entity)} (otillgänglig)</option>` : ""}</select></label>
+        <div id="phdostatus" class="note" role="status" hidden></div>
+        <div id="phdobuy" style="margin-top:10px">
+          <label style="display:flex;flex-direction:column;gap:4px"><span class="note">Priskälla för NT/VT</span><select id="phdopricesource"><option value="manual"${d.hdo_price_source !== "ha" ? " selected" : ""}>Ange priser manuellt</option><option value="ha"${d.hdo_price_source === "ha" ? " selected" : ""}>Hämta båda priserna från ČEZ HDO</option></select></label>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+            ${field("pbuynt", `<span>Slutpris NT</span> (${esc(sym)}/kWh, <span>inkl. moms</span>)`, d.buy_nt ?? "", "")}
+            ${field("pbuyvt", `<span>Slutpris VT</span> (${esc(sym)}/kWh, <span>inkl. moms</span>)`, d.buy_vt ?? "", "")}
+          </div>
+          <div class="note">Ange slutpriser inklusive moms, distribution och leverantörens avgifter. Samma gäller priser hämtade från ČEZ HDO. Inga köpavgifter, tidstariffer eller distributionspåslag läggs till i detta läge.</div>
+          <div class="note">Båda priskällorna kräver HDO-schemat ovan. Saknas framtida intervall används det högre priset. Vid avbrott i Home Assistant används senast sparade NT/VT-priser.</div>
+        </div>
+        <details id="phdohelp" style="margin-top:8px"><summary>Hur installerar jag ČEZ HDO?</summary>
+          <div class="note" style="margin-top:8px">För anslutningar hos ČEZ Distribuce. En separat Home Assistant-integration behövs; EnergyWizard installerar den inte automatiskt.</div>
+          <ol class="note" style="padding-left:24px;line-height:1.6">
+            <li>Öppna HACS, eller Inställningar → Marketplace i nyare Home Assistant, och sök efter ČEZ HDO. Om den saknas, lägg till Cmajda/ha_cez_distribuce som ett eget integrationsarkiv.</li>
+            <li>Installera ČEZ HDO och starta om Home Assistant enligt integrationens anvisningar.</li>
+            <li>Öppna Inställningar → Enheter och tjänster → Lägg till integration → ČEZ HDO. Ange anläggningens EAN och HDO-signal och slutför eventuell CAPTCHA.</li>
+            <li>När HDO-schemat finns, ladda om EnergyWizard och välj anläggningens schemasensor här. Välj sedan köpavtal och fyll i motsvarande priser från din faktura.</li>
+          </ol>
+          <div class="note">Välj schemasensorn, inte sensorn för aktuell total elpris. För andra nätägare stöds ännu inte hämtning av HDO-schema här.</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+            <a href="https://my.home-assistant.io/redirect/hacs_repository/?category=Integration&amp;owner=Cmajda&amp;repository=ha_cez_distribuce" target="_blank" rel="noopener noreferrer">Öppna ČEZ HDO i HACS / Marketplace</a>
+            <a href="https://github.com/Cmajda/ha_cez_distribuce/wiki/User-Guide-CS" target="_blank" rel="noopener noreferrer">Installationsguide för ČEZ HDO</a>
+            <a href="https://www.hacs.xyz/docs/marketplace/" target="_blank" rel="noopener noreferrer">HACS och Marketplace</a>
+          </div>
+        </details>
+        <div id="phdodistribution" style="margin-top:8px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+          ${field("pnt", `<span>Distribution NT</span> (${esc(sym)}/kWh, <span>inkl. moms</span>)`, d.distribution_nt ?? "", "Endast rörlig distribution, inte elhandel")}
+          ${field("pvt", `<span>Distribution VT</span> (${esc(sym)}/kWh, <span>inkl. moms</span>)`, d.distribution_vt ?? "", "Ta bort samma avgift från köpavgiften ovan")}
+        </div>
+        <div class="note">Använder framtida NT/VT-intervall från ČEZ HDO. Saknas schema används den högre distributionsavgiften. Fasta månadsavgifter ingår inte. HDO påverkar bara köp.</div>
+        </div>
+      </details>
       <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="psellvat"${d.sell_vat ? " checked" : ""}> Moms på såld el (oftast nej för privatpersoner)</label>
-      <details style="margin-top:12px"${d.tou_extra ? " open" : ""}><summary><b>Tidstariff</b> <span class="note">(dyrare nätavgift under höglasttid)</span></summary>
+      <details id="ptoudetails" style="margin-top:12px"${d.tou_extra ? " open" : ""}><summary><b>Tidstariff</b> <span class="note">(dyrare nätavgift under höglasttid)</span></summary>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
           ${field("ptou", `Tillägg under höglast (${sym}/kWh, inkl. moms)`, d.tou_extra || "", "0 eller tomt = ingen tidstariff")}
           ${field("ptouh", "Timmar", d.tou_hours, "T.ex. 6-22 = 06:00–21:59", "text")}
@@ -1407,20 +1450,74 @@ async function mountPriceSettings() {
         <div class="note" style="margin-top:6px">Effektavgift tas efter din högsta timme under höglasttid. Står på nätbolagets sida.</div>
       </details>
       <div id="pricesrc" style="margin-top:12px"></div>
-      <div style="margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);line-height:1.5">
+      <div id="priceexample" style="margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);line-height:1.5">
         Exempel: spotpris 1,00 ${sym} (exkl. moms) blir <b>${kr(d.example.buy)} ${sym}/kWh</b> att köpa och <b>${kr(d.example.sell)} ${sym}/kWh</b> att sälja.</div>
       <button class="icobtn" id="psave" style="margin-top:10px">Spara</button>`;
+    const loadSchedules = async () => {
+      if (d.country !== "CZ" || !document.getElementById("phdodetails").open) return;
+      const select = document.getElementById("phdo");
+      try {
+        const h = await api("api/distribution-schedules");
+        if (!select.isConnected || !h.ok) return;
+        const selected = select.value;
+        schedules = h.entities || [];
+        const status = document.getElementById("phdostatus");
+        status.hidden = schedules.length > 0;
+        status.textContent = schedules.length ? "" : "Inget kompatibelt HDO-schema hittades. Följ installationsguiden nedan eller kontrollera din ČEZ HDO-integration.";
+        if (!schedules.length) document.getElementById("phdohelp").open = true;
+        select.innerHTML = `<option value="">Av</option>${schedules.map(e => `<option value="${esc(e.entity_id)}"${e.entity_id === selected ? " selected" : ""}>${esc(e.name)} · ${esc(e.entity_id)}</option>`).join("")}${selected && !schedules.some(e => e.entity_id === selected) ? `<option value="${esc(selected)}" selected>${esc(selected)} (otillgänglig)</option>` : ""}`;
+        showHdoPrices();
+      } catch (e) { /* keep selected entity if HA is temporarily unavailable */ }
+    };
+    const showHdoPrices = () => {
+      const fromHa = document.getElementById("phdopricesource").value === "ha";
+      const row = schedules.find(e => e.entity_id === document.getElementById("phdo").value);
+      for (const [id, key] of [["pbuynt", "nt"], ["pbuyvt", "vt"]]) {
+        const input = document.getElementById(id);
+        input.disabled = fromHa;
+        if (fromHa) input.value = row && row[key] != null && Number.isFinite(Number(row[key])) ? row[key] : "";
+      }
+    };
+    document.getElementById("phdopricesource").onchange = showHdoPrices;
+    document.getElementById("phdo").onchange = showHdoPrices;
+    document.getElementById("phdodetails").ontoggle = loadSchedules;
+    showHdoPrices();
+    if (d.country === "CZ" && d.hdo_entity) loadSchedules();
+    for (const [mode, fixed] of [["pbuymode", "pbuyfixed"], ["psellmode", "psellfixed"]]) {
+      const select = document.getElementById(mode), field = document.getElementById(fixed).parentElement;
+      const show = () => {
+        field.style.display = select.value === "fixed" ? "flex" : "none";
+        if (mode === "psellmode") d.sell_mode = select.value;
+        document.getElementById("priceexample").hidden = d.buy_mode !== "spot" || d.sell_mode !== "spot" || select.value !== "spot";
+        if (mode === "pbuymode") {
+          d.buy_mode = select.value;
+          const hdo = d.country === "CZ" && select.value === "hdo";
+          document.getElementById("phdobuy").hidden = !hdo;
+          document.getElementById("phdodistribution").hidden = hdo;
+          document.getElementById("priceexample").hidden = d.buy_mode !== "spot" || d.sell_mode !== "spot";
+          document.getElementById("ptoudetails").hidden = hdo;
+          document.getElementById("pbuy").parentElement.style.display = hdo ? "none" : "flex";
+          if (hdo) document.getElementById("phdodetails").open = true;
+        }
+      };
+      select.onchange = show; show();
+    }
     document.getElementById("pcountry").onchange = (e) => {
       const k = e.target.value, cc = d.countries[k];
       Object.assign(d, { country: k, area: cc.areas[0], vat_pct: cc.vat_pct, currency: cc.currency, symbol: cc.symbol, timezone: cc.timezone,
+        buy_mode: k !== "CZ" && d.buy_mode === "hdo" ? "spot" : d.buy_mode,
         buy_extra: k === "SE" ? 0.62675 : 0, sell_extra: k === "SE" ? 0.02125 : 0 });
       draw();
+      mountPriceSource("pricesrc", d.country);
     };
     document.getElementById("phchoice").onchange = (e) => { document.getElementById("phown").style.display = e.target.value === "egen" ? "block" : "none"; };
     document.getElementById("psave").onclick = async () => {
       const v = (id) => (document.getElementById(id) || {}).value;
       try {
         await postJSON("api/price-settings", { country: v("pcountry"), area: v("parea"), timezone: v("ptimezone"), vat_pct: v("pvat"), buy_extra: v("pbuy"),
+          buy_mode: v("pbuymode"), buy_fixed: v("pbuyfixed"), sell_mode: v("psellmode"), sell_fixed: v("psellfixed"),
+          hdo_entity: v("phdo"), distribution_nt: v("pnt"), distribution_vt: v("pvt"),
+          buy_nt: v("pbuynt"), buy_vt: v("pbuyvt"), hdo_price_source: v("phdopricesource"),
           sell_extra: v("psell"), sell_vat: document.getElementById("psellvat").checked,
           tou_extra: v("ptou"), tou_hours: v("ptouh"), tou_months: v("ptoum"), tou_weekdays: document.getElementById("ptouwd").checked,
           power_high: { choice: v("phchoice"), hours: v("phh"), months: v("phm"), weekdays: document.getElementById("phwd").checked } });
@@ -1451,6 +1548,7 @@ async function mountPriceSource(slotId, country) {
       : `Ingen prissensor hittades. Installera t.ex. <a href="https://github.com/custom-components/nordpool" target="_blank" rel="noopener">Nord Pool</a>,
         <a href="https://github.com/JaccoR/hass-entso-e" target="_blank" rel="noopener">ENTSO-e</a> (hela Europa),
         Energi Data Service (Danmark) eller Octopus Energy (Storbritannien) i Home Assistant och skanna igen.`}</div>
+    ${country === "CZ" ? `<div class="note">Råa OTE-spotpriser är normalt utan moms. Kontrollera om den valda sensorn redan inkluderar moms innan du sparar.</div>` : ""}
     <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="psrcvat"${d.includes_vat ? " checked" : ""}>
       Priset i sensorn är redan inklusive moms (Nord Pool och Octopus brukar vara det, ENTSO-e och EPEX inte)</label>
     <label style="display:flex;flex-direction:column;gap:4px;margin-top:8px">Published prices
@@ -2177,7 +2275,7 @@ function hideSetup() {
 async function postJSON(path, body) {
   const r = await fetch(path, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.detail || r.statusText);
+  if (!r.ok) throw new Error(j.detail || j.error || r.statusText || `Servern svarade med fel ${r.status}`);
   return j;
 }
 

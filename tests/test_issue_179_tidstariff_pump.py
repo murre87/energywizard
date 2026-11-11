@@ -38,3 +38,26 @@ def test_rangordningen_far_tariffen(monkeypatch):
     monday_7 = datetime(2026, 11, 9, 7, 0, tzinfo=SWE)
     assert abs(nordpool.tou_spot_extra(monday_7, c) - 0.4) < 1e-9            # 0,50 inkl. moms = 0,40 i spotbas
     assert nordpool.tou_spot_extra(datetime(2026, 11, 8, 7, 0, tzinfo=SWE), c) == 0.0   # söndag
+
+
+def test_contract_prices_drive_pump_comparison(monkeypatch):
+    import gpm
+    import nordpool
+    import distribution_tariff
+    import ew_settings
+    monkeypatch.setattr(gpm.GlobalPriorityManager, '_restore_compressor_lock', lambda self: None)
+    settings = {'price_country': 'CZ', 'price_buy_mode': 'fixed', 'price_buy_fixed': 2.0}
+    monkeypatch.setattr(ew_settings, 'get', lambda k, d=None: settings.get(k, d))
+    when = datetime(2026, 11, 9, 7, tzinfo=SWE)
+    mode = gpm.GlobalPriorityManager()
+    mode.evaluate(_state(when, current_price=10, dynamic_limit=2, hysteresis=.1))
+    assert mode.last_price_mode == 'CHEAP'
+    settings.update(price_buy_mode='hdo', price_hdo_entity='sensor.hdo', price_buy_nt=1, price_buy_vt=4)
+    monkeypatch.setattr(distribution_tariff, 'schedule_for', lambda e: [
+        (datetime(2026, 11, 9, 0, tzinfo=SWE), datetime(2026, 11, 9, 8, tzinfo=SWE), 'NT'),
+        (datetime(2026, 11, 9, 8, tzinfo=SWE), datetime(2026, 11, 10, 0, tzinfo=SWE), 'VT')])
+    mode = gpm.GlobalPriorityManager()
+    mode.evaluate(_state(when, current_price=10, dynamic_limit=2, hysteresis=.1))
+    assert mode.last_price_mode == 'CHEAP'
+    mode.evaluate(_state(when.replace(hour=9), current_price=0, dynamic_limit=2, hysteresis=.1))
+    assert mode.last_price_mode == 'EXPENSIVE'
