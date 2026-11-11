@@ -81,8 +81,8 @@ jobs:
           load: true
           push: false
           tags: ghcr.io/murre87/energywizard:${{ github.sha }}-${{ matrix.arch }}
-          cache-from: type=gha,scope=allt-i-ett-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=allt-i-ett-${{ matrix.arch }}
+          # Refresh apt security patches even when the pinned base digest is unchanged.
+          no-cache: true
           # Bara de två plattformarna i manifestet (inga attesteringsposter "unknown/unknown") - Home Assistant
           # Supervisor hämtar den här bilden som tillägget (se jobbet tillagg nedan).
           provenance: false

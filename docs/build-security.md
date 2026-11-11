@@ -13,7 +13,9 @@ The all-in-one image retains PostgreSQL 17; this is not a database major upgrade
 `image-security` rebuilds and audits daily at 04:47 UTC, on demand, and through
 the test workflow. Publishing audits the actual loaded image before pushing it;
 both all-in-one architectures must pass before a multi-architecture tag is
-promoted. New security findings therefore can block releases. Daily audits
+promoted. All-in-one publishing bypasses the old persistent layer cache so
+available apt fixes are actually applied even before the base digest changes.
+New security findings therefore can block releases. Daily audits
 report failures but do not automatically update deployed containers.
 
 `scripts/audit_image.py` inventories installed Python distributions without
@@ -38,6 +40,8 @@ Reviewed actions use full commit SHAs and current Node 24 releases. Dependabot
 checks actions, Python requirements and normal Docker bases weekly. Simulator
 builds use Go 1.27.4 instead of the unsupported Go 1.22 toolchain; the pinned
 third-party simulator successfully compiles with that verified toolchain.
+Its `./cmd/simulator` source passed govulncheck 1.9.0 at symbol level using the
+November 11 Go vulnerability database; this does not cover the desktop GUI.
 
 Latest action releases still have upstream dependency advisories. Production
 lockfile npm audits reported: checkout 1, setup-python 5, setup-go 5,
