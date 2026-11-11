@@ -61,10 +61,15 @@ The 51 distinct action GHSAs were expanded through OSV aliases and compared
 with the November 10 CISA catalog (1,779 entries): no matches. Absence from KEV
 does not establish non-exploitability.
 
-The separate coffee-supporter workflow also remains a follow-up: its outer
-composite action is pinned, but nested actions use mutable references and older
-Node runtimes. It is not covered by a claim that every transitive action is
-immutable or vulnerability-free.
+The coffee-supporter workflow now uses a local Python standard-library script
+instead of the composite action's mutable nested actions and Node 16/npm chain.
+Only the reviewed, SHA-pinned checkout remains, with credential persistence off.
+Coffee/GitHub tokens are supplied only to the updater step. It retains the nightly
+schedule, missing-token skip, three-message HTML format and main-only README
+update. Supporter text is HTML-escaped; redirects are rejected, and API failures
+do not log response bodies or credentials. Updates use the current README SHA
+so a concurrent edit fails rather than being overwritten. Tests use synthetic
+responses; no live supporter read or README publication was performed.
 
 ## Optional Docker Hardened Images
 
