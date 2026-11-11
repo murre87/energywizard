@@ -1,7 +1,7 @@
 requests
 fastapi
 psycopg[binary]>=3.1.0
-psycopg_pool>=3.1.0
+psycopg_pool>=3.3.3
 pandas
 pymodbus
 scikit-learn
