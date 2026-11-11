@@ -32,7 +32,7 @@ jobs:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: smartbox/requirements.txt
-      - run: pip install lupa pymodbus requests pytest paho-mqtt websocket-client cryptography pyyaml
+      - run: pip --disable-pip-version-check install lupa pymodbus requests pytest paho-mqtt websocket-client cryptography pyyaml
       - name: Starta en simulerad växelriktare per drivrutin
         run: bash tests/simulator/start_sims.sh "$GITHUB_WORKSPACE/devsim/simulator"
       - name: FTW-drivrutinerna mot simulatorn
