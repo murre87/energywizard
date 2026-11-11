@@ -1,6 +1,5 @@
 # Uppdaterar Buy Me a Coffee-avsnittet i README.md med de senaste stödmeddelandena, en gång per natt.
-# Action: https://github.com/akosbalasko/coffee-readme - låst till en exakt commit (inte @main),
-# eftersom den får skrivrätt till repot.
+# Lokal Python-kod utan tredjepartsåtgärder med åtkomst till skrivtoken.
 # Kräver repo-hemligheten BUY_ME_A_COFFEE_TOKEN (skapas på https://developers.buymeacoffee.com/dashboard).
 # Utan den hoppar jobbet över sig självt i stället för att misslyckas varje natt.
 # Pushen bygger inga Docker-bilder: docker.yml ignorerar ändringar som bara rör README.md.
@@ -12,22 +11,28 @@ on:
     - cron: "17 3 * * *"   # 03:17 UTC varje natt
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   bmac-readme:
     name: Uppdatera Buy Me a Coffee i README
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
-      BMAC_TOKEN: ${{ secrets.BUY_ME_A_COFFEE_TOKEN }}
+      HAS_BMAC_TOKEN: ${{ secrets.BUY_ME_A_COFFEE_TOKEN != '' }}
     steps:
       - name: Hoppa över om token saknas
-        if: env.BMAC_TOKEN == ''
+        if: env.HAS_BMAC_TOKEN != 'true'
         run: echo "BUY_ME_A_COFFEE_TOKEN är inte satt än - inget att uppdatera."
-      - uses: akosbalasko/coffee-readme@607cd2adc4fd13135d030aae2a280a12653da3f8
-        if: env.BMAC_TOKEN != ''
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HAS_BMAC_TOKEN == 'true'
         with:
-          BUY_ME_A_COFFEE_TOKEN: ${{ secrets.BUY_ME_A_COFFEE_TOKEN }}
+          ref: main
+          persist-credentials: false
+      - name: Uppdatera kaffehälsningar
+        if: env.HAS_BMAC_TOKEN == 'true'
+        env:
+          BMAC_TOKEN: ${{ secrets.BUY_ME_A_COFFEE_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NUMBER_OF_MESSAGES: 3
-          BRANCH: main
+        run: python3 scripts/update_coffee_readme.py
