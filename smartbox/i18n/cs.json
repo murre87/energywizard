@@ -486,7 +486,7 @@
   "Grundläge: Gråzon (# kr). Ligger kvar i läge '#'": "Základní režim: šedá zóna (# SEK). Zůstávám v režimu '#'",
   "Grundläge: Gråzon (# kr). Ligger kvar i läge '#'.": "Základní režim: šedá zóna (# SEK). Zůstávám v režimu '#'.",
   "Grupperade över alla hus": "Seskupeno za všechny domy",
-  "Grupperade över alla hus. Rött = programfel att rätta, grått = tillfälliga nätverksfel": "Seskupeno za všechny domy. Červená = chyby programu k opravě, šedá = dočasné síťové chyby",
+  "Grupperade över alla hus. Rött = fel att undersöka, grått = tillfälliga nätverksfel": "Seskupeno za všechny domy. Červená = chyby k prošetření, šedá = dočasné síťové chyby",
   "Gräns": "Mez",
   "Gräns:": "Mez:",
   "Grönt = billigare än dygnets snittpris, rött = dyrare. Senaste # dagarna": "Zelená = levněji než denní průměr, červená = dráže. Posledních # dnů",
