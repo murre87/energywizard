@@ -36,7 +36,8 @@ images rather than relying only on requirements files.
 
 Reviewed actions use full commit SHAs and current Node 24 releases. Dependabot
 checks actions, Python requirements and normal Docker bases weekly. Simulator
-builds use Go 1.27.4 instead of the unsupported Go 1.22 toolchain.
+builds use Go 1.27.4 instead of the unsupported Go 1.22 toolchain; the pinned
+third-party simulator successfully compiles with that verified toolchain.
 
 Latest action releases still have upstream dependency advisories. Production
 lockfile npm audits reported: checkout 1, setup-python 5, setup-go 5,
@@ -48,6 +49,9 @@ These counts are package/advisory audit results, not proven reachable exploits
 in the distributed action bundles. Pinning prevents mutable-tag substitution;
 it does not eliminate upstream vulnerabilities. Re-audit updates and review
 upstream fixes before treating this risk as resolved.
+The 51 distinct action GHSAs were expanded through OSV aliases and compared
+with the November 10 CISA catalog (1,779 entries): no matches. Absence from KEV
+does not establish non-exploitability.
 
 The separate coffee-supporter workflow also remains a follow-up: its outer
 composite action is pinned, but nested actions use mutable references and older
