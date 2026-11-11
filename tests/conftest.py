@@ -2,6 +2,7 @@
 så att samma SQL som körs i drift också körs här."""
 import os
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import psycopg
@@ -32,6 +33,19 @@ def db():
     admin.close()
     conn = psycopg.connect(f"host={DB_HOST} user={os.environ['POSTGRES_USER']} password={os.environ['POSTGRES_PASSWORD']} dbname={os.environ['POSTGRES_DB']}", autocommit=True)
     conn.execute(SCHEMA)
+    # Planning calls the learning code, which expects the settings table created
+    # by production startup. Use that initializer on this same test connection.
+    import settings
+
+    @contextmanager
+    def settings_connection():
+        yield conn
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(settings, "get_db", settings_connection)
+        settings.init_settings_db()
+    # The initializer catches DB errors in production; make setup failures fatal here.
+    assert conn.execute("SELECT id FROM system_settings WHERE id = 1").fetchone() == (1,)
     yield conn
     conn.close()
 
