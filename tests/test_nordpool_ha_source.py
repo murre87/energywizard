@@ -6,6 +6,9 @@ separat med scripts/compare_price_sources.py mot riktig data, inte här."""
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+import requests
+
 import nordpool
 
 # ensure_prices_exist() ger alltid ett tidszon-medvetet datetime (via now.replace(...)),
@@ -79,6 +82,69 @@ def test_tomt_raw_today_ger_false():
 def test_natverksfel_ger_false_inte_krasch():
     with patch("nordpool.requests.get", side_effect=RuntimeError("timeout")):
         assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+
+
+@pytest.mark.parametrize("error", [requests.ConnectionError, requests.Timeout])
+def test_transport_failure_warns_without_writing_or_caching(error, capsys, monkeypatch):
+    monkeypatch.setattr(nordpool, "_ha_refresh_state", {})
+    with patch("nordpool.requests.get", side_effect=error("HA unavailable")), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+    db.assert_not_called()
+    assert nordpool._ha_refresh_state == {}
+    output = capsys.readouterr().out
+    assert "⚠️" in output and "HA unavailable" in output
+    assert "❌" not in output
+
+
+@pytest.mark.parametrize("failed_index", [0, 1])
+def test_transport_failure_keeps_prices_from_other_sensor(failed_index, monkeypatch):
+    entities = ["sensor.octopus_current_day_rates", "sensor.octopus_next_day_rates"]
+    monkeypatch.setattr(nordpool, "_price_entities", lambda: entities)
+    monkeypatch.setattr(nordpool, "_ha_refresh_state", {})
+    row = {"start": "2026-10-31T00:00:00+01:00", "end": "2026-10-31T00:15:00+01:00", "value": 0.45}
+    responses = [_ha_response([row]), _ha_response([row])]
+    responses[failed_index] = requests.ConnectionError("HA unavailable")
+    with patch("nordpool.requests.get", side_effect=responses) as get, \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is True
+    assert get.call_count == 2
+    conn = db.return_value.__enter__.return_value
+    records = conn.cursor.return_value.__enter__.return_value.executemany.call_args[0][1]
+    assert records == [(row["start"], row["end"], row["value"])]
+    conn.commit.assert_called_once()
+
+
+def test_transport_failure_recovers_on_next_call(monkeypatch):
+    monkeypatch.setattr(nordpool, "_ha_refresh_state", {})
+    row = {"start": "2026-10-31T00:00:00+01:00", "end": "2026-10-31T00:15:00+01:00", "value": 0.45}
+    with patch("nordpool.requests.get", side_effect=[requests.ConnectionError("HA unavailable"), _ha_response([row])]), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+        assert nordpool._ha_refresh_state == {}
+        db.assert_not_called()
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is True
+        assert nordpool._ha_refresh_state
+
+
+@pytest.mark.parametrize("country, fallback_calls", [("SE", 1), ("CZ", 0), ("AU", 0)])
+def test_transport_failure_preserves_country_fallback(country, fallback_calls, monkeypatch):
+    monkeypatch.setattr(nordpool, "price_source", lambda: "ha_nordpool")
+    monkeypatch.setattr(nordpool, "cost_settings", lambda: {"country": country})
+    with patch("nordpool.requests.get", side_effect=requests.ConnectionError("HA unavailable")), \
+         patch("nordpool.fetch_api_and_save", return_value=True) as fallback, \
+         patch("nordpool.get_db") as db:
+        assert nordpool._fetch_and_save(_DAY) is (country == "SE")
+    assert fallback.call_count == fallback_calls
+    db.assert_not_called()
+
+
+def test_unexpected_failure_still_reports_error(capsys):
+    with patch("nordpool.requests.get", side_effect=RuntimeError("unexpected defect")), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+    db.assert_not_called()
+    assert "❌" in capsys.readouterr().out
 
 
 # ---------- _fetch_and_save: källval + fallback ----------
