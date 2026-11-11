@@ -167,7 +167,7 @@ def test_battery_read_state_lasar_generiska_sensorer():
         mock_ha._get_numeric_state.side_effect = [72.0]
         mock_ha.get_power_w.side_effect = [-850.0]          # effekten läses enhetsmedvetet (W/kW, #139)
         state = GenericBatteryDriver(capacity_kwh=10.0, entities={"soc": "sensor.soc", "power": "sensor.power"}).read_state()
-    assert state == {"soc_pct": 72.0, "power_w": -850.0, "capacity_kwh": 10.0, "mode": None}
+    assert state == {"soc_pct": 72.0, "power_w": -850.0, "capacity_kwh": 10.0, "mode": None, "power_sample_at": None}
 
 
 def test_battery_supports_control_kraver_select_och_lagesmappning():
