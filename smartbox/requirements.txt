@@ -13,6 +13,6 @@ psycopg_pool
 SQLAlchemy>=2.1.8
 scikit-learn==1.8.0
 paho-mqtt>=2.2.0
-lupa>=2.4            # Lua-värd för Sourcefuls FTW-drivrutiner (lua_host.py)
+lupa>=2.8            # Lua-värd för Sourcefuls FTW-drivrutiner (lua_host.py)
 websocket-client>=1.7  # FTW-drivrutiner med websocket (lua_host.py)
 cryptography>=42       # krypterade P1/HAN-mätare i FTW-drivrutiner (lua_host.py)
