@@ -10,6 +10,10 @@ limit. Their Python 3.11.18 Debian Trixie base is pinned by digest. Builds apply
 available Debian updates and install pip 26.3, setuptools 84.2.1 and wheel 0.46.3.
 The all-in-one image retains PostgreSQL 17; this is not a database major upgrade.
 
+The NumPy cap is temporary compatibility protection, not a security-support
+guarantee. See the [NumPy security/upgrade review](numpy-upgrade.md) for current
+advisory checks, review dates and the source-build evaluation for older CPUs.
+
 `image-security` rebuilds and audits daily at 04:47 UTC, on demand, and through
 the test workflow. Publishing audits the actual loaded image before pushing it;
 both all-in-one architectures must pass before a multi-architecture tag is
