@@ -31,6 +31,7 @@ import solar_write_guard # Hur ofta exportgränsen får skrivas (flashminnet i v
 import config_watch      # Startar om motorn när house_config.yaml ändras
 import battery_control   # Husbatteriet som del av hela systemet (styr / samarbete / av)
 import ew_journal
+import battery_commands
 import battery_follow
 import guest_charge
 import capacity_tariff
@@ -150,6 +151,7 @@ def charger_set_phases(cid, phases):
 battery_cfg = house_config.battery_settings(house_cfg)
 _battery = {"last": None, "at": None, "plan": None, "plan_at": None, "model": None, "model_at": None}
 _battery_follow = battery_follow.FollowWatch()
+_battery_commands = battery_commands.Tracker()
 _guest_state, _guest_price = {}, {}
 _cap_cache = {"at": None, "peaks": [], "info": None}   # effektavgift efter högsta timmar (capacity_tariff.py)          # gästbil per bilens laddbox (guest_charge.py)
 
@@ -158,7 +160,7 @@ def _battery_to_auto(reason):
     """Lämna tillbaka batteriet till växelriktarens eget läge (uppstart, avstängning)."""
     if battery_cfg["control"] == "styr" and "auto" in battery_driver.supported_intents():
         try:
-            if battery_driver.apply_intent("auto"):
+            if battery_commands.apply(_battery_commands, battery_driver, "auto", None):
                 print(f"🔋 Batteri: tillbaka till växelriktarens eget läge ({reason}).")
         except Exception as _be:
             print(f"⚠️ Batteri: kunde inte återställa läget ({reason}): {_be}")
@@ -1906,10 +1908,17 @@ while True:
                     battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
                     if battery_control.should_apply(_bdec, _battery["last"], _battery["at"], now,
                                                     battery_cfg["min_change_minutes"]):
-                        if battery_driver.apply_intent(_bdec["intent"], _bdec.get("power_w")):
+                        if battery_commands.apply(_battery_commands, battery_driver, _bdec["intent"], _bdec.get("power_w")):
                             _battery.update(last=_bdec, at=now)
                             print(f"🔋 Batteri: {_bdec['intent']} - {_bdec['reason']}")
                     _battery["decision_rule"] = _bdec.get("rule")
+                    if _battery_commands.current:
+                        try:
+                            _battery_commands.observe(_battery_commands.current["command_id"], battery_state, time.time(),
+                                                      battery_cfg.get("reserve_soc"), battery_cfg.get("max_soc"))
+                        except Exception:
+                            pass  # Observability must not change existing follow/control behavior.
+
                     # Följer batteriet det vi säger åt det? (battery_follow.py) - visas i appen/webben, notis vid avvikelse
                     if battery_cfg["control"] == "styr" and _battery.get("last"):
                         _bl = _battery["last"]

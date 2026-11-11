@@ -51,6 +51,7 @@ Lägesnamnen ovan är EXEMPEL - skriv exakt de alternativ din egen select-entite
 Home Assistant (Utvecklarverktyg -> Tillstånd -> entiteten -> attributet options).
 Bara de avsikter som finns under modes: används.
 """
+import math
 import homeassistant
 from drivers.battery import BatteryDriver, INTENTS
 
@@ -115,15 +116,36 @@ class GenericBatteryDriver(BatteryDriver):
         mode_e = self._e.get("mode_select")
         soc = self._soc()
         power = self._sum("power")
+        keys = ("power",)
         if power is not None and self._invert:
             power = -power
         if power is None and (self._e.get("power_charge") or self._e.get("power_discharge")):
+            keys = ("power_charge", "power_discharge")
             pc = self._sum("power_charge") if self._e.get("power_charge") else 0.0
             pd = self._sum("power_discharge") if self._e.get("power_discharge") else 0.0
             power = None if pc is None and pd is None else (pc or 0.0) - (pd or 0.0)
+        # Source timestamps, not cache-read time: constant/stale HA values must not
+        # become fresh command evidence merely because this method was called.
+        stamps = []
+        try:
+            from datetime import datetime
+            for key in keys:
+                for entity in self._as_list(self._e.get(key)):
+                    raw = homeassistant._states_cache.get(entity) or {}
+                    if not math.isfinite(float(raw.get("state"))):
+                        raise ValueError("Missing source measurement")
+                    value = raw.get("last_reported") or raw.get("last_updated")
+                    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    if stamp.utcoffset() is None:
+                        raise ValueError("Missing source timestamp offset")
+                    stamps.append(stamp.timestamp())
+            power_sample_at = min(stamps) if stamps else None
+        except (ValueError, TypeError, AttributeError):
+            power_sample_at = None
         return {
             "soc_pct": soc,
             "power_w": power,
+            "power_sample_at": power_sample_at,
             "capacity_kwh": self.capacity_kwh,
             "mode": homeassistant._get_raw_state(mode_e) if mode_e else None,
         }

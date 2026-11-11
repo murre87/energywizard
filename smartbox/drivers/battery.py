@@ -15,7 +15,8 @@ class BatteryDriver(ABC):
     @abstractmethod
     def read_state(self) -> dict:
         """{'soc_pct': float|None, 'power_w': float|None (+ = laddar, - = laddar ur),
-        'capacity_kwh': float|None, 'mode': str|None}. Alla nycklar valfria."""
+        'capacity_kwh': float|None, 'mode': str|None,
+        'power_sample_at': float|None (UTC epoch of source measurement, never cache-read time)}. Alla nycklar valfria."""
         raise NotImplementedError
 
     @abstractmethod
