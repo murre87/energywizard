@@ -46,6 +46,9 @@ knowledge base about how the control works.
 
 ## Local learning, not a black box
 
+For Docker and Kubernetes image update status, scheduled checks and a manual check
+button, see [Image update checks](docs/image-updates.md).
+
 The core is a deterministic priority engine (`smartbox/gpm.py`), not a guessing AI - but it is helped by
 simple machine learning trained locally on **your own house's** history (`smartbox/learning.py`): how fast
 the house and the spa heat up and cool down depending on outdoor temperature and sunshine. The models are

@@ -1809,6 +1809,39 @@ function installsCard(d) {
 
 async function loadUpdates(force) {
   const main = document.getElementById("main");
+  main.innerHTML = '<div id="imageupdates"></div><div id="watchtowerupdates"></div>';
+  await Promise.all([loadImageUpdates(false), loadWatchtowerUpdates(force)]);
+}
+
+async function loadImageUpdates(force) {
+  const panel = document.getElementById("imageupdates");
+  panel.innerHTML = '<div class="card">Kontrollerar uppdateringar…</div>';
+  try {
+    const d = await api(`api/image-updates${force ? "?force=1" : ""}`);
+    const labels = {checking: "Kontrollerar uppdateringar…", up_to_date: "Du kör senaste versionen", update_available: "Ny version tillgänglig",
+      error: "Kunde inte kontrollera uppdateringar", not_configured: "Versionskontroll är inte konfigurerad"};
+    const when = d.last_success_at ? new Date(d.last_success_at * 1000).toLocaleString() : "–";
+    panel.innerHTML = `<div class="card" style="margin-bottom:16px">
+      <h2>EnergyWizard – uppdateringar</h2><b>${esc(labels[d.status] || labels.error)}</b>
+      <div class="note"><span>Senast kontrollerad utan fel</span>: ${esc(when)}</div>
+      ${d.image ? `<div class="note">${esc(d.image)}</div>` : ""}
+      ${d.status === "not_configured" ? '<div class="note">Installationen behöver ange image och körande digest. Se guiden för versionskontroll.</div>' : ""}
+      ${d.error ? `<div class="note">${esc(d.error)}</div>` : ""}
+      ${d.interval_seconds ? `<div class="note">Automatisk kontroll var ${d.interval_seconds / 3600} timme. Manuella kontroller har 30 sekunders väntetid.</div>` : ""}
+      <button class="icobtn" id="imagechecknow" style="margin-top:10px" ${d.status === "not_configured" ? "disabled" : ""}>Sök efter uppdateringar</button>
+    </div>`;
+    document.getElementById("imagechecknow").onclick = () => loadImageUpdates(true);
+    if (d.status === "checking") setTimeout(() => {
+      if (document.getElementById("imageupdates") === panel) loadImageUpdates(false);
+    }, 1000);
+  } catch (_) {
+    panel.innerHTML = '<div class="card">Kunde inte kontrollera uppdateringar. <button class="icobtn" id="imageretry">Försök igen</button></div>';
+    document.getElementById("imageretry").onclick = () => loadImageUpdates(true);
+  }
+}
+
+async function loadWatchtowerUpdates(force) {
+  const main = document.getElementById("watchtowerupdates");
   const d = await api(`api/updates${force ? "?force=1" : ""}`);
   if (!d.ok) { main.innerHTML = `<div class="placeholder">${d.error}</div>`; return; }
   if (d.configured === false) {
@@ -1819,7 +1852,7 @@ async function loadUpdates(force) {
   }
   const when = d.checked_at ? new Date(d.checked_at * 1000).toLocaleString("sv-SE") : "–";
   const rows = d.pending.length
-    ? d.pending.map(n => `<div class="card" style="margin-bottom:8px">🆕 <b>${n}</b> <span class="note">har en nyare version - Watchtower uppdaterar den vid nästa schemalagda körning (08:00)</span></div>`).join("")
+    ? d.pending.map(n => `<div class="card" style="margin-bottom:8px">🆕 <b>${n}</b> <span class="note">har en nyare version - Watchtower uppdaterar den vid nästa schemalagda körning</span></div>`).join("")
     : `<div class="card">✅ Allt uppdaterat - inga nya versioner hittade bland ${d.total} containrar.</div>`;
   main.innerHTML = `
     <div class="card" style="margin-bottom:16px">
@@ -1828,7 +1861,7 @@ async function loadUpdates(force) {
       <button class="icobtn" id="checknowbtn" style="margin-top:10px">Kolla nu</button>
     </div>
     ${rows}`;
-  document.getElementById("checknowbtn").onclick = () => loadUpdates(true);
+  document.getElementById("checknowbtn").onclick = () => loadWatchtowerUpdates(true);
 }
 
 let _discovered = null;

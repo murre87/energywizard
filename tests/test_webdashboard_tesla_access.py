@@ -75,6 +75,40 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def test_image_update_endpoint_passes_manual_refresh(wd, monkeypatch):
+    checker = MagicMock()
+    checker.check.return_value = {"status": "update_available"}
+    monkeypatch.setattr(wd, "IMAGE_UPDATES", checker)
+    assert _run(wd.image_updates(_FakeRequest(), force=True)) == {"status": "update_available"}
+    checker.check.assert_called_once_with(True)
+
+
+def test_image_background_check_runs_without_page_visit(wd, monkeypatch):
+    checker = MagicMock()
+    monkeypatch.setattr(wd, "IMAGE_UPDATES", checker)
+
+    async def stop_after_tick(seconds):
+        assert seconds == 60
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(wd.asyncio, "sleep", stop_after_tick)
+    with pytest.raises(asyncio.CancelledError):
+        _run(wd._image_update_loop())
+    checker.check.assert_called_once_with()
+
+
+def test_image_background_task_stops_on_shutdown(wd, monkeypatch):
+    checker = MagicMock()
+    monkeypatch.setattr(wd, "IMAGE_UPDATES", checker)
+
+    async def start_stop():
+        await wd._start_image_checks()
+        await wd._stop_image_checks()
+        assert wd._image_update_task.cancelled()
+
+    _run(start_stop())
+
+
 def test_secure_fel_losenord_ger_401(wd):
     req = _FakeRequest({"password": "fel"}, {wd.AUTH.cookie: _owner_cookie(wd)})
     r = _run(wd.secure(req))
