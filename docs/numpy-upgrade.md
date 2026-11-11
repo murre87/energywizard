@@ -61,6 +61,41 @@ the evaluation tooling, or manually. These images are never published. The
 `regression` Docker target additionally supplies pytest for application tests
 against a disposable PostgreSQL instance.
 
+## Native architecture and performance qualification
+
+The same evaluation workflow also builds the capped 2.3.5 and source-built 2.4.6
+stacks on native amd64 (`ubuntu-24.04`) and arm64 (`ubuntu-24.04-arm`) runners.
+It runs the numerical smoke checks directly, without QEMU, and compares five
+deterministic workloads: matrix multiplication, linear solve, FFT, pandas
+aggregation and scikit-learn fitting. Both containers have the same two-CPU,
+2 GiB limit and single-threaded BLAS settings. Five warmed timing samples,
+medians, package versions, NumPy BLAS configuration and image IDs are retained
+in 14-day artifacts. Ratios compare the two stacks on the same runner only;
+cross-architecture or different-version comparisons are rejected.
+
+Run the native check locally on either Docker host architecture:
+
+```sh
+python3 scripts/check_numpy_native.py --output numpy-native-report.json
+```
+
+The two `ew-numpy-native-*` image tags remain for inspection; remove those tags
+after use. CI audits the actual candidate image with the existing Python/KEV/
+Debian-fix policy, then removes both tags. This does not publish an image or
+change production requirements. Timing ratios are evidence for review, with
+no invented performance acceptance threshold. This is a numerical-stack probe,
+not a replacement for full EW image/application startup, optional DHI validation,
+representative production workloads or physical older-CPU testing.
+
+Local amd64 qualification on 2026-11-11 passed numerical checks and `pip check`
+for both stacks. In this small sample, the reference-BLAS candidate took about
+7.6 times as long for matrix multiplication and 3.2 times as long for the linear
+solve; FFT, pandas and scikit-learn timings were roughly comparable (0.93–1.07
+times the capped stack). These are host-specific measurements, not universal
+benchmarks. The substantial BLAS regression is additional evidence against
+adopting this evaluation build unchanged. A faster BLAS choice would need its
+own legacy-CPU compatibility and numerical validation before adoption.
+
 ## Adoption requirements
 
 This evaluation does not change production requirements or Dockerfiles. Before

@@ -23,6 +23,7 @@ RUN sed '/^numpy[<=>]/d' /tmp/requirements.txt > /tmp/candidate.txt \
     && python -m pip install --no-cache-dir -r /tmp/candidate.txt numpy==2.4.6 \
     && python -m pip check
 COPY tests/numpy_compat/smoke.py /smoke.py
+COPY tests/numpy_compat/benchmark.py /benchmark.py
 CMD ["qemu-x86_64", "-cpu", "qemu64", "/usr/local/bin/python", "/smoke.py"]
 
 FROM upstream AS capped
