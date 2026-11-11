@@ -58,7 +58,7 @@ def main():
     try:
         docker('network', 'create', '--internal', network)
         containers.append(db)
-        docker('run', '-d', '--name', db, '--network', network,
+        docker('run', '--rm', '-d', '--name', db, '--network', network,
                '-e', 'POSTGRES_PASSWORD=isolated-test-only', '-e', 'POSTGRES_DB=dhi_verify',
                'postgres:17')
         wait_ready(lambda: subprocess.run(['docker', 'exec', db, 'pg_isready', '-U', 'postgres'],
@@ -134,7 +134,7 @@ def main():
                                           'results': rows}, indent=2), encoding='utf-8')
     finally:
         for name in reversed(containers):
-            subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
+            subprocess.run(['docker', 'rm', '-f', '-v', name], capture_output=True)
         for name in volumes:
             subprocess.run(['docker', 'volume', 'rm', name], capture_output=True)
         subprocess.run(['docker', 'network', 'rm', network], capture_output=True)
