@@ -5,6 +5,7 @@ ambiguous; writes require explicit confirmation that mode 0 releases control on
 the installation's firmware. Neither solar-only hold nor exact idle is assumed.
 """
 import math
+import time
 
 from drivers.battery import BatteryDriver
 from drivers.ferroamp_modbus import (
@@ -40,6 +41,7 @@ class FerroampBatteryDriver(BatteryDriver):
             state["soc_pct"] = soc if soc is not None and 0 <= soc <= 100 else None
             power = read_float(client, 6100, unit)
             state["power_w"] = -power * 1000 if power is not None else None
+            state["power_sample_at"] = time.time() if power is not None else None
             capacity = read_float(client, 6008, unit)
             state["capacity_kwh"] = capacity if capacity is not None and capacity > 0 else None
             mode = read_words(client, 6104, 1, unit)
@@ -50,6 +52,7 @@ class FerroampBatteryDriver(BatteryDriver):
         return self.apply_intent(mode)
 
     def apply_intent(self, intent, power_w=None):
+        self.command_reference_verified = False
         if intent not in self.supported_intents():
             return False
         power = 0.0
@@ -72,7 +75,8 @@ class FerroampBatteryDriver(BatteryDriver):
             if client is None:
                 return False
             if intent == "auto":
-                return self._release(client)
+                self.command_reference_verified = self._release(client)
+                return self.command_reference_verified
             # Fresh device SOC on every forced request; never rely on an old plan.
             soc = read_float(client, 6016, unit)
             if soc is None or not 0 <= soc <= 100:
@@ -82,6 +86,7 @@ class FerroampBatteryDriver(BatteryDriver):
             if not write_float(client, 6064, power, unit):
                 return False
             if write_word(client, 6000, 1, unit) and self._bus.verify(lambda: self._matches(client, power)):
+                self.command_reference_verified = True
                 return True
             # If activation/verification failed, try to release, never report success.
             self._release(client)
