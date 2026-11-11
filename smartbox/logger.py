@@ -89,6 +89,8 @@ def init_log_db():
                         ADD COLUMN IF NOT EXISTS pv_power_w            NUMERIC,
                         ADD COLUMN IF NOT EXISTS battery_soc           NUMERIC,
                         ADD COLUMN IF NOT EXISTS battery_power_w       NUMERIC,
+                        ADD COLUMN IF NOT EXISTS battery_plan_id       TEXT,
+                        ADD COLUMN IF NOT EXISTS battery_plan_rule     TEXT,
                         ADD COLUMN IF NOT EXISTS inverter_status       SMALLINT,
                         ADD COLUMN IF NOT EXISTS solar_today_kwh       NUMERIC,
                         -- Rumstemperaturer från Home Assistant
@@ -377,6 +379,8 @@ def log_status(
             "solar_limit_pct": s.get("limit_pct"),       # SolarEdges exportgräns (%), för PI-autotuningen i learning.get_optimal_pi_params
             "battery_soc": s.get("battery_soc"),
             "battery_power_w": s.get("battery_power_w"),
+            "battery_plan_id": s.get("battery_plan_id"),
+            "battery_plan_rule": s.get("battery_plan_rule"),
             "inverter_status": inv_status,
             "solar_today_kwh": s.get("today_kwh"),
             "temp_garage": t.get("garage"),

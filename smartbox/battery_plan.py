@@ -348,7 +348,7 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
                   reversal_cost_sek=settings.get("reversal_cost_sek", 0.0))
     r = optimize(slots, **params)
     import plan_snapshot
-    plan_snapshot.capture(slots, params, r, now)
+    r["plan_id"] = plan_snapshot.capture(slots, params, r, now)
     r["style"], r["allow_export"] = style, allow_export
     try:
         with engine.begin() as c:
