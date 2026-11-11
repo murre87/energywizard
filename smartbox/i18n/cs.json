@@ -2227,5 +2227,17 @@
   "Bara ägaren kan ändra solprognosen": "Předpověď výroby FVE může měnit pouze vlastník",
   "Okänd källa för solprognosen": "Neznámý zdroj předpovědi výroby FVE",
   "Välj högst sju giltiga sensorentiteter": "Vyberte nejvýše sedm platných senzorových entit",
-  "Välj minst en Solcast-prognossensor": "Vyberte alespoň jeden senzor předpovědi Solcast"
+  "Välj minst en Solcast-prognossensor": "Vyberte alespoň jeden senzor předpovědi Solcast",
+  "Kontrollerar uppdateringar…": "Kontroluji aktualizace…",
+  "Ny version tillgänglig": "Je k dispozici nová verze",
+  "Kunde inte kontrollera uppdateringar": "Aktualizace se nepodařilo zkontrolovat",
+  "Versionskontroll är inte konfigurerad": "Kontrola aktualizací není nastavena",
+  "EnergyWizard – uppdateringar": "EnergyWizard – aktualizace",
+  "Senast kontrollerad utan fel": "Poslední úspěšná kontrola",
+  "Installationen behöver ange image och körande digest. Se guiden för versionskontroll.": "Pro tuto instalaci je nutné zadat obraz a digest spuštěného obrazu. Viz návod ke kontrole aktualizací.",
+  "Automatisk kontroll var # timme. Manuella kontroller har # sekunders väntetid.": "Automatická kontrola každých # hodin. Ruční kontroly mají čekací dobu # sekund.",
+  "Sök efter uppdateringar": "Zkontrolovat aktualizace",
+  "Kunde inte kontrollera uppdateringar.": "Aktualizace se nepodařilo zkontrolovat.",
+  "Försök igen": "Zkusit znovu",
+  "har en nyare version - Watchtower uppdaterar den vid nästa schemalagda körning": "má novější verzi – Watchtower ji aktualizuje při příštím naplánovaném spuštění"
 }
