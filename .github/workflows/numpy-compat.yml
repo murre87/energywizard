@@ -1,0 +1,19 @@
+name: numpy-compatibility-evaluation
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/numpy-compat.yml
+      - tests/numpy_compat/**
+      - scripts/check_numpy_compat.py
+permissions:
+  contents: read
+jobs:
+  legacy-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/check_numpy_compat.py
