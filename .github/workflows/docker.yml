@@ -23,54 +23,105 @@ jobs:
       matrix:
         app: [ewapp, smartbox, webdashboard]   # smartdashboard (Streamlit) borttagen 2026-11-07
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./${{ matrix.app }}
+          pull: true
+          build-args: |
+            APP_VERSION=1.${{ github.run_number }}
+          load: true
+          push: false
+          tags: ghcr.io/murre87/energywizard-${{ matrix.app }}:${{ github.sha }}
+      - uses: ./.github/actions/audit-image
+        with:
+          image: ghcr.io/murre87/energywizard-${{ matrix.app }}:${{ github.sha }}
+          report-name: publish-${{ matrix.app }}
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
-        with:
-          context: ./${{ matrix.app }}
-          build-args: |
-            APP_VERSION=1.${{ github.run_number }}
-          push: true
-          tags: |
-            ghcr.io/murre87/energywizard-${{ matrix.app }}:latest
-            ghcr.io/murre87/energywizard-${{ matrix.app }}:${{ github.sha }}
+      - name: Publish the audited image
+        env:
+          EW_IMAGE: ghcr.io/murre87/energywizard-${{ matrix.app }}
+          EW_COMMIT: ${{ github.sha }}
+        run: |
+          docker tag "$EW_IMAGE:$EW_COMMIT" "$EW_IMAGE:latest"
+          docker push "$EW_IMAGE:$EW_COMMIT"
+          docker push "$EW_IMAGE:latest"
 
   # Allt i en bild (motor, databas, webben och mobilappen), samma som HA-tillägget. Fristående:
   #   docker run -d -p 8503:8503 -p 8502:8502 -v energywizard:/data ghcr.io/murre87/energywizard
   # och sedan startguiden i webben. Se compose.yml och install.sh.
-  allt-i-ett:
+  allt-i-ett-bygg:
     needs: tester
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: matrix.arch == 'arm64'
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./ha-addon/smartbox
-          platforms: linux/amd64,linux/arm64
+          pull: true
+          platforms: linux/${{ matrix.arch }}
           build-args: |
             ENERGYWIZARD_REF=main
             ENERGYWIZARD_COMMIT=${{ github.sha }}
-          push: true
-          tags: |
-            ghcr.io/murre87/energywizard:latest
-            ghcr.io/murre87/energywizard:${{ github.sha }}
-          cache-from: type=gha,scope=allt-i-ett
-          cache-to: type=gha,mode=max,scope=allt-i-ett
+          load: true
+          push: false
+          tags: ghcr.io/murre87/energywizard:${{ github.sha }}-${{ matrix.arch }}
+          # Refresh apt security patches even when the pinned base digest is unchanged.
+          no-cache: true
           # Bara de två plattformarna i manifestet (inga attesteringsposter "unknown/unknown") - Home Assistant
           # Supervisor hämtar den här bilden som tillägget (se jobbet tillagg nedan).
           provenance: false
           sbom: false
+      - uses: ./.github/actions/audit-image
+        with:
+          image: ghcr.io/murre87/energywizard:${{ github.sha }}-${{ matrix.arch }}
+          report-name: publish-addon-${{ matrix.arch }}
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the audited platform image
+        env:
+          EW_COMMIT: ${{ github.sha }}
+          EW_ARCH: ${{ matrix.arch }}
+        run: docker push "ghcr.io/murre87/energywizard:$EW_COMMIT-$EW_ARCH"
+
+  # Promote only after both independently audited platform images exist.
+  allt-i-ett:
+    needs: allt-i-ett-bygg
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish audited multi-architecture tags
+        env:
+          EW_COMMIT: ${{ github.sha }}
+        run: |
+          docker buildx imagetools create \
+            -t "ghcr.io/murre87/energywizard:$EW_COMMIT" \
+            -t ghcr.io/murre87/energywizard:latest \
+            "ghcr.io/murre87/energywizard:$EW_COMMIT-amd64" \
+            "ghcr.io/murre87/energywizard:$EW_COMMIT-arm64"
 
   # HA-tillägget som FÄRDIG bild (2026-11-06): config.yaml pekar på ghcr.io/murre87/energywizard och Supervisor
   # hämtar <bild>:<version> i stället för att bygga själv (tog lång tid och kunde misslyckas på svaga maskiner).
@@ -89,12 +140,12 @@ jobs:
     steps:
       # Senaste main (inte den byggda commiten): när två körningar överlappar ska versionshöjningen göras ovanpå den
       # andras (2026-11-06: 1.2.27 fick rebase-konflikt mot 1.2.26 och tappades tyst)
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
