@@ -88,7 +88,9 @@ def solar(**kwargs):
 
 
 def test_reads_aggregate_battery_and_dc_power_sign(hub):
-    assert battery().read_state() == {"soc_pct": 60, "power_w": -2000, "capacity_kwh": 10, "mode": "0"}
+    state = battery().read_state()
+    assert state.pop("power_sample_at") > 0
+    assert state == {"soc_pct": 60, "power_w": -2000, "capacity_kwh": 10, "mode": "0"}
     hub.inputs[6100] = float_words(-1.25)
     assert battery().read_state()["power_w"] == 1250
     assert hub.closed
