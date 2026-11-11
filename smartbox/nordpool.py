@@ -509,7 +509,13 @@ def fetch_ha_nordpool_and_save(date_obj, refresh_all=False):
         dynamic = False
         now = datetime.now(timezone.utc)
         for entity in _price_entities():
-            state = _ha_state(entity)
+            try:
+                state = _ha_state(entity)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                # A transport outage must not discard another sensor's usable prices.
+                # Keep the local diagnostic, like the HTTP-status warning in _ha_state.
+                print(f"⚠️ Kunde inte nå HA-prissensorn ({entity}) för {date_str}: {e}")
+                continue
             if state is None:
                 continue
             attrs = state.get("attributes") or {}

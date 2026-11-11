@@ -14,6 +14,7 @@ storage problems can also appear there.
 | Reported group | Source findings / next evidence |
 | --- | --- |
 | `nordpool.fetch_ha_nordpool_and_save: Error` | `Error` can be emitted by an error-marked print without an active exception. Need the affected build and sanitized local log; cannot infer HA authentication, data format, or network failure from this class. |
+| `nordpool.fetch_ha_nordpool_and_save: ConnectionError` (#284) | A failed HA sensor request previously aborted the entire import, including usable data from another sensor. Connection failures and timeouts now warn locally and continue to the next configured sensor. The report alone does not establish whether DNS, refusal, TLS or another transport failure caused the outage; the affected installation's local log is still needed. |
 | `nordpool.ensure_prices_exist: Error` | The missing-price critical message also produces generic `Error`. It can follow a failed fetch. Existing Swedish-source fallback and non-Swedish source restrictions remain intact. |
 | `gpm.evaluate: TypeError` | Reproduced a remaining phase-reset defect: integer phase states allowed by the charger interface crash string-membership checks. Numeric strings also fail to request the intended phase reset. Fixed with numeric/label regression coverage. The reported group still needs build/location correlation to establish that it is this exact defect. |
 | `ftw_deye-svk.poll: LuaError` | Main already guards the energy calculation when a failed register read leaves SoC nil. Need build and local Lua error to determine whether this is the older nil-arithmetic bug or another failure. No inverter writes/control safeguards changed. |
@@ -25,3 +26,10 @@ storage problems can also appear there.
 The GPM fix accepts integer `1`/`3`, numeric strings and existing HA labels.
 Unknown/missing values do not trigger a phase reset. Fuse/current limits and
 the existing phase-switch behavior for string labels are preserved.
+
+For #284, a fetch with no usable prices still returns failure without writing
+prices or marking the refresh successful. Existing stored prices remain intact.
+Swedish installations retain the existing public-source fallback; other countries
+never substitute Swedish prices. A subsequent normal engine cycle can retry.
+Unexpected parsing/programming and database errors retain the error log path.
+No extra HTTP retries, timeout changes or TLS-verification changes were added.
