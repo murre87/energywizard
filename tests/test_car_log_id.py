@@ -4,6 +4,8 @@ generic_ev/nissan/tesla är redan giltiga kolumnprefix och får inte byta namn.
 """
 import car_log
 import live_flow
+from contextlib import contextmanager
+from psycopg.rows import dict_row
 
 
 def test_befintliga_id_ar_oforandrade():
@@ -60,3 +62,37 @@ def test_oversikten_utan_logg_och_effekt_visar_inte_tom_bil():
         has_spa=False,
     )
     assert all(n["key"] != "ev_Volvo_Ex40" for n in d["nodes"])
+
+
+def test_renamed_car_survives_database_logging_and_overview(smartbox, db, monkeypatch, capsys):
+    """#287/#293: exercise the writer and reader together, beyond column-name helpers."""
+    # The session-local copy shadows the test database table without changing its rows.
+    db.execute("CREATE TEMP TABLE sensor_log (LIKE public.sensor_log INCLUDING ALL)")
+
+    @contextmanager
+    def connection():
+        yield db
+
+    monkeypatch.setattr(smartbox, "get_db", connection)
+    monkeypatch.setattr(smartbox, "_car_columns_ok", set())
+    monkeypatch.setattr(smartbox, "_bool_columns", None)
+    try:
+        common = dict(price=1.0, indoor=20, water=40, target_room=21, water_mode=0,
+                      forward=30, retur=25, calc_forward=30, outdoor=5,
+                      avg_l1=0, avg_l2=0, avg_l3=0, avg_tot=0, consumed_kwh=0, total_kwh=0,
+                      cloud_cover=0, wind_speed=0, net_power=100, wind_dir=0,
+                      solar_forecast_w=0, pump={}, house_consumption_w=100)
+        for car_id, soc in [("Volvo_Ex40", 42), ("volvo_ex40", 55)]:
+            smartbox.log_status(**common, car_data={f"{car_id}_soc": soc,
+                               f"{car_id}_charge_completed": True})
+        assert "❌" not in capsys.readouterr().out
+        with db.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT * FROM sensor_log ORDER BY timestamp")
+            rows = cur.fetchall()
+        assert [row["volvo_ex40_soc"] for row in rows] == [42, 55]
+        assert all(row["volvo_ex40_charge_completed"] == 1 for row in rows)
+        overview = live_flow.nodes(rows[-1], cars=[("Volvo_Ex40", "Volvo EX40", None)], has_spa=False)
+        car = next(n for n in overview["nodes"] if n["key"] == "ev_Volvo_Ex40")
+        assert car["label"] == "Volvo EX40" and "55 %" in car["detail"]
+    finally:
+        db.execute("DROP TABLE pg_temp.sensor_log")
