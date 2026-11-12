@@ -2071,6 +2071,25 @@ function wizardForm() {
   return f;
 }
 let _pendingFtw = null;
+function mountFtwSuggestion(hint) {
+  // Knappen fyller i drivrutinen. Den kryssar inte i styrning: den är overifierad och ska vara ett eget val.
+  const s = document.getElementById("ftw_drv");
+  if (!hint || !/^[a-z0-9_]{1,40}$/.test(String(hint.driver || "")) || !s || s.value) return;
+  if (![...s.options].some((o) => o.value === hint.driver) || document.getElementById("ftw_use")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "ftw_use";
+  btn.className = "icobtn";
+  btn.style.marginTop = "8px";
+  btn.textContent = "Välj " + hint.driver;
+  btn.addEventListener("click", () => {
+    s.value = hint.driver;
+    if (typeof s.onchange === "function") s.onchange();
+    const ctl = document.getElementById("ftw_ctl");
+    if (ctl) ctl.checked = false;
+  });
+  s.insertAdjacentElement("afterend", btn);
+}
 function applyFtwForm() {
   const f = _pendingFtw, s = document.getElementById("ftw_drv");
   if (!f || !s || !f.drv || ![...s.options].some((o) => o.value === f.drv)) return;
@@ -2197,6 +2216,7 @@ async function runDiscovery(ev, cached) {
       document.getElementById("ftw_ctl_row").hidden = !x.can_control;          // bara drivrutiner med batteristyrning
       info.textContent = `Kan: ${x.capabilities.join(", ")}${x.can_control ? ", styra batteriet" : ""}${x.verification ? " · " + x.verification : ""}`; };
     applyFtwForm();
+    mountFtwSuggestion(d.ftw_suggestion);
   }).catch(() => {});
   document.getElementById("genbtn").onclick = () => generateConfig(false);
   document.getElementById("savebtn").onclick = () => generateConfig(true);

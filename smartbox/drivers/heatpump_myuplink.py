@@ -50,6 +50,19 @@ _CLIENT_ID = os.environ.get("MYUPLINK_CLIENT_ID", "")
 _CLIENT_SECRET = os.environ.get("MYUPLINK_CLIENT_SECRET", "")
 _REFRESH_TOKEN = os.environ.get("MYUPLINK_REFRESH_TOKEN", "")
 _DEVICE_ID = os.environ.get("MYUPLINK_DEVICE_ID", "")
+# Supervisor-proxyn svarar 502/503/504 medan API:t startar om. Samma gräns som mot Home Assistant.
+_GATEWAY_STATUS = (502, 503, 504)
+
+
+def _myuplink_mark(exc) -> str:
+    """Timeout, avbrott och gateway-omstart är drift (⚠️). Fel token och oväntade undantag är kvar som ❌,
+    så telemetrin inte gör programfel av att api.myuplink.com inte svarar."""
+    if isinstance(exc, requests.HTTPError):
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        return "⚠️" if status in _GATEWAY_STATUS else "❌"
+    if isinstance(exc, (requests.RequestException, TimeoutError, OSError)):
+        return "⚠️"
+    return "❌"
 
 
 class MyUplinkHeatPumpDriver(HeatPumpDriver):
@@ -105,7 +118,7 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
                       "inloggningen fungera när den gamla går ut.")
             return self._access_token
         except Exception as e:
-            print(f"❌ MyUplinkHeatPumpDriver: kunde inte förnya access-token: {e}")
+            print(f"{_myuplink_mark(e)} MyUplinkHeatPumpDriver: kunde inte förnya access-token: {e}")
             return None
 
     def _headers(self) -> dict | None:
@@ -124,7 +137,7 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
             points = r.json()
             return points if isinstance(points, list) else []
         except Exception as e:
-            print(f"❌ MyUplinkHeatPumpDriver: kunde inte läsa points: {e}")
+            print(f"{_myuplink_mark(e)} MyUplinkHeatPumpDriver: kunde inte läsa points: {e}")
             return []
 
     def read_sensors(self) -> dict:
@@ -172,7 +185,7 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
             r.raise_for_status()
             return True
         except Exception as e:
-            print(f"❌ MyUplinkHeatPumpDriver: kunde inte skriva {write_key} (punkt {pid}): {e}")
+            print(f"{_myuplink_mark(e)} MyUplinkHeatPumpDriver: kunde inte skriva {write_key} (punkt {pid}): {e}")
             return False
 
     def set_room_temp(self, target_c: float) -> bool:

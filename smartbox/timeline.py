@@ -1,7 +1,9 @@
 """
 timeline.py - dygnet timme för timme: vad som hände och vad som är planerat.
 
-En rad per timme, 24 h bakåt och framåt så långt elpriserna räcker (max 24 h):
+En rad per timme, 24 h bakåt och framåt så långt elpriserna räcker.
+Leverantören (Nord Pool med flera) publicerar idag och imorgon, ibland lite längre.
+Grafen tar med hela den serien. FUTURE_CAP_H är bara ett tak mot en felaktig tidsstämpel.
 
   BAKÅT (uppmätt, sensor_log):  elpris, solproduktion, hur stor del av timmen värmepumpens
                                 kompressor gick, om spabadet värmde, hur mycket varje laddbox laddade.
@@ -21,6 +23,8 @@ from datetime import datetime, timedelta
 import zoneinfo
 
 SWE = zoneinfo.ZoneInfo("Europe/Stockholm")
+# Idag + imorgon räcker oftast till ~36 h framåt. Taket släpper in det utan att en trasig rad ritar ett år.
+FUTURE_CAP_H = 72
 # Laddboxarna loggas i installationens ordning: första -> ev_power_kw, andra -> ev_carport_power_kw (main.py).
 # Vilken bil som hör till vilken kolumn kommer ur installationen (load(cars=...)); utan den bara "Laddbox 1/2".
 DEFAULT_CHARGER_CAR = {"ev_power_kw": "laddbox_1", "ev_carport_power_kw": "laddbox_2"}
@@ -39,7 +43,7 @@ def build(now, past, future_prices, future_solar_kw, heat_modes, ev_plan, car_id
     ev_plan: {timme: {car: kWh}}. Returnerar en dict för grafen."""
     h0 = _hour(now)
     last_future = max(list(future_prices) + [h0])
-    end = min(last_future, h0 + timedelta(hours=24))
+    end = min(last_future, h0 + timedelta(hours=FUTURE_CAP_H))
     hours = []
     t = h0 - timedelta(hours=24)
     while t <= end:
@@ -148,7 +152,7 @@ def load(conn, now=None, cars=None, has_spa=None, has_heat=None):
                                        "battery_kw": f(bat) / 1000.0 if bat is not None else None}
 
     prices_q = conn.execute(text("SELECT time_start, sek_per_kwh FROM elpriser WHERE time_start >= :a AND time_start < :b "
-                                 "ORDER BY time_start"), {"a": h0 - timedelta(hours=24), "b": h0 + timedelta(hours=25)}).fetchall()
+                                 "ORDER BY time_start"), {"a": h0 - timedelta(hours=24), "b": h0 + timedelta(hours=FUTURE_CAP_H + 1)}).fetchall()
     fut_prices, by_hour = {}, {}
     for t, p in prices_q:
         if p is None:
@@ -164,7 +168,7 @@ def load(conn, now=None, cars=None, has_spa=None, has_heat=None):
     fut_solar = {}
     try:
         import weather
-        for k in range(0, 25):
+        for k in range(0, FUTURE_CAP_H + 1):
             hh = h0 + timedelta(hours=k)
             if hh not in fut_prices:
                 continue

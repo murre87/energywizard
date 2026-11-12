@@ -12,7 +12,7 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
 
 - **FTW-drivrutiner: verifierad styrning.** Läsning fungerar sedan 2026-11-05 (`driver: ftw`, alla 93 medföljer). Kvar:
   prova styrning (driver_command) på riktig hårdvara drivrutin för drivrutin och lägga in dem i `FTW_CONTROL_VERIFIED`
-  – Sungrow, Sonnen, Victron och SMA först. Installationsguiden ska kunna föreslå `driver: ftw` (idag skrivs den för hand).
+  – Sungrow, Sonnen, Victron och SMA först. Guiden namnger FTW-drivrutinen (deye, sigenergy, solinteg, pixii) när Home Assistant kan läsa märket men inte styra batteriet. Användaren fyller i IP själv, och styrning förblir av.
 - **Tillägget använder färdigbyggda images** – klart 2026-11-06: CI-jobbet `tillagg` taggar imagen med tilläggets
   version och höjer `version` i config.yaml först när imagen är pushad (ny version = ny rubrik i CHANGELOG.md).
 - **Testa Modbus-drivrutinerna mot srcfl/device-simulator i CI** (Solax, Ferroamp, Thermia, Pixii) - utan hårdvara.
@@ -64,8 +64,8 @@ optimeraren Energyplan är stängd och används inte):
   driftläge (egenförbrukning, manuell laddning/urladdning). Plan: förinställning för läsning + lägena
   auto/ladda/ladda ur. Behöver en testare med Sonnen.
 - **Solproduktion från flera växelriktare.** Klart 2026-11-07 för den generiska soldrivrutinen: `sum_inverters: true`
-  summerar listan i `pv_power_w`/`today_kwh` (utan den är listan reserv). Kvar: att guiden föreslår det själv när den
-  hittar flera växelriktare, utan att räkna strängar och totalsensorer två gånger.
+  summerar listan i `pv_power_w`/`today_kwh` (utan den är listan reserv). Guiden föreslår det själv från 2026-11-12:
+  en solgivare per växelriktare, och strängar/MPPT bara när den växelriktaren saknar en egen solgivare.
 - **Flera batterier och växelriktare samtidigt.** Idag ett batteri och en solcellsdrivrutin. Fördela effekten efter
   laddnivå och kapacitet, med gemensam säkringsgräns (FTW: multi-battery allocation). Efterfrågat av #78 (tre GoodWe +
   Ferroamp) och #86 (två Solax).

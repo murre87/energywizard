@@ -4,7 +4,7 @@ const $ = (s) => document.querySelector(s), app = $("#app");
 const LS = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let FL = null;                     // "Just nu"-flödet på Hem (api/flow, samma som webbens Översikt)
 let PC = null, PCAt = 0, PCNEW = false, PCEL = null, PCH = null;   // planklockan (planclock.js) - samma DOM-nod mellan omritningar så att visaren inte hoppar
-let LJ = null, VIEWAS = LS.get("ew_viewas", ""), GR = null, ME = "", ROLE = "owner", EN = null, S = null, H = null, page = LS.get("ew_page", "bil"), busy = false, timer = null, installEvt = null, SCH = null, CLIM = null, schCar = "", HIST = null, SET = null, PL = null, SV = null, HX = null, JR = null, jBack = 1, EC = null, ecAt = 0;
+let LJ = null, VIEWAS = LS.get("ew_viewas", ""), GR = null, ME = "", ROLE = "owner", EN = null, S = null, H = null, page = LS.get("ew_page", "bil"), busy = false, timer = null, installEvt = null, SCH = null, CLIM = null, schCar = "", HIST = null, SET = null, PL = null, SV = null, HX = null, JR = null, jBack = 1, EC = null, ecAt = 0, TL = null, TLAt = 0;
 let svPeriod = LS.get("ew_sv_period", "week"), hxPeriod = LS.get("ew_hx_period", "today"), hxRange = LS.get("ew_hx_range", "24h");
 // gamla flikar (före fem-flik-layouten) pekas om så ingen hamnar på en tom sida
 page = ({ ljus: "hem", energi: "hem", schema: "plan", grafer: "historik" })[page] || page;
@@ -384,11 +384,63 @@ function powerSvg(sr) {                                   // nät/sol/hus/batter
   const lbl = (x) => sr.range === "24h" ? x.slice(11, 16) : `${x.slice(8, 10)}/${x.slice(5, 7)}`;
   return `<div class="ch"><span>${f1(mx, 0)} kW in</span><span></span></div><svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Hh / 2}" y2="${Hh / 2}" stroke="var(--line)" vector-effect="non-scaling-stroke"/>${paths}</svg><div class="ch"><span>${lbl(sr.t[0])}</span><span>${f1(mx, 0)} kW ut</span><span>nu</span></div>`;
 }
+function dayWhen(iso) {
+  if (!iso) return "";
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
+}
+function dayChart(d) {
+  if (!d || !d.ok || !(d.hours || []).length) return `<section class="card dayc"><div class="note" style="text-align:center">${d ? "Ingen data" : "Laddar…"}</div></section>`;
+  const hours = d.hours, n = hours.length, price = d.price || [], solar = d.solar_kw || [], fut = d.future || [], lanes = d.lanes || [];
+  const firstFut = fut.findIndex(Boolean);
+  const nowIdx = firstFut < 0 ? n - 1 : Math.max(0, firstFut - 1);
+  const ps = price.filter((v) => v != null);
+  const pMax = Math.max(0.5, ...ps, 0), pMin = Math.min(0, ...ps);
+  const sMax = Math.max(0.5, ...solar.filter((v) => v != null));
+  const slot = 18, top = 16, pH = 112, laneH = 26, bot = 22;
+  const plotW = n * slot, H = top + pH + 8 + lanes.length * laneH + bot;
+  const Yp = (v) => top + 4 + (pH - 12) * (1 - (v - pMin) / (pMax - pMin || 1));
+  const y0 = Yp(0);
+  let bars = "", path = "", pen = false;
+  solar.forEach((v, i) => {
+    if (v == null || v <= 0) return;
+    const h = (v / sMax) * (pH - 18), x = i * slot + 3;
+    bars += `<rect x="${x.toFixed(1)}" y="${(y0 - h).toFixed(1)}" width="${slot - 6}" height="${h.toFixed(1)}" fill="#fbbf24" opacity="${fut[i] ? ".35" : ".78"}"/>`;
+  });
+  price.forEach((v, i) => {
+    if (v == null) { pen = false; return; }
+    const y = Yp(v).toFixed(1), x0 = (i * slot).toFixed(1), x1 = ((i + 1) * slot).toFixed(1);
+    path += pen ? `V${y}H${x1}` : `M${x0} ${y}H${x1}`;
+    pen = true;
+  });
+  const nx = (firstFut < 0 ? n : firstFut) * slot;
+  const scale = [pMax, (pMax + pMin) / 2, pMin].map((v) => `<span class="ps" style="top:${Yp(v).toFixed(1)}px">${f1(v, 1)}</span>`).join("");
+  let laneSvg = "", laneLabs = "";
+  lanes.forEach((ln, li) => {
+    const y = top + pH + 10 + li * laneH;
+    laneLabs += `<span class="ln" style="top:${y + 3}px">${esc(ln.label)}</span>`;
+    (ln.values || []).forEach((v, i) => {
+      if (v == null || v <= 0.02) return;
+      const op = ((fut[i] ? 0.12 : 0.2) + v * (fut[i] ? 0.45 : 0.8)).toFixed(2);
+      laneSvg += `<rect x="${i * slot + 2}" y="${y + 4}" width="${slot - 4}" height="14" rx="3" fill="${ln.color}" opacity="${op}"${fut[i] ? ` stroke="${ln.color}" stroke-dasharray="2 2" stroke-width="1"` : ""}/>`;
+    });
+  });
+  let labels = "";
+  hours.forEach((h, i) => {
+    const hr = +h.slice(11, 13);
+    if (hr % 6 !== 0 && i !== n - 1) return;
+    labels += `<text data-h="${esc(h)}" x="${i * slot + slot / 2}" y="${H - 6}" text-anchor="middle" fill="currentColor" opacity=".6" font-size="10">${String(hr).padStart(2, "0")}</text>`;
+  });
+  const lastI = price.reduce((a, v, i) => (v != null ? i : a), nowIdx);
+  const until = dayWhen(hours[lastI]);
+  const nowPrice = price[nowIdx];
+  return `<section class="card dayc" data-until="${esc(hours[lastI])}" data-lastprice="${price[lastI] == null ? "" : price[lastI]}"><div class="chead"><div><b>Dygnet</b><div class="note">Vänster om strecket är uppmätt. Höger är planerat, till sista priset från leverantören${until ? ` · ${until}` : ""}.</div></div><div class="nowp">${f1(nowPrice, 2)} <small>${moneyUnit()}</small><div class="note">nu</div></div></div><div class="dayleg"><span><i style="background:#38bdf8"></i>Elpris</span><span><i style="background:#fbbf24"></i>Sol</span><span>Starkare färg = mer</span></div><div class="dayframe"><div class="daylabs" style="height:${H}px">${scale}${laneLabs}</div><div class="dayscroll" data-nowx="${nx}"><svg viewBox="0 0 ${plotW} ${H}" width="${plotW}" height="${H}" role="img" aria-label="Elpris dygnet"><line x1="0" x2="${plotW}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="currentColor" stroke-opacity=".15"/>${bars}<path d="${path}" fill="none" stroke="#38bdf8" stroke-width="2"/>${laneSvg}<line data-now x1="${nx}" x2="${nx}" y1="${top}" y2="${H - bot}" stroke="currentColor" stroke-opacity=".7" stroke-dasharray="3 3"/>${labels}</svg></div></div></section>`;
+}
 function pageHistorik() {
   const seg = `<div class="seg">${[["energi", "Energi"], ["temp", "Temperatur"], ["pris", "Elpris"]].map(([k, l]) => `<button data-a="histview" data-v="${k}" class="${histView === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
+  if (histView === "pris") return `<div class="page">${seg}${dayChart(TL)}</div>`;
   if (histView !== "energi") {
     if (!HIST) return `<div class="page">${seg}<div class="note" style="text-align:center">Laddar…</div></div>`;
-    const h = HIST, c = histView === "temp" ? chart("Temperatur inne / ute", "°C", [h.indoor, h.outdoor], h.t, ["var(--warn)", "var(--mut)"], ["Inne", "Ute"], "temp") : chart("Elpris", moneyUnit(), [h.price], h.t, ["var(--acc)"], [`Spotpris ${moneyUnit()}/kWh`], "pris");
+    const h = HIST, c = chart("Temperatur inne / ute", "°C", [h.indoor, h.outdoor], h.t, ["var(--warn)", "var(--mut)"], ["Inne", "Ute"], "temp");
     return `<div class="page">${seg}<div class="charts one">${c}</div></div>`;
   }
   if (!HX) return `<div class="page">${seg}<div class="note" style="text-align:center">Laddar…</div></div>`;
@@ -412,6 +464,7 @@ function render() {
   const tabs = TABS[ER()].map((k) => [k, TABNAME[k]]);
   // Scrollar sidan (stor text, tscroll) ska omritningen var 5:e sekund inte kasta en tillbaka till toppen
   const _oldPg = document.querySelector(".page"), _keepScroll = _oldPg && _oldPg.dataset.p === page ? _oldPg.scrollTop : 0;
+  const _oldDay = document.querySelector(".dayscroll"), _keepDay = _oldDay ? _oldDay.scrollLeft : null;
   app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? GR.hello : "EnergyWizard")}</b>${GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : ""}${S && S.version && S.version !== "dev" && S.version !== "local" ? `<span class="ver" title="Du kör senaste versionen">v${esc(S.version)} ✓ senaste</span>` : ""}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
   let tb = $("#tabs"); if (!tb) { tb = document.createElement("nav"); tb.id = "tabs"; tb.className = "tabs"; document.body.insertBefore(tb, $("#toast")); }
   tb.style.setProperty("--ntabs", tabs.length);
@@ -426,6 +479,8 @@ function render() {
   if (_pg) _pg.dataset.p = page;
   fit();
   if (_pg && _keepScroll) _pg.scrollTop = _keepScroll;
+  const _day = document.querySelector(".dayscroll");
+  if (_day) _day.scrollLeft = _keepDay == null ? Math.max(0, (+_day.dataset.nowx || 0) - 28) : _keepDay;
 }
 function overflows(pg) {
   const r = pg.getBoundingClientRect(); if (pg.scrollHeight > pg.clientHeight + 1) return true;
@@ -469,7 +524,12 @@ async function load() {
       [EN, PL, SV, FL] = await Promise.all([api("energy"), api("plan").catch(() => PL), ER() === "owner" ? api("savings").catch(() => null) : null, api("flow").catch(() => FL)]); if (!LJ && can("lights")) LJ = await api("lights").catch(() => null); await loadClock(); }
     if (page === "bil" && Date.now() - ecAt > 300000) { ecAt = Date.now(); api("ev-cost").then((d) => { EC = d; if (page === "bil") render(); }).catch(() => {}); }
     if (page === "plan") { PL = await api("plan").catch(() => PL); if (!SCH) SCH = await api("schedule"); if (!CLIM) CLIM = await api("schedule/climate").catch(() => CLIM); await loadClock(); }
-    if (page === "historik") { if (histView === "energi") { HX = await api("energyhistory?range=" + hxRange); JR = await api("control-journal?back=" + jBack).catch(() => JR); } else if (!HIST) HIST = await api("history?hours=24"); if (!EN) EN = await api("energy").catch(() => null); }
+    if (page === "historik") {
+      if (histView === "energi") { HX = await api("energyhistory?range=" + hxRange); JR = await api("control-journal?back=" + jBack).catch(() => JR); }
+      else if (histView === "pris") { if (!TL || Date.now() - TLAt > 60000) { TL = await api("timeline").catch(() => TL); if (TL) TLAt = Date.now(); } }
+      else if (!HIST) HIST = await api("history?hours=24");
+      if (!EN) EN = await api("energy").catch(() => null);
+    }
     if (!(sheetOpen())) render();
     checkVersion(); loadGreeting(); openStream();
     if (!doneShortcut) { doneShortcut = true; runShortcut(); }

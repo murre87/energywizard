@@ -13,6 +13,7 @@ inte för att skriva direkt till en levande config (se husets house_config.yaml
 """
 from __future__ import annotations
 
+import os
 import re
 
 import requests
@@ -280,6 +281,55 @@ def _solar_rank(entity):
     # Stable ordering prevents HA's entity order from changing the suggestion.
     return (bool(_PV_INPUT.search(name)), bool(_has(_candidate(entity), INVERTER_MAKERS)),
             bool(_PV_TOTAL.search(name)), entity["e"])
+
+
+# Nummer före "power": mppt_module_0_dc_power. "pv_power_1" (siffran sist) är ingen modul.
+_PV_MODULE = re.compile(r"(mppt.?module.?|mppt.?|pv.?|string.?)(\d+).*(dc.?)?power", re.I)
+_TODAY_ENERGY = re.compile(r"today|idag|dag", re.I)
+
+
+def _pv_module(entity):
+    return _PV_MODULE.search(entity["e"])
+
+
+def _explicit_pv(entity) -> bool:
+    name = _measurement_name(entity)
+    return bool(_PV_INPUT.search(name) or _PV_TOTAL.search(name))
+
+
+def _pv_power_selection(candidates: list[dict]) -> list[dict]:
+    """En avläsning per växelriktare. Strängar och MPPT-moduler tas bara med när växelriktaren
+    saknar en egen solgivare, så en total och dess strängar inte räknas två gånger."""
+    groups: dict = {}
+    for entity in candidates:
+        key = ("d", entity["d"]) if entity.get("d") else ("dn", entity.get("dn") or "")
+        groups.setdefault(key, []).append(entity)
+    chosen = []
+    for ents in groups.values():
+        whole = [e for e in ents if _explicit_pv(e) and not _pv_module(e)]
+        mods = [e for e in ents if _pv_module(e)]
+        if whole:
+            chosen.append(max(whole, key=_solar_rank))
+        elif len(mods) > 1:
+            best = max(mods, key=_solar_rank)
+            prefix = _pv_module(best).group(1).lower()
+            chosen.extend(e for e in mods if _pv_module(e).group(1).lower() == prefix)
+        else:
+            chosen.append(max(ents, key=_solar_rank))
+    by_id = {}
+    for entity in chosen:
+        by_id.setdefault(entity["e"], entity)
+    return [by_id[key] for key in sorted(by_id)]
+
+
+def _today_energy(entities: list[dict], device) -> dict | None:
+    """Dagens solenergi på en växelriktare. Nät, batteri och last räknas inte."""
+    if not device:
+        return None
+    cands = [e for e in entities if e["e"].startswith("sensor.") and e.get("u") in ("kWh", "Wh")
+             and e.get("d") == device and not _NOT_PV.search(_measurement_name(e))
+             and _has(e.get("n"), _TODAY_ENERGY)]
+    return max(cands, key=_solar_rank) if cands else None
 
 
 _CHG_W = re.compile(r"(storage|battery|batteri|batt)\w*[ _](charging|charge|laddning|laddar)[ _]power$|(storage|battery)_charging_power$", re.I)
@@ -573,6 +623,44 @@ def _cfos_charger_entities(ents):
     return out
 
 
+# HA kan läsa de här märkena men inte styra batteriet. Guiden namnger FTW-drivrutinen
+# och väljer den inte själv: användaren fyller i IP, och styrning förblir av.
+_FTW_WHEN_HA_CANNOT_CONTROL = (
+    (re.compile(r"deye|sunsynk", re.I), "deye", True),
+    (re.compile(r"sigenergy|sigenstor", re.I), "sigenergy", True),
+    (re.compile(r"solinteg", re.I), "solinteg", True),
+    (re.compile(r"pixii", re.I), "pixii", False),
+)
+
+
+def ftw_control_suggestion(battery, solar):
+    """Drivrutin att nämna i guiden, eller None när HA redan kan styra.
+
+    Returnerar driver, om den också läser sol, och en notis. Ingen config skrivs här.
+    """
+    if (battery or {}).get("control_preset") or ((battery or {}).get("generic_suggestion") or {}).get("modes"):
+        return None
+    parts = []
+    for obj in (battery, solar):
+        if not isinstance(obj, dict):
+            continue
+        for key in ("maker", "device_name", "soc_entity", "power_entity", "pv_power_entity"):
+            if obj.get(key):
+                parts.append(str(obj[key]))
+    blob = " ".join(parts)
+    folder = os.path.join(os.path.dirname(__file__), "ftw_drivers")
+    for rx, driver, also_solar in _FTW_WHEN_HA_CANNOT_CONTROL:
+        if not rx.search(blob):
+            continue
+        if not re.fullmatch(r"[a-z0-9_]{1,40}", driver) or not os.path.isfile(os.path.join(folder, driver + ".lua")):
+            return None
+        return {"driver": driver, "battery": True, "solar": also_solar, "note": (
+            f"Home Assistant kan läsa den här enheten men inte styra batteriet. "
+            f"Välj FTW-drivrutinen {driver} nedan och fyll i IP-adressen om EnergyWizard ska läsa den direkt. "
+            f"Styrning är av tills du kryssar i den. Drivrutinen är inte provad på riktig hårdvara, så börja i skuggläge.")}
+    return None
+
+
 def discover_house(entities: list[dict] | None = None) -> dict:
     """Returnerar kandidater per EnergyWizard-kategori. `entities` kan skickas
     in (t.ex. i tester mot ett syntetiskt svar) - annars hämtas de live."""
@@ -626,22 +714,37 @@ def discover_house(entities: list[dict] | None = None) -> dict:
     solar_e = max(power_sol, key=_solar_rank, default=None)
     solar = None
     if solar_e:
+        selected = _pv_power_selection(power_sol)
+        solar_e = max(selected, key=_solar_rank)
+        power_ids = [e["e"] for e in selected]
+        multi = len(power_ids) > 1
+        today_rows = []
+        seen_today = set()
+        for src in selected:
+            row = _today_energy(entities, src.get("d"))
+            if row and row["e"] not in seen_today:
+                seen_today.add(row["e"])
+                today_rows.append(row)
+        today_rows.sort(key=lambda e: e["e"])
+        today_ids = [e["e"] for e in today_rows]
+        today_kwh = today_rows[0] if len(today_rows) == 1 else None
         brand = next((b for b in _SOLAR_BRAND_TO_DRIVER if _has(_candidate(solar_e), re.compile(b, re.I))), None)
-        today_kwh = max((e for e in entities if e["e"].startswith("sensor.") and e.get("u") in ("kWh", "Wh")
-                         and solar_e.get("d") and e.get("d") == solar_e["d"]
-                         and not _NOT_PV.search(_measurement_name(e))
-                         and _has(e.get("n"), re.compile("today|idag|dag", re.I))),
-                        key=_solar_rank, default=None)
         driver = _SOLAR_BRAND_TO_DRIVER.get(brand)
+        if multi:
+            # Märkesdrivrutinen läser en växelriktare. Flera stycken summeras av den generiska.
+            driver = None
         if driver == "solaredge" and not any(e["e"] == _SOLAREDGE_LEGACY_LIMIT for e in entities):
             # Den handbyggda SolarEdge-drivrutinen pekar på entitetsnamn från en äldre HACS-integration.
             # Utan dem: den officiella solaredge_modbus (HA 2026.10+) har "Active power limit" i % på
             # växelriktarens enhet - den generiska drivrutinen nedan räcker och följer entiteterna som finns.
             driver = None
         solar = {
-            "pv_power_entity": solar_e["e"], "today_kwh_entity": today_kwh["e"] if today_kwh else None,
+            "pv_power_entity": ", ".join(power_ids) if multi else power_ids[0],
+            "today_kwh_entity": (", ".join(today_ids) if len(today_ids) > 1 else today_ids[0]) if today_ids else None,
             "maker": solar_e.get("m"), "driver": driver, "driver_known": driver in SOLAR_DRIVER_REGISTRY,
         }
+        if multi:
+            solar["note"] = "Flera växelriktare: effekten summeras. En växelriktares strängar tas inte med när den har en egen solgivare."
         if driver is None:
             # Känt märke saknas, men finns en number-entitet för exportgräns på samma
             # enhet kan grundläggande strypning ändå fungera via GenericNumberSolarDriver.
@@ -651,21 +754,18 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             limit_e = next((e for e in entities if e["e"].startswith("number.") and e.get("d") == solar_e.get("d")
                              and e.get("u") == "%"
                              and _has(e.get("n"), re.compile("export|limit|gräns|power.?limit", re.I))), None)
-            suggested = {"pv_power_w": solar_e["e"]}
-            # Fronius GEN24 m.fl.: en effektgivare per MPPT-modul (module_0, module_1 ...) och ingen ren solsumma (växelriktarens
-            # AC-effekt innehåller batteriets urladdning). Alla moduler på samma enhet summeras (#139, 2026-11-07). Bara
-            # givare med modulnummer tas med, så en totalgivare kan aldrig räknas två gånger.
-            _mod = re.compile(r"(mppt.?module.?|mppt.?|pv.?|string.?)(\d+).*(dc.?)?power", re.I)
-            if _mod.search(solar_e["e"]):
-                mods = sorted({e["e"] for e in power if e.get("d") == solar_e.get("d") and _mod.search(e["e"])
-                               and _mod.search(e["e"]).group(1).lower() == _mod.search(solar_e["e"]).group(1).lower()})
-                if len(mods) > 1:
-                    suggested = {"pv_power_w": mods, "sum_inverters": True}
-            if today_kwh:
+            suggested = {"pv_power_w": power_ids if multi else power_ids[0]}
+            if multi:
+                suggested["sum_inverters"] = True
+            # En växelriktare: MPPT-moduler summeras när det inte finns en hel solgivare (#139).
+            # Flera växelriktare: en givare var, aldrig sträng + total på samma enhet.
+            if len(today_ids) > 1:
+                suggested["today_kwh"] = today_ids
+            elif today_kwh:
                 suggested["today_kwh"] = today_kwh["e"]
-            if limit_e:
+            if not multi and limit_e:
                 suggested["export_limit_pct"] = limit_e["e"]
-            else:
+            elif not multi:
                 # Gräns i WATT (t.ex. Sungrow-Modbus): GenericNumberSolarDriver räknar om procent
                 # mot entitetens 'max'-attribut, eller mot export_limit_max_w i configen.
                 limit_w = next((e for e in entities if e["e"].startswith("number.") and e.get("d") == solar_e.get("d")
@@ -673,7 +773,7 @@ def discover_house(entities: list[dict] | None = None) -> dict:
                                 and _has(e.get("n"), re.compile("export|feed|gräns|power.?limit", re.I))), None)
                 if limit_w:
                     suggested["export_limit_w"] = limit_w["e"]
-            if _has(_candidate(solar_e), re.compile("huawei", re.I)) and solar_e.get("d"):
+            if not multi and _has(_candidate(solar_e), re.compile("huawei", re.I)) and solar_e.get("d"):
                 # wlcrs/huawei_solar: exportgränsen styrs via integrationens tjänster mot
                 # växelriktarens enhet (drivers/solar_huawei.py), inte via en entitet.
                 suggested = {k: v for k, v in suggested.items() if k in ("pv_power_w", "today_kwh")}
@@ -951,5 +1051,14 @@ def discover_house(entities: list[dict] | None = None) -> dict:
     power_sensors = sorted(({"entity": e["e"], "name": e.get("n") or e["e"], "unit": e.get("u"), "state": e.get("st")}
                             for e in entities if e["e"].startswith("sensor.") and (e.get("dc") == "power" or e.get("u") in ("W", "kW"))),
                            key=lambda x: x["name"].lower())
-    return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers, "grid_meters": grid_meters,
-            "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
+    hint = ftw_control_suggestion(battery, solar)
+    if hint:
+        target = battery if battery is not None else solar
+        if isinstance(target, dict):
+            prev = str(target.get("note") or "").strip()
+            target["note"] = (prev + " " + hint["note"]).strip()
+    found = {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers,
+             "grid_meters": grid_meters, "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
+    if hint:
+        found["ftw_suggestion"] = hint
+    return found

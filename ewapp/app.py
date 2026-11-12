@@ -1180,6 +1180,19 @@ def planskyline_js():
                         media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/api/timeline")
+def timeline_api():
+    """Historik → Elpris: uppmätt 24 h bakåt och elpriserna framåt så långt leverantören har publicerat."""
+    import live_flow
+    import timeline
+    try:
+        cars, has_spa, has_heat = live_flow.house_parts(HC.load_house_config(HOUSE_CONFIG_PATH))
+    except Exception:
+        cars, has_spa, has_heat = None, None, None
+    with ENGINE.connect() as c:
+        return timeline.load(c, cars=cars, has_spa=has_spa, has_heat=has_heat)
+
+
 @app.get("/api/history")
 def history(hours: int = 24):
     hours = max(6, min(hours, 72))

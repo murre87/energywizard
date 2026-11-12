@@ -42,6 +42,22 @@ def test_framat_bara_sa_langt_priserna_racker():
     assert d["hours"][-1] == (H0 + timedelta(hours=1)).isoformat()
 
 
+def test_framat_hela_leverantorens_priser():
+    """Imorgondygnet publiceras runt lunch och ligger längre än 24 h fram. Hela serien ska med."""
+    fut = {H0 + timedelta(hours=k): round(0.40 + k / 100, 2) for k in range(1, 37)}
+    d = build(NOW, _past(), fut, {}, {}, {})
+    assert d["hours"][-1] == (H0 + timedelta(hours=36)).isoformat()
+    assert d["price"][-1] == 0.76
+    assert d["future"][-1] is True
+    assert sum(1 for f in d["future"] if f) == 36
+
+
+def test_framat_tak_mot_felaktig_tidsstampel():
+    fut = {H0 + timedelta(hours=k): 1.0 for k in range(1, 90)}
+    d = build(NOW, _past(), fut, {}, {}, {})
+    assert d["hours"][-1] == (H0 + timedelta(hours=72)).isoformat()
+
+
 def test_flode_bara_det_huset_har():
     row = {"pv_power_w": 4200, "net_power": -1500, "house_consumption_w": 2700, "compressor_running": 1,
            "compressor_power_kw": 1.8, "indoor_temp": 21.4, "water_temp": 48, "water_mode": 0}
