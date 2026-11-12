@@ -1741,8 +1741,8 @@ async def climate_schedule_get():
     try:
         r = requests.get(f"{EWAPP_URL}/api/schedule/climate", cookies={"ew": _ewapp_cookie()}, timeout=25)
         return JSONResponse(r.json(), status_code=r.status_code)
-    except Exception as e:
-        return JSONResponse({"detail": f"Nådde inte ewapp: {e}"}, status_code=502)
+    except Exception:
+        return JSONResponse({"detail": "Nådde inte ewapp"}, status_code=502)
 
 
 @app.post("/api/schedule/climate")
