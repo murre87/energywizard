@@ -1513,7 +1513,7 @@ async def planskyline_js():
 
 @app.get("/api/timeline")
 async def api_timeline():
-    """Dygnet timme för timme: uppmätt 24 h bakåt + planerat framåt (timeline.py)."""
+    """Dygnet timme för timme: uppmätt 24 h bakåt och framåt så långt elpriserna räcker (timeline.py)."""
     import timeline
     cars, has_spa, has_heat = _house_parts()
     with ENGINE.connect() as c:

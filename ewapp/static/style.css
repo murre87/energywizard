@@ -220,6 +220,19 @@ html[data-ambient][data-tod=night] body { background: radial-gradient(900px 520p
 .plw { flex:0 0 112px; font-size:.84rem; font-variant-numeric:tabular-nums; } .plrow .note { font-size:.78rem; }
 .plnote { margin-top:auto; font-size:.74rem; }
 .charts.one { grid-template-rows:1fr; }
+.page:has(.dayc) { min-width:0; overflow-x:hidden; }
+.dayc { display:flex; flex-direction:column; gap:8px; overflow:hidden; min-width:0; max-width:100%; }
+.dayc .chead { align-items:flex-start; gap:12px; }
+.dayc .nowp { font-size:1.45rem; font-weight:700; text-align:right; white-space:nowrap; line-height:1.05; }
+.dayc .nowp small { font-size:.72rem; color:var(--mut); font-weight:500; }
+.dayleg { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.72rem; color:var(--mut); }
+.dayleg i { display:inline-block; width:12px; height:8px; border-radius:2px; margin-right:5px; vertical-align:1px; }
+.dayframe { display:grid; grid-template-columns:96px minmax(0,1fr); align-items:start; min-width:0; }
+.daylabs { position:relative; color:var(--txt); }
+.daylabs .ps { position:absolute; right:6px; transform:translateY(-50%); font-size:10px; color:var(--mut); }
+.daylabs .ln { position:absolute; left:0; right:6px; height:16px; line-height:16px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dayscroll { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; color:var(--mut); min-width:0; }
+.dayscroll svg { display:block; max-width:none; width:auto; height:auto; }
 .hxtot { flex:none; display:grid; gap:8px; padding:10px 12px; } .hxtot .seg button, .hxchart .seg button { min-height:32px; font-size:.8rem; }
 .kgrid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px; }
 .kc { border-left:3px solid; padding-left:7px; display:grid; min-width:0; } .kc span { font-size:.7rem; color:var(--mut); } .kc b { font-size:1.05rem; white-space:nowrap; } .kc small { font-size:.66rem; color:var(--mut); font-weight:500; }
