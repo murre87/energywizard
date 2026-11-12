@@ -7,8 +7,8 @@ lär sig EnergyWizard sedan, och skärper planen dag för dag:
   verkningsgrad + kapacitet  Hur många kWh som går IN per procent laddning (k_in) och kommer UT
                              per procent urladdning (k_out). Tur-och-retur-verkningsgraden är
                              k_out / k_in och den användbara kapaciteten 100 x sqrt(k_in x k_out).
-  maxeffekt                  Den effekt batteriet faktiskt laddar/laddar ur med (95:e percentilen),
-                             inte databladets.
+  maxeffekt                  Den effekt batteriet håller över en kvart (75:e percentilen av
+                             kvartsmedel), inte enstaka toppar och inte databladets.
   solprognosens fel per timme  Faktisk solproduktion / prognos per timme på dygnet - rättar nästa
                              plans solprognos (molnig morgon pga. dalgång, skugga på eftermiddagen...).
   uppmätt besparing          Vad elen hade kostat UTAN batteriet minus vad den kostade, minut för minut
@@ -28,7 +28,13 @@ MIN_SEGMENT_SOC = 5.0       # ett pass räknas om laddnivån ändrats minst så 
 MIN_SOLAR_HOURS = 5         # minst så många mätta timmar per timme-på-dygnet för solrättningen
 EFF_BOUNDS = (0.70, 0.98)
 CAP_BOUNDS = (0.5, 1.3)     # inlärd kapacitet får vara 50-130 % av den konfigurerade
-POWER_BOUNDS = (0.3, 1.5)
+POWER_BOUNDS = (0.3, 1.5)   # kort historik: hållen effekt får vara 30-150 % av databladet
+POWER_FLOOR_SOLID = 0.15    # med minst SOLID_POWER_QUARTERS kvartar får en verkligt lägre effekt igenom (#251)
+QUARTER_S = 900.0
+MIN_QUARTER_SAMPLES = 3     # en enstaka topp bildar ingen kvart
+MIN_POWER_QUARTERS = 4      # minst en timmes laddkvartar innan effekten ens räknas
+SOLID_POWER_QUARTERS = 8    # två timmar: då är 15 %-golvet tillåtet (Solis som håller 2,5 kW mot 11 kW i databladet)
+POWER_PCTL = 75             # kvartar under den här percentilen får inte styra; toppar över den heller inte
 SOLAR_BOUNDS = (0.3, 2.0)
 
 
@@ -43,6 +49,47 @@ def _median(v):
 def _pct(v, p):
     s = sorted(v)
     return s[max(0, min(len(s) - 1, int(round(p / 100.0 * (len(s) - 1)))))] if s else None
+
+
+def _positive_kw(configured, key):
+    """W i config -> kW, eller None om nyckeln saknas, är 0 eller inte är ett tal."""
+    try:
+        v = float(configured.get(key))
+    except (TypeError, ValueError):
+        return None
+    if v != v or v <= 0:
+        return None
+    return v / 1000.0
+
+
+def sustained_quarter_kw(samples, sign):
+    """Medeleffekt per kvart där batteriet faktiskt laddar (sign > 0) eller laddar ur (sign < 0).
+
+    En kvart räknas bara om minst MIN_QUARTER_SAMPLES prover ligger i den och medelvärdet
+    är över 150 W. Enstaka toppar inuti kvarten drar upp medelvärdet lite, inte till toppen.
+    Returnerar positiva kW. Historiken är rullande (learn_from_db, 21 dygn): några långsamma
+    kvartar, till exempel tappade skrivningar, sänker inte percentilen så länge de flesta
+    laddkvartarna var snabbare. Värdet räknas om, det sparas inte som en permanent sänkning.
+    """
+    buckets = {}
+    for ts, _soc, p in samples or []:
+        if ts is None or p is None:
+            continue
+        try:
+            ts, p = float(ts), float(p)
+        except (TypeError, ValueError):
+            continue
+        buckets.setdefault(int(ts // QUARTER_S), []).append(p)
+    out = []
+    for powers in buckets.values():
+        if len(powers) < MIN_QUARTER_SAMPLES:
+            continue
+        mean = sum(powers) / len(powers)
+        if sign > 0 and mean > 150:
+            out.append(mean / 1000.0)
+        elif sign < 0 and mean < -150:
+            out.append(-mean / 1000.0)
+    return out
 
 
 def segments(samples, min_w=150.0, max_gap_s=300.0):
@@ -93,15 +140,18 @@ def learn(samples, solar_pairs, configured):
         if cfg_cap and CAP_BOUNDS[0] * cfg_cap <= cap <= CAP_BOUNDS[1] * cfg_cap:
             use["capacity_kwh"] = round(cap, 2)
 
-    ch = [p / 1000.0 for _, _, p in samples if p is not None and p > 150]
-    dis = [-p / 1000.0 for _, _, p in samples if p is not None and p < -150]
-    cfg_kw = (configured.get("max_power_w") or 5000.0) / 1000.0
-    for key, vals in (("charge_kw", ch), ("discharge_kw", dis)):
-        if len(vals) >= 60:                      # minst en timmes mätningar
-            v = _pct(vals, 95)
-            learned[key] = round(v, 2)
-            if POWER_BOUNDS[0] * cfg_kw <= v <= POWER_BOUNDS[1] * cfg_kw:
-                use[key] = round(v, 2)
+    nameplate = _positive_kw(configured, "max_power_w") or 5.0
+    for key, sign, cap_key in (("charge_kw", 1, "max_charge_w"), ("discharge_kw", -1, "max_discharge_w")):
+        vals = sustained_quarter_kw(samples, sign)
+        learned[f"{key}_quarters"] = len(vals)
+        cap = _positive_kw(configured, cap_key)
+        if len(vals) < MIN_POWER_QUARTERS:
+            continue
+        v = _pct(vals, POWER_PCTL)
+        learned[key] = round(v, 2)
+        floor = POWER_FLOOR_SOLID if len(vals) >= SOLID_POWER_QUARTERS else POWER_BOUNDS[0]
+        if floor * nameplate <= v <= POWER_BOUNDS[1] * nameplate:
+            use[key] = round(min(v, cap) if cap else v, 2)
 
     by_hour = {}
     for h, fc, act in solar_pairs or []:
@@ -152,6 +202,18 @@ def outcome_bias(pairs, kind):
     return round(ratio, 3), (use if abs(use - 1.0) >= 0.03 else None), len(ok)     # under 3 % fel: rör inget
 
 
+def planning_kw(settings, direction):
+    """Effekten dygnsplanen får räkna med. Inlärd hållen effekt, aldrig över ett explicit
+    max_charge_w / max_discharge_w. Utan inlärt värde: det taket, annars max_power_w."""
+    key = "charge_kw" if direction == "charge" else "discharge_kw"
+    cap_key = "max_charge_w" if direction == "charge" else "max_discharge_w"
+    learned = settings.get(key)
+    nameplate = _positive_kw(settings, "max_power_w") or 5.0
+    cap = _positive_kw(settings, cap_key)
+    kw = float(learned) if learned else nameplate
+    return min(kw, cap) if cap else kw
+
+
 def apply(settings, model):
     """Configens batteriinställningar + det inlärda som klarat kontrollerna."""
     out = dict(settings)
@@ -184,6 +246,18 @@ def realized_saving(rows, buy_fn, sell_fn):
     return round(total, 2)
 
 
+def _power_phrase(use, learned, key, verb, unused):
+    """'laddar med 2.5 kW', och både det använda och det inlärda när de skiljer sig (#251)."""
+    used, got = use.get(key), learned.get(key)
+    if used is None and got is None:
+        return None
+    if used is None:
+        return f"{unused} {got:.1f} kW används inte"
+    if got is not None and abs(float(used) - float(got)) >= 0.05:
+        return f"{verb} {float(used):.1f} kW (inlärt {float(got):.1f})"
+    return f"{verb} {float(used):.1f} kW"
+
+
 def describe(model):
     """Kort mening om vad som lärts, för gränssnittet."""
     use = (model or {}).get("use") or {}
@@ -193,8 +267,12 @@ def describe(model):
         parts.append(f"verkningsgrad {use['efficiency'] * 100:.0f} %")
     if "capacity_kwh" in use:
         parts.append(f"användbar kapacitet {use['capacity_kwh']:.1f} kWh")
-    if "charge_kw" in use:
-        parts.append(f"laddar med {use['charge_kw']:.1f} kW")
+    charge = _power_phrase(use, lr, "charge_kw", "laddar med", "inlärt laddning")
+    if charge:
+        parts.append(charge)
+    discharge = _power_phrase(use, lr, "discharge_kw", "laddar ur med", "inlärt urladdning")
+    if discharge and ("(" in discharge or "används inte" in discharge):
+        parts.append(discharge)
     if use.get("solar_factor"):
         parts.append(f"solprognosen rättad för {len(use['solar_factor'])} timmar")
     if use.get("load_profile"):

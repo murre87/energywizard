@@ -2020,7 +2020,9 @@ def _build_house_config_yaml(sel: dict) -> str:
                    "  control: samarbete   # samarbete = läs bara (ett annat system styr) | styr = EnergyWizard styr | av",
                    "  reserve_soc: 20      # sparas alltid till strömavbrott (%)",
                    "  priority_soc: 50     # över detta får elbilen solöverskottet före batteriet (%)",
-                   "  max_power_w: 5000    # FYLL I - batteriets max ladd-/urladdningseffekt (W)"]
+                   "  max_power_w: 5000    # FYLL I - batteriets max ladd-/urladdningseffekt (W)",
+                   "  # max_charge_w: 3000      # valfritt tak för hur snabbt planen räknar med att ladda (W)",
+                   "  # max_discharge_w: 5000   # valfritt tak för urladdning. Tomt = max_power_w och inlärd hållen effekt"]
         if gs.get("preset") and re.fullmatch(r"[a-z0-9_]{1,40}", str(gs["preset"])):
             lines.append(f"  preset: {gs['preset']}   # vilken förinställning lägena kommer från (för telemetrin)")
         if gs.get("keepalive_s"):
