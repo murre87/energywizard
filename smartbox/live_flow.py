@@ -12,6 +12,8 @@ Ren funktion, testas i tests/test_live_flow.py.
 
 import math
 
+import car_log
+
 WATER_ON = 2          # decisions.WATER_ON - varmvattenproduktion begärd
 
 
@@ -80,7 +82,9 @@ def nodes(row, decision_items=None, cars=None, has_spa=None):
     car_list = cars if cars is not None else [("laddbox_1", "Laddbox 1", "ev_power_kw"), ("laddbox_2", "Laddbox 2", "ev_carport_power_kw")]
     for car, car_name, col in car_list:
         kw = _f(r.get(col)) if col else None
-        soc = _f(r.get(f"{car}_soc"))
+        # Loggkolumnen är gemener (Volvo_Ex40 -> volvo_ex40_soc). Rå id träffar inte raden (#293).
+        soc_col = car_log.car_log_column(car, "soc")
+        soc = _f(r.get(soc_col)) if soc_col else None
         if kw is None and soc is None:
             continue
         kw = (kw or 0.0) / 1000.0 if (kw or 0) > 100 else (kw or 0.0)       # vissa rader loggade W

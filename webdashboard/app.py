@@ -30,6 +30,7 @@ from sqlalchemy import create_engine, text
 import webauth
 import discovery
 import house_config
+import car_log
 import pump
 from image_updates import ImageUpdates
 
@@ -1688,7 +1689,7 @@ async def set_notification(key: str, request: Request):
 async def proxy_car_action(car: str, request: Request):
     """Elbil-sidan: start/max/stop/auto-laddning + värm/stoppa klimatet - ewapp:s egen
     car_command()/heat_on/heat_off, bara anropad härifrån också."""
-    if not re.fullmatch(r"[a-z0-9_]{1,40}", car or ""):
+    if not car_log.car_id_ok(car):
         return JSONResponse({"detail": "Okänd bil"}, status_code=404)
     body = await request.json()
     if body.get("kind") not in ("start", "max", "set", "stop", "auto", "heat_on", "heat_off"):

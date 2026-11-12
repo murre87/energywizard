@@ -1,13 +1,13 @@
 import json
 import math
 import os
-import re
 import psycopg
 import pandas as pd
 from datetime import datetime
 from contextlib import contextmanager
 import zoneinfo
 import settings
+import car_log
 
 SWE_TZ = zoneinfo.ZoneInfo("Europe/Stockholm")
 
@@ -447,15 +447,13 @@ def log_status(
             "allowed_kwh_now": allowed_kwh_now
         }
         
-        # Generera strängarna dynamiskt oavsett mängden data
-        # Bilarnas kolumner per bil-id ur installationen (<bil>_soc, _soc_stale, _charge_completed, _climate_temp,
-        # _climate_state) - skapas första gången en ny bil syns. Emils befintliga kolumner har samma namn.
-        for k, v in cd.items():
-            m = re.fullmatch(r"([a-z0-9_]{1,40})_(soc|soc_stale|charge_completed|climate_temp|climate_state)", str(k))
-            if not m:
-                continue
-            _ensure_car_column(k, m.group(2))
-            data[k] = (1 if v else 0) if m.group(2) == "charge_completed" else v
+        # Generera strängarna dynamiskt oavsett mängden data.
+        # Bilarnas kolumner per bil-id (<bil>_soc, _soc_stale, ...). Id med versaler
+        # eller andra tecken (Volvo_Ex40) vekas till ett giltigt namn (#293).
+        # Emils befintliga kolumner har samma namn som förut.
+        for col, (kind, v) in car_log.car_log_fields(cd).items():
+            _ensure_car_column(col, kind)
+            data[col] = v
 
         data = _coerce_bools(data)
         # #186: "inf"/"nan" från en givare (#171) sparades och gjorde att historiken inte gick att visa (JSON tål inte
