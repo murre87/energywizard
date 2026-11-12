@@ -2301,5 +2301,11 @@
  "# kör en äldre version som bara skickar version (anonymt) – de visar sin utrustning när de uppdaterat till #.#.#, där telemetrin är obligatorisk.": "# používá starší verzi, která odesílá pouze verzi (anonymně) – vybavení se zobrazí po aktualizaci na #.#.#, kde je telemetrie povinná.",
  "förinställning {name}": "předvolba {name}",
  "köp- och säljeffekt + ström per fas": "příkon a výkon dodávky + proud v jednotlivých fázích",
- "Värmen är på · {temperature} °": "Topení je zapnuté · {temperature} °"
+ "Värmen är på · {temperature} °": "Topení je zapnuté · {temperature} °",
+  "Använd": "Použít",
+  "effektsensorn": "senzor výkonu",
+  "Dagsenergi": "Dnešní energie",
+  "ström per fas": "proud po fázích",
+  "EnergyWizard: slutför installationen": "EnergyWizard: dokončete instalaci",
+  "Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) för att hitta din värmepump, bilar, solceller m.m. automatiskt.": "Ve vašem house_config.yaml zatím nic není. Přejděte na [výběr entit](URL) a nechte automaticky najít tepelné čerpadlo, auta, FVE a další."
 }

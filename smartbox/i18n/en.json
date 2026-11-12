@@ -2301,5 +2301,11 @@
  "# kör en äldre version som bara skickar version (anonymt) – de visar sin utrustning när de uppdaterat till #.#.#, där telemetrin är obligatorisk.": "# run an older version that only sends the version (anonymously) – their equipment appears after updating to #.#.#, where telemetry is mandatory.",
  "förinställning {name}": "preset {name}",
  "köp- och säljeffekt + ström per fas": "import and export power + current per phase",
- "Värmen är på · {temperature} °": "Heating is on · {temperature} °"
+ "Värmen är på · {temperature} °": "Heating is on · {temperature} °",
+ "Använd": "Use",
+ "effektsensorn": "the power sensor",
+ "Dagsenergi": "Energy today",
+ "ström per fas": "current per phase",
+ "EnergyWizard: slutför installationen": "EnergyWizard: finish the installation",
+ "Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) för att hitta din värmepump, bilar, solceller m.m. automatiskt.": "Nothing found in your house_config.yaml yet. Go to the [entity picker](URL) to find your heat pump, cars, solar panels and more automatically."
 }
