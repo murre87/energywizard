@@ -125,6 +125,88 @@ def _split_amps(final, cars, prios, specs, min_a, other_share=None):
     return out
 
 
+def _needy_morning_cars(state, car_ids, morning_soc, morning_hour, now):
+    """Bilar under morgongolvet före deadline: inkopplade, inte pausade, inte fulla."""
+    if now.hour >= morning_hour:
+        return []
+    out = []
+    for c in car_ids:
+        soc = state.get(f"{c}_soc")
+        if not state.get(f"{c}_connected", False):
+            continue
+        if soc is None or soc >= morning_soc:
+            continue
+        if state.get(f"{c}_hold") or state.get(f"{c}_charge_completed"):
+            continue
+        if (state.get(f"{c}_force_amps") or 0) > 0:
+            continue
+        out.append(c)
+    return out
+
+
+def ensure_morning_floor_share(actions, state, car_ids, specs, min_a, now, log=None):
+    """När flera bilar ska nå 50 % före morgonen: ingen får 0 A medan en annan laddar,
+    så länge säkringen räcker. Räcker den bara till en bil i taget växlar vi varje halvtimme
+    till den hungrigaste (lägst SoC). Leaf-natten 11/12 nov 2026: Tesla (prio 1) fick 16 A
+    medan Nissan stod på 0 A trots samma 50 %-mål."""
+    try:
+        import decisions as _dec
+        morning_soc = float(getattr(_dec, "MORNING_MIN_SOC", 50))
+        morning_hour = int(getattr(_dec, "MORNING_HOUR", 6))
+    except Exception:
+        morning_soc, morning_hour = 50.0, 6
+    needy = _needy_morning_cars(state, car_ids, morning_soc, morning_hour, now)
+    if len(needy) < 2:
+        return False
+    house_a = max(0, int(state.get("house_load_a", 0) or 0) - int(state.get("ev_actual_a", 0) or 0))
+    if (state.get("avg_net_w") or 0) < -500:
+        house_a = 0
+    avail = int(_ev_fuse_room(state, house_a))
+    if avail < min_a:
+        return False
+
+    caps = {c: int((specs.get(c) or {}).get("max_a") or 16) for c in needy}
+    starved = [c for c in needy if int(actions.get(f"{c}_limit_a", 0) or 0) < min_a]
+    if not starved:
+        return False
+
+    if avail >= min_a * len(needy):
+        # Rättvist: minst min_a var, resten till den hungrigaste (lägst SoC).
+        base = {c: min_a for c in needy}
+        left = avail - min_a * len(needy)
+        order = sorted(needy, key=lambda c: (state.get(f"{c}_soc") is None, state.get(f"{c}_soc") or 0))
+        for c in order:
+            extra = min(left, max(0, caps[c] - base[c]))
+            base[c] += extra
+            left -= extra
+        for c in needy:
+            actions[f"{c}_limit_a"] = min(caps[c], base[c])
+        if log is not None:
+            _set = ", ".join(f"{(specs.get(c) or {}).get('name', c)}: {actions[f'{c}_limit_a']}A" for c in needy)
+            log.append(
+                f"🚗 Prio 3.6 (MORGONGOLV): Båda under {morning_soc:.0f}% före kl {morning_hour:02d} — "
+                f"delar säkringen så ingen blir utan ström. Sätter {_set}."
+            )
+        return True
+
+    # Säkringen räcker bara till en bil: växla varje 30 min till lägst SoC (stabilt inom blocket).
+    block = now.hour * 2 + (0 if now.minute < 30 else 1)
+    order = sorted(
+        needy,
+        key=lambda c: (state.get(f"{c}_soc") is None, state.get(f"{c}_soc") or 0, c),
+    )
+    winner = order[block % len(order)]
+    for c in needy:
+        actions[f"{c}_limit_a"] = min(caps[c], avail) if c == winner else 0
+    if log is not None:
+        name = (specs.get(winner) or {}).get("name", winner)
+        log.append(
+            f"🚗 Prio 3.6 (MORGONGOLV): Säkringen räcker bara till en bil — "
+            f"{name} laddar denna halvtimme (lägst SoC / turas om), övriga pausas."
+        )
+    return True
+
+
 def no_sensor_heat(mode, outdoor_c, cheap_t, expensive_t, lowered_since, recover_until, now):
     """(läge, måltemp, lowered_since, recover_until, förklaring) för ett hus utan innegivare."""
     if mode != "EXPENSIVE":
@@ -1022,6 +1104,15 @@ class GlobalPriorityManager:
                             actions["log"].append(f"🔋 Prio 3.5 (BATTERISKYDD): {car_id.capitalize()} måste ladda 30 min i sträck för att skydda kontaktorerna. Tvingar fram {EV_MIN_CHARGE_AMPS}A. (Kört {minutes_run:.0f}/30 min).")
                         else:
                             self.ev_charging_since[car_id] = None # 30 minuter uppnått
+
+        # --- Prio 3.6: MORGONGOLV — båda under 50% ska kunna ladda ---
+        # Plan/prio kan ge den ena bilen 0 A hela natten (Leaf 11/12 nov). Dela eller turas om.
+        try:
+            ensure_morning_floor_share(
+                actions, state, car_ids, specs, EV_MIN_CHARGE_AMPS, now, log=actions["log"],
+            )
+        except Exception as _mf_err:
+            actions["log"].append(f"⚠️ Prio 3.6 (MORGONGOLV): kunde inte dela strömmen ({_mf_err}).")
 
         # --- Prio 11.5: MANUELL TVÅNGSLADDNING ELBIL ---
         for car_id in car_ids:
