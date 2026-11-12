@@ -36,6 +36,7 @@ import battery_follow
 import guest_charge
 import capacity_tariff
 import ev_limits
+import car_log
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_learning  # Planen lär sig batteriets verkliga verkningsgrad, kapacitet, effekt och solprognosens fel
 import signal
@@ -407,13 +408,15 @@ def _load_last_known_soc():
         from sqlalchemy import text as _sqltext
         from database_engine import engine as _engine
         for _car in car_ids:
-            if not re.fullmatch(r"[a-z0-9_]{1,40}", _car):
+            _soc_col = car_log.car_log_column(_car, "soc")
+            _stale_col = car_log.car_log_column(_car, "soc_stale")
+            if not _soc_col or not _stale_col:
                 continue
             try:                                      # en bil vars kolumner inte finns än ska inte stoppa de andra
                 with _engine.connect() as _c:
                     _row = _c.execute(_sqltext(
-                        f"SELECT {_car}_soc, timestamp FROM sensor_log WHERE {_car}_soc IS NOT NULL "
-                        f"AND COALESCE({_car}_soc_stale, 0) = 0 ORDER BY timestamp DESC LIMIT 1")).fetchone()
+                        f"SELECT {_soc_col}, timestamp FROM sensor_log WHERE {_soc_col} IS NOT NULL "
+                        f"AND COALESCE({_stale_col}, 0) = 0 ORDER BY timestamp DESC LIMIT 1")).fetchone()
                 if _row and _row[0] is not None:
                     _soc_mem[_car] = (float(_row[0]), _row[1])
             except Exception:
@@ -2424,7 +2427,8 @@ while True:
                                      if battery_cfg["control"] == "styr" and battery_cfg.get("plan") else None),
                     battery_plan_rule=_battery.get("decision_rule")), ha_temps,
                 # Laddboxarna loggas i installationens ordning (första -> ev_*, andra -> ev_carport_*) och bilarna under
-                # sina egna id:n (<bil>_soc, <bil>_soc_stale ...; logger.py skapar kolumnerna för nya bilar).
+                # sina egna id:n (<bil>_soc, <bil>_soc_stale ...). logger.py skapar kolumnerna och vekar
+                # versaler (Volvo_Ex40 -> volvo_ex40), annars syns bilen inte på översikten (#293).
                 (_charger_list[0] if _charger_list else None), cop=cop, ev_carport=(_charger_list[1] if len(_charger_list) > 1 else None),
                 car_data={k: v for _c in car_ids for k, v in {
                     f"{_c}_soc": car_soc.get(_c),
