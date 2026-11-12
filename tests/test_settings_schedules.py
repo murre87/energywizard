@@ -54,18 +54,34 @@ def test_ev_schedule_long_ids(schedule_db, legacy):
         assert loaded['old_car'][0]['target_soc'] == 80
 
 
-def test_ev_schedule_save_migrates_without_prior_load(schedule_db):
+@pytest.mark.parametrize('writer', ['day', 'week'])
+def test_ev_schedule_save_migrates_without_prior_load(schedule_db, writer):
     """#298: auto-schema can INSERT before get_ev_schedule ever ran on this box."""
     db = schedule_db
     db.execute('''CREATE TABLE ev_charging_schedule (
         car_id VARCHAR(20), day_of_week INTEGER, target_time TIME,
         target_soc INTEGER DEFAULT 100, enabled BOOLEAN DEFAULT FALSE,
         PRIMARY KEY (car_id, day_of_week))''')
+    db.execute("INSERT INTO ev_charging_schedule VALUES ('old_car', 0, '06:45', 75, TRUE)")
     car = 'garage_skoda_enyaq_vehicle_one'
-    settings.save_ev_schedule_day(car, 2, '07:30', 80, True, False)
+    if writer == 'day':
+        settings.save_ev_schedule_day(car, 2, '07:30', 80, True, True)
+    else:
+        settings.save_ev_schedule_db(car, {
+            2: dict(target_time='07:30', target_soc=80, enabled=True, panic_mode=True),
+            3: dict(target_time='08:15', target_soc=90, enabled=False),
+        })
     row = db.execute(
-        'SELECT car_id, target_soc FROM ev_charging_schedule WHERE day_of_week=2').fetchone()
-    assert row == (car, 80)
+        'SELECT car_id, target_time, target_soc, enabled, panic_mode '
+        'FROM ev_charging_schedule WHERE day_of_week=2').fetchone()
+    assert row == (car, time(7, 30), 80, True, True)
+    assert db.execute(
+        "SELECT target_time, target_soc, enabled, panic_mode FROM ev_charging_schedule "
+        "WHERE car_id='old_car'").fetchone() == (time(6, 45), 75, True, False)
+    if writer == 'week':
+        assert db.execute(
+            'SELECT target_time, target_soc, enabled, panic_mode FROM ev_charging_schedule '
+            'WHERE car_id=%s AND day_of_week=3', (car,)).fetchone() == (time(8, 15), 90, False, False)
     length = db.execute("""
         SELECT character_maximum_length FROM information_schema.columns
         WHERE table_schema = current_schema() AND table_name = 'ev_charging_schedule'
