@@ -24,6 +24,8 @@ Ren modul utan I/O, testas i tests/test_battery_plan.py. main.py bygger indata o
 
 import math
 
+import battery_learning
+
 DT_H = 0.25                 # kvart
 
 # Planeringsstil (som FTW:s "planning style"): hur mycket planen litar på prognosen.
@@ -338,8 +340,8 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
     params = dict(soc0_kwh=soc_pct / 100.0 * cap, capacity_kwh=cap,
                   reserve_kwh=settings["reserve_soc"] / 100.0 * cap,
                   max_kwh=settings["max_soc"] / 100.0 * cap,
-                  charge_kw=settings.get("charge_kw") or settings["max_power_w"] / 1000.0,
-                  discharge_kw=settings.get("discharge_kw") or settings["max_power_w"] / 1000.0,
+                  charge_kw=battery_learning.planning_kw(settings, "charge"),
+                  discharge_kw=battery_learning.planning_kw(settings, "discharge"),
                   eff=settings.get("efficiency", 0.9), allowed=tuple(supported),
                   cycle_cost=settings.get("cycle_cost", 0.30), terminal_pct=terminal_pct,
                   allow_export=allow_export,

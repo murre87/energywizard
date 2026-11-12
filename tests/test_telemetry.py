@@ -338,9 +338,13 @@ def test_batteriets_tomma_falt_blir_inte_noll(monkeypatch):
     """Som FTW 0.158.3: ett tömt fält som sparats som 0 eller "" får inte bli laddtak eller effekt 0."""
     import house_config
     s = house_config.battery_settings({"battery": {"enabled": True, "max_soc": 0, "max_power_w": "", "capacity_kwh": "abc",
-                                                   "efficiency": 0, "reserve_soc": 0, "cycle_cost": 0}})
+                                                   "efficiency": 0, "reserve_soc": 0, "cycle_cost": 0,
+                                                   "max_charge_w": 0, "max_discharge_w": ""}})
     assert s["max_soc"] == 100.0 and s["max_power_w"] == 5000.0 and s["capacity_kwh"] is None and s["efficiency"] == 0.9
     assert s["reserve_soc"] == 0 and s["cycle_cost"] == 0                       # 0 är ett giltigt val här
+    assert s["max_charge_w"] is None and s["max_discharge_w"] is None           # tomt tak får inte bli 0 W
+    capped = house_config.battery_settings({"battery": {"enabled": True, "max_charge_w": 3000, "max_discharge_w": 4000}})
+    assert capped["max_charge_w"] == 3000.0 and capped["max_discharge_w"] == 4000.0
 
 
 def test_kodplats_i_felrapporten_utan_feltext():
