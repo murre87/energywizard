@@ -67,6 +67,8 @@ def main():
             image = f'ew-dhi-verify-{component}-{arch}'
             docker('build', '--pull', '--platform', args.platform,
                    '-f', str(root / component / 'Dockerfile.dhi'), '-t', image, str(root / component))
+            docker('run', '--rm', '--platform', args.platform, '--network', 'none',
+                   '--entrypoint', '/opt/venv/bin/python', image, '-m', 'pip', 'check')
             name, volume = prefix + '-' + component, prefix + '-' + component + '-data'
             volumes.append(volume)
             docker('volume', 'create', volume)

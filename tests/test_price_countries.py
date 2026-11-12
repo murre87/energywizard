@@ -1,6 +1,9 @@
 """Elpris och avgifter per land (nordpool.cost_settings): utan inställningar exakt som förut (Sverige SE3),
 med inställningar landets moms, egna avgifter, rätt elområde och HA:s Nordpool-källa utanför Sverige."""
+from datetime import datetime
+
 import pytest
+import requests
 
 import ew_settings
 import nordpool
@@ -32,6 +35,23 @@ def test_annat_svenskt_elomrade_hamtas():
         m.setattr(nordpool.requests, "get", lambda url, timeout=10: urls.append(url) or R())
         nordpool.fetch_api_and_save(__import__("datetime").datetime(2026, 11, 3))
     assert urls and urls[0].endswith("2026/11-03_SE4.json")
+
+
+def test_elprisetjustnu_natfel_ar_varning(capsys, monkeypatch):
+    def boom(url, timeout=10):
+        raise requests.ConnectionError("ned")
+    monkeypatch.setattr(nordpool.requests, "get", boom)
+    assert nordpool.fetch_api_and_save(datetime(2026, 11, 12)) is False
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "elprisetjustnu.se" in out and "❌" not in out
+
+
+def test_elprisetjustnu_ovantat_fel_ar_kvar(capsys, monkeypatch):
+    def boom(url, timeout=10):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(nordpool.requests, "get", boom)
+    assert nordpool.fetch_api_and_save(datetime(2026, 11, 12)) is False
+    assert "❌" in capsys.readouterr().out
 
 
 def test_tyskland_egna_avgifter_och_nordpool_kalla():

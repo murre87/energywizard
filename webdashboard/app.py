@@ -1513,7 +1513,7 @@ async def planskyline_js():
 
 @app.get("/api/timeline")
 async def api_timeline():
-    """Dygnet timme för timme: uppmätt 24 h bakåt + planerat framåt (timeline.py)."""
+    """Dygnet timme för timme: uppmätt 24 h bakåt och framåt så långt elpriserna räcker (timeline.py)."""
     import timeline
     cars, has_spa, has_heat = _house_parts()
     with ENGINE.connect() as c:
@@ -1816,11 +1816,11 @@ async def api_discover():
         res["scanned_at"] = time.time()
         tmp = _last_discovery_path() + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            _json.dump(res, f, ensure_ascii=False)
+            _json.dump(res, f, ensure_ascii=False)         # utan learned_limits: de räknas om varje visning
         os.replace(tmp, _last_discovery_path())
     except Exception as e:
         print(f"⚠️ Kunde inte spara senaste skanningen: {e}")
-    return res
+    return _attach_learned_limits(res)
 
 
 def _last_discovery_path() -> str:
@@ -1838,6 +1838,14 @@ def _wizard_form():
             return _json.load(f)
     except Exception:
         return None
+
+
+def _attach_learned_limits(res):
+    """Faser och maxström motorn lärt sig (ev_limits). Räknas om vid varje visning, skrivs inte in i konfigurationen."""
+    import ev_limits
+    saved = ew_settings.get("learned_ev")
+    res["learned_limits"] = ev_limits.LimitLearner(saved if isinstance(saved, dict) else None).for_guide()
+    return res
 
 
 @app.post("/api/discover/form")
@@ -1870,7 +1878,7 @@ async def api_discover_last(request: Request):
     except Exception:
         return {"ok": False}
     res["form"] = _wizard_form()
-    return res
+    return _attach_learned_limits(res)
 
 
 @app.post("/api/discover-modbus")
@@ -1902,9 +1910,15 @@ def _build_house_config_yaml(sel: dict) -> str:
     cars = sel.get("cars") or []
     if not cars:
         lines[-1] = "evs: []"
+    import ev_limits
+    _saved_ev = ew_settings.get("learned_ev")
+    _ev_learn = ev_limits.LimitLearner(_saved_ev if isinstance(_saved_ev, dict) else None)
     for i, c in enumerate(cars):
         car_id = c.get("id") or f"bil{i + 1}"
         lines.append(f"  - id: {car_id}")
+        _note = _ev_learn.guide_yaml_line(car_id)          # kommentar, inte phases/max_a (de ska fortsätta läras)
+        if _note:
+            lines.append(_note)
         lines.append(f"    driver: {c.get('driver') or 'generic_ev'}")
         lines.append(f"    battery_kwh: {c.get('battery_kwh') or 60}  # FYLL I - din bils batteristorlek i kWh")
         lines.append("    entities:")
@@ -2100,9 +2114,14 @@ async def ftw_drivers():
         can_control = bool(_cmd and '"battery"' in _cmd.group(0))
         g = lambda k: (_re.search(k + r'\s*=\s*"([^"]*)"', head) or [None, None])[1]
         caps = _re.search(r'capabilities\s*=\s*\{([^}]*)\}', head)
+        found_caps = _re.findall(r'"([a-z0-9_-]+)"', caps.group(1)) if caps else []
+        # De här filerna läser sol, batteri och mätare men saknar capabilities-tabellen,
+        # så guiden filtrerade bort dem (#219 Solinteg, Sigenergy).
+        if not found_caps:
+            found_caps = {"solinteg": ["pv", "battery", "meter"], "sigenergy": ["pv", "battery", "meter"]}.get(f[:-4], [])
         out.append({"id": f[:-4], "name": g("name") or f[:-4], "manufacturer": g("manufacturer") or "",
                     "protocol": (_re.search(r'^PROTOCOL\s*=\s*"([^"]+)"', head, _re.M) or [None, ""])[1],
-                    "capabilities": _re.findall(r'"([a-z0-9_-]+)"', caps.group(1)) if caps else [],
+                    "capabilities": found_caps,
                     "verification": g("verification_status") or "", "can_control": can_control})
     return {"ok": True, "drivers": out}
 

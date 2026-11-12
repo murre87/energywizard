@@ -6,7 +6,7 @@ import pytest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "smartbox")))
 
-from battery_plan import optimize, blocks, simulate
+from battery_plan import optimize, blocks, simulate, live_charge_kw, command_power_w
 
 
 def _slots(prices, load=1.0, solar=None, ev=None):
@@ -257,3 +257,42 @@ def test_plan_recovers_from_reserve_without_discharging_below_it(initial_kwh):
                       {"auto", "charge", "discharge"})
     assert decision["intent"] == "charge" and decision["rule"] == "plan"
     assert decision["power_w"] == 3000
+
+
+def _charge_samples(start, n, watts, step=60):
+    return [(start + i * step, watts) for i in range(n)]
+
+
+def test_live_charge_uses_sustained_shortfall_only():
+    # Fem minuter på 2,5 kW när planen räknar med 11 kW: resten av dygnet planeras i 2,5.
+    assert live_charge_kw(11.0, _charge_samples(0, 6, 2500)) == 2.5
+    assert live_charge_kw(11.0, _charge_samples(0, 2, 2500, step=300)) == 11.0   # för få prover
+    assert live_charge_kw(11.0, _charge_samples(0, 4, 2500, step=60)) == 11.0    # kortare än fem minuter
+    assert live_charge_kw(11.0, _charge_samples(0, 6, 8000)) == 11.0             # 8 kW är inte långt under 11
+    assert live_charge_kw(11.0, _charge_samples(0, 6, 200)) == 11.0              # ingen riktig laddning
+    assert live_charge_kw(11.0, [(0, 2500), (120, "x"), (300, None), (600, 2500)]) == 11.0
+    assert live_charge_kw(2.5, _charge_samples(0, 6, 4000)) == 2.5               # höjer aldrig
+
+
+def test_slow_charge_schedule_still_commands_full_power():
+    assert command_power_w("charge", 2.5, 11.0, 2.5) == 11000
+    assert command_power_w("charge", 4.0, 11.0, 11.0) == 4000                    # nära fullt: oförändrat
+    assert command_power_w("discharge", -3.0, 11.0, 2.5) == 3000
+    assert command_power_w("auto", None, 11.0, 11.0) is None
+
+
+def test_lagre_laddeffekt_tar_fler_billiga_kvartar():
+    # 8 kvartar lite dyrare, 4 klart billigare, sedan dyr last. 11 kW hinner i de billigaste.
+    # 2,5 kW gör det inte, så planen måste börja tidigare.
+    prices = [0.40] * 8 + [0.20] * 4 + [3.00] * 8
+    slots = [{"t": f"t{i}", "buy": p, "sell": 0.0, "load_kw": 3.0, "solar_kw": 0.0, "ev_kw": 0.0}
+             for i, p in enumerate(prices)]
+    kw = dict(soc0_kwh=2.0, capacity_kwh=10.0, reserve_kwh=2.0, max_kwh=10.0, discharge_kw=5.0,
+              eff=1.0, switch_cost=0, cycle_cost=0, allow_export=False)
+    fast = optimize(slots, charge_kw=11.0, **kw)
+    slow = optimize(slots, charge_kw=2.5, **kw)
+    fast_early = sum(row["action"] == "charge" for row in fast["rows"][:8])
+    slow_early = sum(row["action"] == "charge" for row in slow["rows"][:8])
+    assert sum(row["action"] == "charge" for row in fast["rows"][8:12]) >= 1
+    assert slow_early > fast_early
+    assert min(row["soc_kwh"] for row in slow["rows"]) >= 2.0 - 0.11

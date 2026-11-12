@@ -56,6 +56,18 @@ def test_ftw_pollfel_tar_med_lua_text_utan_adress(monkeypatch):
     assert "nil value" in seen["excerpt"] and "192.168" not in seen["excerpt"]
 
 
+def test_lua_path_redaction_handles_slash_rich_errors():
+    from drivers.ftw_device import poll_failure_note
+
+    path = "/" + "!/" * 20000
+    line = poll_failure_note("deye-svk", "device.local", RuntimeError(
+        f'"{path}deye-svk.lua":353: nil value at device.local'))
+    assert "deye-svk.lua" in line and "nil value" in line
+    assert "!/" not in line and "device.local" not in line
+    # Also exercise the nonmatching input that triggered the CodeQL finding.
+    assert isinstance(poll_failure_note("deye-svk", "", RuntimeError(path)), str)
+
+
 def test_note_and_build_include_ring():
     support_bundle._ring.clear()
     with mock.patch.object(support_bundle, "enabled", return_value=True):

@@ -13,13 +13,14 @@ storage problems can also appear there.
 
 | Reported group | Issue | Fix / findings |
 | --- | --- | --- |
-| `nordpool.fetch_ha_nordpool_and_save: Error` | #211 | Invalid HA JSON and Czech unit misconfig now warn (`⚠️`). Unexpected exceptions still `❌`. Transport failures already warn (#284). |
+| `nordpool.fetch_ha_nordpool_and_save: Error` | #211 | Invalid HA JSON and Czech unit misconfig now warn (`⚠️`). Unexpected exceptions still `❌`. Any `requests` transport error warns and keeps another sensor's prices (#284). |
 | `nordpool.ensure_prices_exist: Error` | #210 | Missing-today KRITISKT no longer uses `❌` (was classified as generic `Error` without an exception). |
 | `gpm.evaluate: TypeError` | #282 / #208 | Only old builds `47090f7` / `a662a27`. Main normalizes `current_price=None` and stringifies phase states. Houses need update. |
-| `ftw_deye-svk.poll: LuaError` | #297 / #215 | Nil-SoC energy headroom guarded; self-heal now requires numeric `bat_w`. Poll failures now put a sanitized Lua line in the support excerpt before the report. |
+| `ftw_deye-svk.poll: LuaError` | #297 / #215 | Nil-SoC energy headroom guarded; self-heal now requires numeric `bat_w`. A failed Modbus read returns `(nil, err)` without raising; `read_rated_w` and `detect_hv` no longer index that nil, so poll keeps running while rated power is still unknown. Poll failures now put a sanitized Lua line in the support excerpt before the report. |
 | `settings.save_ev_schedule_day: StringDataRightTruncation` | #298 / #232 | Save paths now migrate `car_id` VARCHAR→TEXT before INSERT (previously only on load). |
 | `logger.log_status: DiskFull` | #250 | DiskFull / SQLSTATE 53100 logged as `⚠️` (host storage), not program error. |
 | `pump.read_sensors: Error` / `ConnectionResetError` | #299 | Modbus connect/timeout/reset and empty replies warn; unexpected exceptions stay `❌`. |
+| `homeassistant.update_states: ConnectionError` | #228 | Connection drops and timeouts stay `⚠️` even after many tries. HTTP errors other than 401/502/503/504 and unexpected exceptions still `❌`. |
 
 Swedish installations retain the public-source fallback when HA prices fail;
 other countries never substitute Swedish prices. No retention/deletion changes
