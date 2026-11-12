@@ -47,7 +47,35 @@ WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_API_TOKEN", "")
 # Bara på utvecklarens egen installation: telemetrisamlarens sammanställning (antal aktiva + utrustning).
 TELEMETRY_STATS_URL = os.environ.get("TELEMETRY_STATS_URL", "").strip()
 TELEMETRY_STATS_TOKEN = os.environ.get("TELEMETRY_STATS_TOKEN", "").strip()       # samma som samlarens STATS_TOKEN
+# #265: utöver owner får namnen i TELEMETRY_ADMIN_USERS se Installationer (anonym flotta/fel).
+# Ge dem EW_USERS=namn:lösen:family - inte :owner. Flottkonton får BARA Installationer — inte
+# ägarens hus-UI (Översikt/Elbil/…); se _is_fleet_admin + guard nedan.
+TELEMETRY_ADMIN_USERS = {
+    u.strip().lower()
+    for u in os.environ.get("TELEMETRY_ADMIN_USERS", "").split(",")
+    if u.strip()
+}
 INSTALLS_PAGE = {"id": "installationer", "name": "Installationer", "icon": "👥", "built": True}
+# API-vägar ett flottkonto får nå. Allt annat (ägarens sensorer, styrning, logg) är 403.
+FLEET_ADMIN_API = frozenset({
+    "/api/me", "/api/installs", "/api/login", "/api/logout", "/api/setup/status", "/api/ping",
+})
+
+
+def _is_fleet_admin(role: str | None, user: str | None) -> bool:
+    """Allowlistad family-användare: flottvy, inte husägare (och inte gäst)."""
+    if not TELEMETRY_STATS_URL or role != "family":
+        return False
+    return (user or "").strip().lower() in TELEMETRY_ADMIN_USERS
+
+
+def _can_view_installs(role: str | None, user: str | None) -> bool:
+    """Utvecklarserverns flottvy: owner, eller allowlistad family (#265)."""
+    if not TELEMETRY_STATS_URL:
+        return False
+    if role == "owner":
+        return True
+    return _is_fleet_admin(role, user)
 # /v1/check gör en riktig registry-koll (tar ~5s) - cachas här så "System"-sidan
 # inte startar om den varje gång sidan öppnas.
 _wt_cache = {"ts": 0, "data": None}
@@ -188,6 +216,15 @@ async def guard(request: Request, call_next):
     err = AUTH.guard_response(request)
     if err is not None:
         return err
+    # Flottkonto (#265): bara Installationer — blockera övriga hus-API:er även om UI:t läcker.
+    role, user = AUTH.session(request)
+    if _is_fleet_admin(role, user):
+        p = request.url.path
+        if p.startswith("/api/") and p not in FLEET_ADMIN_API:
+            return JSONResponse(
+                {"detail": "Flottkonto: du ser bara Installationer, inte det här huset"},
+                status_code=403,
+            )
     resp = await call_next(request)
     resp.headers.update(webauth.SECURITY_HEADERS)
     if request.url.path.startswith("/api/"):
@@ -869,16 +906,22 @@ def _hidden_pages(cfg: dict) -> set:
 @app.get("/api/me")
 async def me(request: Request):
     role, user = AUTH.session(request)
+    import nordpool
+    c = nordpool.cost_settings()
+    # Flottkonto: en enda sida — Installationer. Inte ägarens Översikt/Elbil/m.m.
+    if _is_fleet_admin(role, user):
+        return {"role": role, "user": user, "pages": [INSTALLS_PAGE], "mode": "fleet",
+                "default_page": "installationer",
+                "currency": c["currency"], "currency_symbol": c["symbol"]}
     try:
         hidden = _hidden_pages(house_config.load_house_config(HOUSE_CONFIG_FILE))
     except Exception:
         hidden = set()                                    # ingen/trasig installation: visa allt
     pages = [p for p in PAGES if p["built"] and p["id"] not in hidden]
-    if TELEMETRY_STATS_URL and role == "owner":       # bara utvecklarens egen server, bara ägaren
+    if _can_view_installs(role, user):               # owner på utvecklarservern
         pages.insert(len(pages) - 1, INSTALLS_PAGE)
-    import nordpool
-    c = nordpool.cost_settings()
-    return {"role": role, "user": user, "pages": pages,
+    return {"role": role, "user": user, "pages": pages, "mode": "house",
+            "default_page": "oversikt",
             "currency": c["currency"], "currency_symbol": c["symbol"]}
 
 
@@ -1030,8 +1073,8 @@ async def updates(request: Request, force: bool = False):
 @app.get("/api/installs")
 async def installs(request: Request):
     """System-sidan: hur många som kör EnergyWizard och med vilken utrustning (från telemetrisamlaren)."""
-    role, _ = AUTH.session(request)
-    if not TELEMETRY_STATS_URL or role != "owner":
+    role, user = AUTH.session(request)
+    if not _can_view_installs(role, user):
         return {"ok": False, "configured": False}
     try:
         import telemetry

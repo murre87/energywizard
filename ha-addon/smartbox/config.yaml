@@ -35,6 +35,9 @@ schema:
   telemetry_opt_in: "bool?"
   anonymous_ping: "bool?"
   telemetry_endpoint: "str?"
+  # Flottvy (#265): valfritt. På din egen installation — se anonyma Installationer från samlaren.
+  telemetry_stats_url: "str?"
+  telemetry_stats_token: "password?"
   nibe_local_username: "str?"
   nibe_local_password: "password?"
   nibe_local_tls_pin_sha256: "str?"

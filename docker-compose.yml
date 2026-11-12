@@ -157,6 +157,8 @@ services:
       # Bara på utvecklarens server: telemetrisamlarens sammanställning visas på System-sidan (antal aktiva +
       # utrustning). Tom = inget kort. T.ex. http://telemetry-collector:8504/api/stats
       - TELEMETRY_STATS_URL=${TELEMETRY_STATS_URL:-}
+      # #265: kommaseparerade användarnamn (EW_USERS …:family) som får se flottvyn Installationer
+      - TELEMETRY_ADMIN_USERS=${TELEMETRY_ADMIN_USERS:-}
       # Samma priskälla som motorn, så att Inställningar -> Elpris visar den som faktiskt används
       - PRICE_SOURCE=${PRICE_SOURCE:-elprisetjustnu}
       - NORDPOOL_HA_ENTITY=${NORDPOOL_HA_ENTITY:-sensor.nordpool}

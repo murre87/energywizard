@@ -22,6 +22,10 @@ print("" if v is None else (str(v).lower() if isinstance(v, bool) else v))' "$OP
 if [ -f "$OPTIONS" ]; then
     # Telemetrin är obligatorisk sedan 1.2.45 (se README): telemetry_opt_in/anonymous_ping/telemetry_endpoint läses inte.
     export DASHBOARD_PASSWORD="$(opt dashboard_password)"
+    # Flottvy Installationer (#265): valfri URL+token till samlarens /api/stats — på DENNA installation,
+    # så support ser alla hus anonymt utan att logga in på någon annans webb.
+    v="$(opt telemetry_stats_url)"; [ -n "$v" ] && export TELEMETRY_STATS_URL="$v"
+    v="$(opt telemetry_stats_token)"; [ -n "$v" ] && export TELEMETRY_STATS_TOKEN="$v"
     # NIBE lokalt REST-API (heat_pump.driver: nibe_local) - bara de som är ifyllda (#138)
     for k in username password tls_pin_sha256; do
         v="$(opt nibe_local_$k)"
