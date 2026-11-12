@@ -357,6 +357,9 @@ def fetch_api_and_save(date_obj):
                 conn.commit()
             print(f"📥 Laddade ner {len(records)} rader för {date_str}.")
             return True
+    except requests.RequestException as e:
+        # Avbrott, timeout eller trasigt svar är drift, inte ett programfel (samma som väder-API:t).
+        print(f"⚠️ elprisetjustnu.se svarade inte ({type(e).__name__}) - försöker igen senare")
     except Exception as e:
         print(f"❌ Fel vid API-hämtning för {date_str}: {e}")
     return False
