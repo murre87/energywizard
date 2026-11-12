@@ -19,13 +19,36 @@ Ingen tyst backdoor till alla hus.
 ## Vad EnergyWizard har idag
 
 - **Telemetri (push):** hashad hus-id, version, drivrutiner, fel *klass* + modul — aldrig feltext, logg, setpoints eller plats.
-- **Flottvy (`Installationer`):** på utvecklarservern (`TELEMETRY_STATS_URL`). Owner ser den plus sitt hus. Namn i `TELEMETRY_ADMIN_USERS` (#265), t.ex. `lazgeo` som `family`, ser **bara** Installationer — inte ägarens Översikt/Elbil/logg (UI + API-spärr).
-- **Ingen** tunnel, remote shell eller live-styrning av andras hus.
+- **Flottvy (`Installationer`):** läses från samlarens `/api/stats`. Visas hos den som har `TELEMETRY_STATS_URL` (+ token) på **sin egen** installation och är inloggad som ägare.
+- **Ingen** tunnel, remote shell eller live-styrning av andras hus. Flottvyn är anonym aggregatdata.
+
+## Så ger du support (t.ex. lazgeo) flottvyn på *hans* EnergyWizard
+
+Han ska **inte** logga in på din webb. Han kör sin egen installation och ser Installationer där.
+
+1. Ge honom (privat) samlarens stats-URL och token, samma som på utvecklarservern:
+   - URL: `https://energywizzard.profitalgos.com/telemetry/api/stats`
+   - Token: värdet av `TELEMETRY_STATS_TOKEN` / samlarens `STATS_TOKEN`
+2. **HA-tillägg:** under tilläggets Konfiguration fyll i
+   - `telemetry_stats_url` = URL:n ovan  
+   - `telemetry_stats_token` = token  
+   Spara och starta om tillägget.
+3. **docker-compose:** i `.env` / webdashboard-miljön:
+   - `TELEMETRY_STATS_URL=…`
+   - `TELEMETRY_STATS_TOKEN=…`  
+   Starta om `webdashboard`.
+4. Han loggar in som **ägare på sitt hus** → menyn **Installationer** (anonyma hus, felgrupper, versioner).
+
+Han ser fortfarande sitt eget hus som vanligt. Han ser **inte** ditt hus live och kan **inte** styra andras installationer.
+
+### Alternativ (undvik i normalfallet)
+
+`TELEMETRY_ADMIN_USERS` på utvecklarservern + family-login där ger enbart flottvy på *din* webb (spärrad från ditt hus-UI). Det är fel modell när support redan kör EnergyWizard hemma.
 
 ## Hur vi kommer närmare FTW-admin
 
-1. **Nu (#265):** fler personer får samma *anonyma* flott-/felvy som Emil.
-2. **Nästa (#227):** opt-in supportpaket (redigerad logg + control journal-sammanfattning) som användaren bifogar till auto-issue eller skickar manuellt.
-3. **Senare:** tidsbegränsad support-grant (ägaren godkänner i UI) som tillfälligt laddar upp mer diagnostik — samma integritetsmodell som FTW:s `support`-agent, utan Cloud-tunnel i första steget.
+1. **Nu (#265):** flottvy på supportpersonens egen installation via stats-URL/token.
+2. **Nästa (#227):** opt-in supportpaket (redigerad logg + control journal) som användaren bifogar.
+3. **Senare:** tidsbegränsad support-grant (ägaren godkänner i UI) — samma integritetsmodell som FTW:s `support`-agent, utan Cloud-tunnel i första steget.
 
 Styr aldrig en främmande installation utan uttryckligt ägargodkännande.

@@ -56,6 +56,13 @@ Koden är fri under AGPL-3.0: du får ändra den, även ta bort telemetrin, och
 använda och sprida den ändrade versionen enligt licensen. De gamla valen `telemetry_opt_in` och `anonymous_ping` läses
 inte längre.
 
+## Flottvy Installationer (valfritt, support)
+
+Om du har fått stats-URL och token från utvecklaren kan du under **Konfiguration**
+sätta `telemetry_stats_url` och `telemetry_stats_token`. Efter omstart syns menyn
+**Installationer** i webben (anonyma hus och felgrupper). Det är din egen
+installation — du loggar inte in någon annanstans. Se `docs/support-access.md`.
+
 ## Kända begränsningar
 
 - Sidan **System** i webdashboard visar "Kunde inte nå Watchtower". Uppdateringar
