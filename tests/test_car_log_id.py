@@ -6,6 +6,8 @@ import car_log
 import live_flow
 from contextlib import contextmanager
 from psycopg.rows import dict_row
+from datetime import datetime, timezone
+from unittest.mock import Mock
 
 
 def test_befintliga_id_ar_oforandrade():
@@ -76,6 +78,9 @@ def test_renamed_car_survives_database_logging_and_overview(smartbox, db, monkey
     monkeypatch.setattr(smartbox, "get_db", connection)
     monkeypatch.setattr(smartbox, "_car_columns_ok", set())
     monkeypatch.setattr(smartbox, "_bool_columns", None)
+    clock = Mock()
+    clock.now.side_effect = [datetime(2026, 11, 12, 10, minute, tzinfo=timezone.utc) for minute in (0, 1)]
+    monkeypatch.setattr(smartbox, "datetime", clock)
     try:
         common = dict(price=1.0, indoor=20, water=40, target_room=21, water_mode=0,
                       forward=30, retur=25, calc_forward=30, outdoor=5,
