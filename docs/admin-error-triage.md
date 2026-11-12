@@ -20,6 +20,7 @@ storage problems can also appear there.
 | `settings.save_ev_schedule_day: StringDataRightTruncation` | #298 / #232 | Save paths now migrate `car_id` VARCHAR→TEXT before INSERT (previously only on load). |
 | `logger.log_status: DiskFull` | #250 | DiskFull / SQLSTATE 53100 logged as `⚠️` (host storage), not program error. |
 | `pump.read_sensors: Error` / `ConnectionResetError` | #299 | Modbus connect/timeout/reset and empty replies warn; unexpected exceptions stay `❌`. |
+| `homeassistant.update_states: ConnectionError` | #228 | Connection drops and timeouts stay `⚠️` even after many tries. HTTP errors other than 401/502/503/504 and unexpected exceptions still `❌`. |
 
 Swedish installations retain the public-source fallback when HA prices fail;
 other countries never substitute Swedish prices. No retention/deletion changes
