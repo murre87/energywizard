@@ -5,6 +5,24 @@ The [machine-readable evidence](dhi-verification-evidence.json) records pinned
 image/platform digests, public-key and VEX hashes, local image IDs and scan dates.
 These checks qualify the optional builds; they do not select DHI for deployment.
 
+## GitHub Actions
+
+The `dhi-verification` workflow uses the Actions secret `DHI_IO` and repository
+variable `DHI_USERNAME`. A free Docker account with a read-public-only PAT is
+sufficient; no paid organization token is required. The PAT is supplied only to
+the pinned Docker login action, never build arguments, application containers or
+artifacts. Both `dhi.io` and Docker Hub login are used because Scout also needs
+Hub authentication. Replace the secret and username variable when moving to a
+separate CI account; do not put the token in source or chat.
+
+Run manually or through a same-repository PR changing the DHI inputs. Fork PRs
+are excluded from credential-bearing jobs, and `pull_request_target` is not used.
+The workflow verifies the base signatures first, then runs the existing isolated
+probe on native AMD64 and ARM64 runners. Only the public verification documents
+and synthetic runtime reports/logs are uploaded, with 14-day retention. Missing
+or invalid credentials fail the workflow. This workflow does not publish images
+or replace the standard-image release security gates.
+
 ## Signed VEX
 
 Scout 1.29.0 verified the pinned Python 3.11 builder/runtime attestations against
