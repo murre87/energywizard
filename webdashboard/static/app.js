@@ -2095,10 +2095,11 @@ async function runDiscovery(ev, cached) {
       id: <input type="text" class="car-id" data-i="${i}" value="${c.driver}" style="width:100px"> &nbsp;
       batteri (kWh): <input type="number" class="car-kwh" data-i="${i}" value="60" style="width:70px"><br>
       <span style="font-size:.8rem">SOC: ${c.soc_entity || "-"} · Kabel: ${c.plugged_in_entity || "-"} · Klimat: ${c.climate_entity || "-"}</span>
+      <div class="car-learned" data-i="${i}"></div>
     </div>`;
   });
   if (!d.cars.length) html += `<div class="note">Inga bilar hittades.</div>`;
-  html += `</div>`;
+  html += `<div id="learned-other"></div></div>`;
 
   const simpleCard = (icon, title, item, fields) => {
     if (!item) return `<div class="card" style="margin-bottom:16px"><h2>${icon} ${title}</h2><div class="note">Inget hittades i Home Assistant${title === "Värmepump" ? " - normalt om din pump pratar direkt via Modbus istället för via en HA-integration (t.ex. Thermia/Husdata). Sätt heat_pump.enabled: true och fyll i anslutningen för hand i den nedladdade filen efteråt." : ""}.</div></div>`;
@@ -2202,7 +2203,38 @@ async function runDiscovery(ev, cached) {
       }
     };
   });
+  document.querySelectorAll(".car-id").forEach((el) => el.addEventListener("input", () => paintLearnedLimits(d)));
   applyWizardForm(d.form);
+  paintLearnedLimits(d);
+}
+
+function learnedLimitHtml(row, withId) {
+  if (!row || typeof row.id !== "string") return "";
+  const bits = [];
+  if (row.phases === "1" || row.phases === "3") bits.push(`<span>${row.phases}-fas</span>`);
+  const ma = row.max_a;
+  if (Number.isInteger(ma) && ma >= 6 && ma < 16) bits.push(`<span>max ${ma} A</span>`);
+  if (!bits.length) return "";
+  const lead = withId
+    ? `<span>Inlärt för bil-id</span> <span data-noi18n>${esc(row.id)}</span>: `
+    : `<span>Inlärt av laddningarna:</span> `;
+  return `${lead}${bits.join(" · ")}. <span>Lämna faser och maxström tomma i installationen så värdet följer med.</span>`;
+}
+
+function paintLearnedLimits(d) {
+  const rows = (d && d.learned_limits) || [];
+  const used = new Set();
+  (d.cars || []).forEach((c, i) => {
+    const box = document.querySelector(`.car-learned[data-i="${i}"]`);
+    const idEl = document.querySelector(`.car-id[data-i="${i}"]`);
+    if (!box) return;
+    const id = idEl ? idEl.value.trim() : "";
+    const row = rows.find((r) => r && r.id === id);
+    if (row) used.add(row.id);
+    box.innerHTML = learnedLimitHtml(row);
+  });
+  const other = document.getElementById("learned-other");
+  if (other) other.innerHTML = rows.filter((r) => r && !used.has(r.id)).map((r) => `<div class="note">${learnedLimitHtml(r, true)}</div>`).join("");
 }
 
 async function generateConfig(save) {

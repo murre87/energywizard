@@ -1816,11 +1816,11 @@ async def api_discover():
         res["scanned_at"] = time.time()
         tmp = _last_discovery_path() + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            _json.dump(res, f, ensure_ascii=False)
+            _json.dump(res, f, ensure_ascii=False)         # utan learned_limits: de räknas om varje visning
         os.replace(tmp, _last_discovery_path())
     except Exception as e:
         print(f"⚠️ Kunde inte spara senaste skanningen: {e}")
-    return res
+    return _attach_learned_limits(res)
 
 
 def _last_discovery_path() -> str:
@@ -1838,6 +1838,14 @@ def _wizard_form():
             return _json.load(f)
     except Exception:
         return None
+
+
+def _attach_learned_limits(res):
+    """Faser och maxström motorn lärt sig (ev_limits). Räknas om vid varje visning, skrivs inte in i konfigurationen."""
+    import ev_limits
+    saved = ew_settings.get("learned_ev")
+    res["learned_limits"] = ev_limits.LimitLearner(saved if isinstance(saved, dict) else None).for_guide()
+    return res
 
 
 @app.post("/api/discover/form")
@@ -1870,7 +1878,7 @@ async def api_discover_last(request: Request):
     except Exception:
         return {"ok": False}
     res["form"] = _wizard_form()
-    return res
+    return _attach_learned_limits(res)
 
 
 @app.post("/api/discover-modbus")
@@ -1902,9 +1910,15 @@ def _build_house_config_yaml(sel: dict) -> str:
     cars = sel.get("cars") or []
     if not cars:
         lines[-1] = "evs: []"
+    import ev_limits
+    _saved_ev = ew_settings.get("learned_ev")
+    _ev_learn = ev_limits.LimitLearner(_saved_ev if isinstance(_saved_ev, dict) else None)
     for i, c in enumerate(cars):
         car_id = c.get("id") or f"bil{i + 1}"
         lines.append(f"  - id: {car_id}")
+        _note = _ev_learn.guide_yaml_line(car_id)          # kommentar, inte phases/max_a (de ska fortsätta läras)
+        if _note:
+            lines.append(_note)
         lines.append(f"    driver: {c.get('driver') or 'generic_ev'}")
         lines.append(f"    battery_kwh: {c.get('battery_kwh') or 60}  # FYLL I - din bils batteristorlek i kWh")
         lines.append("    entities:")
