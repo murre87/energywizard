@@ -47,7 +47,23 @@ WATCHTOWER_TOKEN = os.environ.get("WATCHTOWER_API_TOKEN", "")
 # Bara på utvecklarens egen installation: telemetrisamlarens sammanställning (antal aktiva + utrustning).
 TELEMETRY_STATS_URL = os.environ.get("TELEMETRY_STATS_URL", "").strip()
 TELEMETRY_STATS_TOKEN = os.environ.get("TELEMETRY_STATS_TOKEN", "").strip()       # samma som samlarens STATS_TOKEN
+# #265: utöver owner får namnen i TELEMETRY_ADMIN_USERS se Installationer (anonym flotta/fel).
+# Ge dem EW_USERS=namn:lösen:family - inte :owner - så de inte styr husets övriga UI.
+TELEMETRY_ADMIN_USERS = {
+    u.strip().lower()
+    for u in os.environ.get("TELEMETRY_ADMIN_USERS", "").split(",")
+    if u.strip()
+}
 INSTALLS_PAGE = {"id": "installationer", "name": "Installationer", "icon": "👥", "built": True}
+
+
+def _can_view_installs(role: str | None, user: str | None) -> bool:
+    """Utvecklarserverns flottvy: owner, eller allowlistad support-användare (#265)."""
+    if not TELEMETRY_STATS_URL:
+        return False
+    if role == "owner":
+        return True
+    return (user or "").strip().lower() in TELEMETRY_ADMIN_USERS
 # /v1/check gör en riktig registry-koll (tar ~5s) - cachas här så "System"-sidan
 # inte startar om den varje gång sidan öppnas.
 _wt_cache = {"ts": 0, "data": None}
@@ -874,7 +890,7 @@ async def me(request: Request):
     except Exception:
         hidden = set()                                    # ingen/trasig installation: visa allt
     pages = [p for p in PAGES if p["built"] and p["id"] not in hidden]
-    if TELEMETRY_STATS_URL and role == "owner":       # bara utvecklarens egen server, bara ägaren
+    if _can_view_installs(role, user):               # #265: owner eller TELEMETRY_ADMIN_USERS
         pages.insert(len(pages) - 1, INSTALLS_PAGE)
     import nordpool
     c = nordpool.cost_settings()
@@ -1030,8 +1046,8 @@ async def updates(request: Request, force: bool = False):
 @app.get("/api/installs")
 async def installs(request: Request):
     """System-sidan: hur många som kör EnergyWizard och med vilken utrustning (från telemetrisamlaren)."""
-    role, _ = AUTH.session(request)
-    if not TELEMETRY_STATS_URL or role != "owner":
+    role, user = AUTH.session(request)
+    if not _can_view_installs(role, user):
         return {"ok": False, "configured": False}
     try:
         import telemetry
