@@ -145,7 +145,8 @@ def update_forecast():
             conn.commit()
         print(f"📥 Väderprognos hämtad från Open-Meteo ({len(records)} timmar).")
         return True
-    except (requests.Timeout, requests.ConnectionError) as e:
+    except requests.RequestException as e:
+        # Avbrott, avhugget svar och ogiltig JSON är driftstörning. Oväntade fel (databas) är kvar som ❌.
         print(f"⚠️ Open-Meteo svarade inte ({type(e).__name__}) - försöker igen senare")
     except Exception as e:
         print(f"❌ Fel vid Open-Meteo väder-API: {e}")
