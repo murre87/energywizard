@@ -666,6 +666,24 @@ async def capacity_tariff_set(request: Request):
     return {"ok": True, "message": "Sparat"}
 
 
+@app.get("/api/support-diag")
+async def support_diag_get():
+    """#227: felsökningsutdrag vid fel — på som standard, kan stängas av."""
+    import support_bundle
+    return {"ok": True, "enabled": support_bundle.enabled()}
+
+
+@app.post("/api/support-diag")
+async def support_diag_set(request: Request):
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"error": "Bara ägaren kan ändra felsökningsutdrag"}, status_code=403)
+    import support_bundle
+    body = await request.json()
+    support_bundle.set_enabled(bool(body.get("enabled")))
+    return {"ok": True, "enabled": support_bundle.enabled(), "message": "Sparat"}
+
+
 @app.get("/api/notify-prefs")
 async def notify_prefs_get():
     """Notiskategorierna och om de är på (smartbox/notify_prefs.py) - alla notiser går att stänga av."""

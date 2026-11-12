@@ -66,6 +66,16 @@ def _db():
             version TEXT, module TEXT, error_type TEXT, ts TEXT)""")
         conn.execute("""CREATE TABLE IF NOT EXISTS known_houses (
             house TEXT PRIMARY KEY, first_seen TEXT)""")
+        # #227: sanerat supportutdrag (valfritt fält på felrapporter)
+        conn.execute("""CREATE TABLE IF NOT EXISTS error_support (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, received_at TEXT, house TEXT,
+            version TEXT, module TEXT, error_type TEXT, support TEXT)""")
+        try:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(errors)").fetchall()}
+            if "has_support" not in cols:
+                conn.execute("ALTER TABLE errors ADD COLUMN has_support INTEGER DEFAULT 0")
+        except Exception:
+            pass
         yield conn
         conn.commit()
     finally:
@@ -122,18 +132,23 @@ async def ingest_drivers(request: Request):
 @app.post("/ingest/error")
 async def ingest_error(request: Request):
     body = await request.json()
+    house = _str_field(body, "house", 64)
+    version = _str_field(body, "version", 64)
+    module = _str_field(body, "module", 100)
+    error_type = _str_field(body, "error_type", 100)
+    support = body.get("support")
+    support_txt = str(support)[:8000] if isinstance(support, str) and support.strip() else ""
+    now = datetime.now(timezone.utc).isoformat()
     with _db() as c:
         c.execute(
-            "INSERT INTO errors (received_at, house, version, module, error_type, ts) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                datetime.now(timezone.utc).isoformat(),
-                _str_field(body, "house", 64),
-                _str_field(body, "version", 64),
-                _str_field(body, "module", 100),
-                _str_field(body, "error_type", 100),
-                _str_field(body, "ts", 64),
-            ),
+            "INSERT INTO errors (received_at, house, version, module, error_type, ts, has_support) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (now, house, version, module, error_type, _str_field(body, "ts", 64), 1 if support_txt else 0),
         )
+        if support_txt:
+            c.execute(
+                "INSERT INTO error_support (received_at, house, version, module, error_type, support) VALUES (?, ?, ?, ?, ?, ?)",
+                (now, house, version, module, error_type, support_txt),
+            )
     return {"ok": True}
 
 
@@ -303,7 +318,7 @@ async def stats(request: Request, me: str = ""):
 @app.get("/api/error-groups")
 async def error_groups(request: Request, days: int = 14):
     """Felen grupperade per modul + feltyp, för skriptet som gör GitHub-issues av dem (ops/gh_error_issues.sh).
-    Bara antal hus, versioner och tider - aldrig vilka hus."""
+    Bara antal hus, versioner och tider - aldrig vilka hus. #227: senaste sanerade supportutdraget per grupp."""
     from datetime import timedelta
     if not _token_ok(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
@@ -315,13 +330,26 @@ async def error_groups(request: Request, days: int = 14):
             if not _is_real_house(house):
                 continue
             g = groups.setdefault(f"{module}: {et}", {"module": module, "error_type": et, "houses": set(), "versions": set(),
-                                                      "first": rec, "last": rec, "count": 0})
+                                                      "first": rec, "last": rec, "count": 0, "support": ""})
             g["houses"].add(house)
             g["versions"].add(version or "okänd")
             g["last"] = rec
             g["count"] += 1
+        # Senaste supportutdraget per (module, error_type), utan hus-ID i svaret
+        for module, et, support in c.execute(
+                "SELECT module, error_type, support FROM error_support WHERE received_at >= ? ORDER BY id DESC",
+                (since,)):
+            key = f"{module}: {et}"
+            if key in groups and not groups[key]["support"] and support:
+                # Strip accidental house hashes if a client ever included them
+                cleaned = "\n".join(
+                    ln for ln in str(support).splitlines()
+                    if not (len(ln.strip()) == 16 and all(ch in "0123456789abcdef" for ch in ln.strip()))
+                )[:4000]
+                groups[key]["support"] = cleaned
     out = [{"key": k, "module": g["module"], "error_type": g["error_type"], "houses": len(g["houses"]),
-            "versions": sorted(g["versions"]), "first": g["first"], "last": g["last"], "reports": g["count"]}
+            "versions": sorted(g["versions"]), "first": g["first"], "last": g["last"], "reports": g["count"],
+            "support": g.get("support") or ""}
            for k, g in groups.items()]
     return {"groups": sorted(out, key=lambda x: (-x["houses"], x["key"]))}
 
