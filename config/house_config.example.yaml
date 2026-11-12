@@ -151,7 +151,9 @@ spa:
 #   control: samarbete             # samarbete = läs bara (BESS/Predbat styr) | styr | av
 #   reserve_soc: 20                # sparas alltid till strömavbrott (%)
 #   priority_soc: 50               # över detta får elbilen solöverskottet före batteriet (%)
-#   max_power_w: 5000              # max ladd-/urladdningseffekt (W), för dygnsplanen
+#   max_power_w: 5000              # databladets max ladd-/urladdningseffekt (W)
+#   # max_charge_w: 3000           # valfritt: tak för hur snabbt planen räknar med att ladda
+#   # max_discharge_w: 5000        # valfritt: samma för urladdning. Tomt = max_power_w, sedan inlärd hållen effekt
 #   efficiency: 0.9                # verkningsgrad tur och retur
 #   cycle_cost: 0.30               # slitage, kr per urladdad kWh (cellernas pris / (kapacitet x cykler))
 #   charge_wear_cost_sek_per_kwh: 0.0    # extra slitage, kr per kWh lagrad energi

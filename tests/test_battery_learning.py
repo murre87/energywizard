@@ -6,7 +6,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "smartbox")))
 
-from battery_learning import learn, apply, realized_saving, describe, segments
+from battery_learning import learn, apply, realized_saving, describe, planning_kw, segments
 
 CFG = {"capacity_kwh": 10.0, "max_power_w": 5000.0, "efficiency": 0.9}
 
@@ -29,6 +29,16 @@ def _battery(cycles=4, eff=0.9, cap=11.0, kw=3.0):
         run(-kw, 20.0)
         for _ in range(30):
             out.append((t, round(soc, 2), 0.0)); t += 60
+    return out
+
+
+def _quarters(n, watts, step_s=60.0, start=0.0):
+    """n hela kvartar med ett prov i minuten."""
+    out, t = [], start
+    for _ in range(n):
+        for _s in range(15):
+            out.append((t, 50.0, watts))
+            t += step_s
     return out
 
 
@@ -56,6 +66,55 @@ def test_solprognosens_fel_per_timme():
     pairs = [(9, 2000, 1000)] * 6 + [(13, 4000, 4400)] * 6 + [(16, 1500, 1500)] * 2   # 16: för få timmar
     m = learn([], pairs, CFG)
     assert m["use"]["solar_factor"] == {9: 0.5, 13: 1.1}
+
+
+def test_toppar_styr_inte_laddeffekten():
+    """#251: p95 av enstaka 11 kW-prov är 11 kW. Kvartsmedlet är (11 + 14×2,5) / 15 = 3,07 kW."""
+    samples = []
+    t = 0.0
+    for _q in range(12):
+        for i in range(15):
+            samples.append((t, 50.0, 11000.0 if i == 0 else 2500.0))
+            t += 60.0
+    m = learn(samples, [], {"max_power_w": 11000.0, "capacity_kwh": 15.0})
+    assert abs(m["learned"]["charge_kw"] - 3.07) < 0.02
+    assert m["use"]["charge_kw"] == m["learned"]["charge_kw"]
+    text = describe(m)
+    assert "laddar med 3.1 kW" in text and "inlärt 3.1" not in text
+
+
+def test_hallen_effekt_under_trettio_procent_anvands():
+    """2,5 kW mot ett 11 kW-datablad är under det korta 30 %-golvet, men hålls kvart efter kvart."""
+    m = learn(_quarters(10, 2500.0), [], {"max_power_w": 11000.0, "capacity_kwh": 15.0})
+    assert m["learned"]["charge_kw_quarters"] == 10
+    assert abs(m["use"]["charge_kw"] - 2.5) < 0.05
+
+
+def test_kort_lag_effekt_sanker_inte_planen():
+    m = learn(_quarters(3, 2500.0), [], {"max_power_w": 11000.0})
+    assert "charge_kw" not in m["use"] and "charge_kw" not in m["learned"]
+    m = learn(_quarters(5, 2500.0), [], {"max_power_w": 11000.0})
+    assert abs(m["learned"]["charge_kw"] - 2.5) < 0.05
+    assert "charge_kw" not in m["use"]
+    assert "används inte" in describe(m)
+
+
+def test_enstaka_svaga_kvartar_sanker_inte_percentilen():
+    """Tappade skrivningar i en fjärdedel av kvartarna är inte batteriets nya max."""
+    samples = _quarters(3, 2500.0) + _quarters(9, 10000.0, start=3 * 900.0)
+    m = learn(samples, [], {"max_power_w": 11000.0})
+    assert m["use"]["charge_kw"] > 8.0
+
+
+def test_max_charge_w_ar_tak_aven_nar_inlart_ar_hogre():
+    m = learn(_battery(kw=5.0), [], {"max_power_w": 11000.0, "max_charge_w": 3000, "capacity_kwh": 10.0})
+    assert abs(m["learned"]["charge_kw"] - 5.0) < 0.05
+    assert abs(m["use"]["charge_kw"] - 3.0) < 0.05
+    txt = describe(m)
+    assert "laddar med 3.0 kW (inlärt 5.0)" in txt
+    assert planning_kw({"max_power_w": 11000, "max_charge_w": 3000}, "charge") == 3.0
+    assert planning_kw({"max_power_w": 11000, "charge_kw": 2.5, "max_charge_w": 3000}, "charge") == 2.5
+    assert planning_kw({"max_power_w": 5000}, "discharge") == 5.0
 
 
 def test_apply_lagger_inlart_over_config():

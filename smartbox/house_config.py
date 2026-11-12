@@ -252,7 +252,10 @@ def battery_settings(cfg: dict) -> dict:
         return d if v is None or v != v or (positive and v <= 0) else v
     return {"control": control if bat.get("enabled") else "av", "reserve_soc": f("reserve_soc", 20.0),
             "priority_soc": f("priority_soc", 50.0), "max_soc": f("max_soc", 100.0, True),
-            "max_power_w": f("max_power_w", 5000.0, True), "capacity_kwh": f("capacity_kwh", None, True),
+            "max_power_w": f("max_power_w", 5000.0, True),
+            # Valfria tak för vad dygnsplanen får anta (#251). Tomt = max_power_w, sedan inlärd hållen effekt.
+            "max_charge_w": f("max_charge_w", None, True), "max_discharge_w": f("max_discharge_w", None, True),
+            "capacity_kwh": f("capacity_kwh", None, True),
             "efficiency": f("efficiency", 0.9, True),
             # Batteriets slitage, kr per urladdad kWh: cellernas pris / (kapacitet x antal cykler).
             # T.ex. 40 000 kr / (10 kWh x 6000 cykler) ≈ 0,67 kr; 0,30 kr är ett försiktigt standardvärde.
