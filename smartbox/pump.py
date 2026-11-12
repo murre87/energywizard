@@ -26,27 +26,35 @@ DEVICE_ID = 1
 
 _active_ip_index = 0
 
+def _connect_client(ip):
+    client = ModbusTcpClient(ip, port=PORT, timeout=TIMEOUT)
+    connected = False
+    try:
+        connected = client.connect()
+        return client if connected else None
+    finally:
+        if not connected:
+            client.close()
+
 def _get_client():
     """Försöker ansluta till Husdata. Byter automatiskt IP om den primära är nere."""
     global _active_ip_index
     if not PUMP_IPS:
         return None
     _active_ip_index = min(_active_ip_index, len(PUMP_IPS) - 1)
-    client = ModbusTcpClient(PUMP_IPS[_active_ip_index], port=PORT, timeout=TIMEOUT)
-    if client.connect():
+    client = _connect_client(PUMP_IPS[_active_ip_index])
+    if client:
         return client
-    client.close()
     
     # Om den aktiva IP:n misslyckades, testa de andra
     for i, ip in enumerate(PUMP_IPS):
         if i == _active_ip_index:
             continue
-        client = ModbusTcpClient(ip, port=PORT, timeout=TIMEOUT)
-        if client.connect():
+        client = _connect_client(ip)
+        if client:
             _active_ip_index = i
             print(f"🔄 Husdata: Bytte aktiv IP-adress till {ip}")
             return client
-        client.close()
     return None
 
 def _to_signed(val):
