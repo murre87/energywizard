@@ -326,11 +326,35 @@ def get_ev_schedule(car_ids=None):
         print(f"❌ Kunde inte ladda EV-schema: {e}")
     return schedule
 
+def _ensure_ev_charging_schedule(cur):
+    """Skapa tabell + migrera car_id/panic_mode innan sparning (#298)."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ev_charging_schedule (
+            car_id TEXT,
+            day_of_week INTEGER,
+            target_time TIME,
+            target_soc INTEGER DEFAULT 100,
+            enabled BOOLEAN DEFAULT FALSE,
+            panic_mode BOOLEAN DEFAULT FALSE,
+            PRIMARY KEY (car_id, day_of_week)
+        )
+    """)
+    _migrate_schedule_car_id(cur, "ev_charging_schedule")
+    cur.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema=current_schema() AND table_name='ev_charging_schedule'
+          AND column_name='panic_mode'
+    """)
+    if cur.fetchone() is None:
+        cur.execute("ALTER TABLE ev_charging_schedule ADD COLUMN panic_mode BOOLEAN DEFAULT FALSE")
+
+
 def save_ev_schedule_db(car_id, schedule_data):
     """Sparar en hel veckas EV-schema för en specifik bil."""
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
+                _ensure_ev_charging_schedule(cur)
                 for day, data in schedule_data.items():
                     cur.execute("""
                         INSERT INTO ev_charging_schedule (car_id, day_of_week, target_time, enabled, target_soc, panic_mode)
@@ -350,6 +374,7 @@ def save_ev_schedule_day(car_id, day_of_week, target_time, target_soc, enabled, 
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
+                _ensure_ev_charging_schedule(cur)
                 cur.execute("""
                     INSERT INTO ev_charging_schedule (car_id, day_of_week, target_time, target_soc, enabled, panic_mode)
                     VALUES (%s, %s, %s, %s, %s, %s)
@@ -368,6 +393,15 @@ def save_climate_schedule_db(car_id, enabled, target_time, target_temp):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS climate_schedule (
+                        car_id TEXT PRIMARY KEY,
+                        target_time TIME,
+                        target_temp NUMERIC,
+                        enabled BOOLEAN DEFAULT FALSE
+                    )
+                """)
+                _migrate_schedule_car_id(cur, "climate_schedule")
                 cur.execute("""
                     INSERT INTO climate_schedule (car_id, target_time, target_temp, enabled)
                     VALUES (%s, %s, %s, %s)

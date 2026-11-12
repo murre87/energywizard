@@ -471,7 +471,11 @@ def log_status(
             conn.commit()
         print("💾 1-minutslogg sparad.")
     except Exception as e:
-        print(f"❌ Fel vid loggning till databas: {e}")
+        # DiskFull är värdproblem, inte programfel (#250) — ⚠️ så Admin inte räknar det rött.
+        if e.__class__.__name__ == "DiskFull" or getattr(e, "sqlstate", None) == "53100":
+            print(f"⚠️ Disken full – hoppar över 1-minutsloggen ({e.__class__.__name__}).")
+        else:
+            print(f"❌ Fel vid loggning till databas: {e}")
 
 
 

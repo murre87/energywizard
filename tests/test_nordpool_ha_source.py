@@ -3,8 +3,10 @@ sensor.nordpool-attribut korrekt och skriver samma (time_start, time_end, sek_pe
 som den befintliga fetch_api_and_save() - mot ett syntetiskt HA-svar, aldrig nätverket eller
 riktig produktionsdata. Paritet mot den RIKTIGA källan (markup/moms kan skilja) verifieras
 separat med scripts/compare_price_sources.py mot riktig data, inte här."""
+import time
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 import requests
@@ -145,6 +147,41 @@ def test_unexpected_failure_still_reports_error(capsys):
         assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
     db.assert_not_called()
     assert "❌" in capsys.readouterr().out
+
+
+def test_invalid_json_from_ha_warns_not_error(capsys):
+    r = MagicMock()
+    r.status_code = 200
+    r.json.side_effect = ValueError("No JSON")
+    with patch("nordpool.requests.get", return_value=r), patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+    db.assert_not_called()
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "❌" not in out
+
+
+def test_missing_today_prices_warns_not_program_error(monkeypatch, capsys):
+    """#210: KRITISKT utan exception ska inte bli Admin-gruppen Error via ❌."""
+    monkeypatch.setattr(nordpool, "price_source", lambda: "ha_nordpool")
+    monkeypatch.setattr(nordpool, "price_timezone", lambda: ZoneInfo("Europe/Stockholm"))
+    monkeypatch.setattr(nordpool, "_ha_source_key", lambda: "k")
+    monkeypatch.setattr(nordpool, "_ha_refresh_state", {"k": (time.monotonic(), False)})
+    monkeypatch.setattr(
+        nordpool, "cost_settings",
+        lambda: {"country": "SE", "area": "SE3", "timezone": "Europe/Stockholm"})
+    conn = MagicMock()
+    cur = conn.cursor.return_value.__enter__.return_value
+    cur.fetchone.return_value = (0,)
+    fixed = datetime(2026, 11, 12, 10, 0, tzinfo=ZoneInfo("Europe/Stockholm"))
+    with patch("nordpool.get_db") as db, \
+         patch("nordpool._fetch_and_save", return_value=False), \
+         patch("nordpool.datetime") as dt:
+        db.return_value.__enter__.return_value = conn
+        dt.now.return_value = fixed
+        nordpool.ensure_prices_exist()
+    out = capsys.readouterr().out
+    assert "KRITISKT" in out and "⚠️" in out
+    assert "❌" not in out
 
 
 # ---------- _fetch_and_save: källval + fallback ----------

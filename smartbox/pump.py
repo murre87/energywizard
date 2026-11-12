@@ -71,7 +71,8 @@ def read_sensors():
     try:
         client = _get_client()
         if not client:
-            print(f"❌ Husdata: Kunde inte ansluta via Modbus TCP på någon IP: {PUMP_IPS}")
+            # Tillfällig nätverks-/anslutningsstörning — ⚠️ (grå i Admin), inte programfel (#299).
+            print(f"⚠️ Husdata: Kunde inte ansluta via Modbus TCP på någon IP: {PUMP_IPS}")
             return None
 
         res_in = None
@@ -102,11 +103,11 @@ def read_sensors():
 
         # FIX: Skydda mot None-svar (t.ex. om biblioteket returnerar None) innan isError()
         if res_in is None or res_hold is None:
-            print("❌ Husdata: Fick inget svar (None) vid läsning av Modbus-register")
+            print("⚠️ Husdata: Fick inget svar (None) vid läsning av Modbus-register")
             return None
 
         if res_in.isError() or res_hold.isError():
-            print("❌ Husdata: Fick felsvar vid läsning av Modbus-register")
+            print("⚠️ Husdata: Fick felsvar vid läsning av Modbus-register")
             return None
 
         reg = res_in.registers
@@ -174,8 +175,12 @@ def read_sensors():
             "accumulated_consumption_kwh": reg[39] / 10.0, # 39: Accumulated consumption
         }
 
+    except (ConnectionError, ConnectionResetError, TimeoutError, OSError) as e:
+        # Tillfälliga nätverksfel — ⚠️ så Admin räknar dem gråa (#299).
+        print(f"⚠️ Husdata: Nätverksfel vid läsning (Modbus): {e}")
+        return None
     except Exception as e:
-        print(f"❌ Husdata: Nätverksfel vid läsning (Modbus): {e}")
+        print(f"❌ Husdata: Oväntat fel vid läsning (Modbus): {e}")
         return None
 
 def _write_holding(reg_addr, value, retries=3):

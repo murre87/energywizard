@@ -54,6 +54,25 @@ def test_ev_schedule_long_ids(schedule_db, legacy):
         assert loaded['old_car'][0]['target_soc'] == 80
 
 
+def test_ev_schedule_save_migrates_without_prior_load(schedule_db):
+    """#298: auto-schema can INSERT before get_ev_schedule ever ran on this box."""
+    db = schedule_db
+    db.execute('''CREATE TABLE ev_charging_schedule (
+        car_id VARCHAR(20), day_of_week INTEGER, target_time TIME,
+        target_soc INTEGER DEFAULT 100, enabled BOOLEAN DEFAULT FALSE,
+        PRIMARY KEY (car_id, day_of_week))''')
+    car = 'garage_skoda_enyaq_vehicle_one'
+    settings.save_ev_schedule_day(car, 2, '07:30', 80, True, False)
+    row = db.execute(
+        'SELECT car_id, target_soc FROM ev_charging_schedule WHERE day_of_week=2').fetchone()
+    assert row == (car, 80)
+    length = db.execute("""
+        SELECT character_maximum_length FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'ev_charging_schedule'
+          AND column_name = 'car_id'""").fetchone()[0]
+    assert length is None
+
+
 @pytest.mark.parametrize('legacy', [False, True])
 def test_climate_schedule_long_ids(schedule_db, legacy):
     db = schedule_db
