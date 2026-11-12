@@ -19,6 +19,30 @@ def _avsiktligt_andrad(states, e_seq):
     return False
 
 
+def _morgongolv(states):
+    """#302: två inkopplade bilar under 50 % före kl 06 delar säkringen eller turas om.
+    Facit gjordes före den ändringen, så de scenariona jämförs inte."""
+    for st in states:
+        now = st.get("now")
+        if now is None or now.hour >= 6:
+            continue
+        needy = 0
+        for car in ("nissan", "tesla"):
+            if not st.get(f"{car}_connected", False):
+                continue
+            soc = st.get(f"{car}_soc")
+            if soc is None or soc >= 50:
+                continue
+            if st.get(f"{car}_hold") or st.get(f"{car}_charge_completed"):
+                continue
+            if (st.get(f"{car}_force_amps") or 0) > 0:
+                continue
+            needy += 1
+        if needy >= 2:
+            return True
+    return False
+
+
 def test_samma_beslut_som_fore_ombyggnaden():
     expected = json.load(gzip.open(FIX, "rt", encoding="utf-8"))
     got = gen.run()
@@ -26,7 +50,7 @@ def test_samma_beslut_som_fore_ombyggnaden():
     states = gen.scenarios()
     compared = 0
     for i, (g_seq, e_seq) in enumerate(zip(got, expected)):
-        if _avsiktligt_andrad(states[i], e_seq):
+        if _avsiktligt_andrad(states[i], e_seq) or _morgongolv(states[i]):
             continue
         compared += 1
         for k, (g, e) in enumerate(zip(g_seq, e_seq)):
