@@ -122,12 +122,17 @@ def test_samma_hus_ger_samma_hash_olika_hus_ger_olika_hash(monkeypatch):
 
 def test_report_error_skickar_bara_tillatna_falt_inte_feltexten(monkeypatch):
     t = _reload(monkeypatch, opt_in="true", endpoint="https://telemetri.example.com")
-    with patch("telemetry.requests.post") as mock_post:
+    with patch("telemetry.requests.post") as mock_post, \
+         patch("support_bundle.build", return_value="module=main_loop\nerror_type=ValueError"):
         t.report_error({"house_id": "mitt-hus"}, "main_loop", "ValueError")
     payload = mock_post.call_args[1]["json"]
-    assert set(payload.keys()) == {"house", "version", "module", "error_type", "ts"}
+    # #227: valfritt sanerat "support"-fält, aldrig rå feltext/entiteter
+    assert set(payload.keys()) <= {"house", "version", "module", "error_type", "ts", "support"}
+    assert {"house", "version", "module", "error_type", "ts"} <= set(payload.keys())
     assert payload["module"] == "main_loop"
     assert payload["error_type"] == "ValueError"
+    assert "ValueError" not in (payload.get("support") or "") or "error_type=ValueError" in payload["support"]
+    assert "sensor." not in (payload.get("support") or "")
 
 
 def test_report_error_avdubblar_inom_timmen(monkeypatch):

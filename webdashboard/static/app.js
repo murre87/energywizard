@@ -1289,6 +1289,21 @@ async function mountPhoneSetting() {
   };
 }
 
+async function mountSupportDiag() {
+  const cb = document.getElementById("supporttoggle");
+  if (!cb) return;
+  try {
+    const d = await api("api/support-diag");
+    cb.checked = !!(d && d.enabled);
+  } catch (e) { cb.checked = true; }
+  cb.onchange = async () => {
+    try {
+      await postJSON("api/support-diag", { enabled: cb.checked });
+      toast(cb.checked ? "Felsökningsutdrag är på" : "Felsökningsutdrag är av");
+    } catch (e) { cb.checked = !cb.checked; toast(e.message); }
+  };
+}
+
 // Notiser: en strömbrytare per kategori (smartbox/notify_prefs.py). Sparas direkt när man slår om.
 async function mountNotifyPrefs() {
   let d;
@@ -1905,6 +1920,14 @@ async function renderInstallningar() {
       <div class="note" style="margin-top:4px">Välj vilka notiser du vill få. Allt går att stänga av.</div>
       <div id="notifybody" style="margin-top:10px"></div>
     </div>
+    <div class="card" style="margin-bottom:16px" id="supportcard">
+      <div class="togglerow" style="align-items:flex-start;gap:14px"><div>
+        <div style="font-size:1.1rem;font-weight:700">🩺 Felsökningsutdrag vid fel</div>
+        <div class="note" style="margin-top:4px;line-height:1.5">När något går fel skickas ett <b>sanerat</b> utdrag (senaste felloggrader utan entiteter/IP)
+          till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga.
+          På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.</div></div>
+        <label class="switch" style="flex:0 0 auto"><input type="checkbox" id="supporttoggle"><span class="slider"></span></label></div>
+    </div>
     <div class="card" style="margin-bottom:16px" id="sensorcard" hidden>
       <div style="font-size:1.1rem;font-weight:700">🏠 Givare inne och ute</div>
       <div class="note" style="margin-top:4px">Välj vilka temperaturgivare som visar husets innetemperatur (medianen används när du har tre eller fler) och vilken som sitter ute. Förslagen är markerade ⭐.</div>
@@ -1970,6 +1993,7 @@ async function renderInstallningar() {
   mountSignSettings();
   mountPhoneSetting();
   mountNotifyPrefs();
+  mountSupportDiag();
   mountShadow();
   mountMqtt();
   if (window.I18N && I18N.lang !== "sv") {
@@ -2336,7 +2360,7 @@ function setupHA(total, prev) {
        scrolla längst ner till <b>Långlivade åtkomsttoken</b> och tryck <b>Skapa token</b>. Kopiera den och klistra in här.
      </details>
      <details class="note"><summary>Vad skickas till utvecklaren?</summary>
-       <p style="margin:6px 0">En gång per dygn: vilken utrustning du har (drivrutin, märke och modell, t.ex. "NIBE S1255"), var innetemperaturen kommer ifrån, priskälla och land, ungefärliga storlekar (t.ex. batteri 10–15 kWh, huvudsäkring 25 A), inne- och utetemperatur i hela grader och om skuggläget, batteristyrningen eller tidstariffen är på. Vid fel: var i koden felet uppstod och vilken typ, aldrig feltexten. Felen blir automatiskt ärenden på GitHub så att de kan rättas. Aldrig namn, adress, entiteter eller andra mätvärden.</p><p style="margin:6px 0">Telemetrin är alltid påslagen i EnergyWizards byggen och har ingen avstängning. Koden är fri under AGPL-3.0: du får ändra den, även ta bort telemetrin, och sprida den ändrade versionen enligt licensen.</p></details>`,
+       <p style="margin:6px 0">En gång per dygn: vilken utrustning du har (drivrutin, märke och modell), priskälla och land, ungefärliga storlekar, inne-/utetemperatur i hela grader. Vid fel: var i koden + feltyp. Om felsökningsutdrag är på (standard) skickas också ett sanerat loggutdrag utan entiteter/IP. Du kan stänga av utdraget under Inställningar. Felen blir auto-ärenden på GitHub. Aldrig namn, adress eller entitets-id.</p><p style="margin:6px 0">Grundtelemetrin är på i EnergyWizards byggen. Koden är AGPL-3.0.</p></details>`,
     "Testa och spara", async () => {
       const j = await postJSON("api/setup/ha", { url: document.getElementById("s_url").value, token: document.getElementById("s_tok").value });
       document.getElementById("setupok").textContent = j.message || "Kopplat!";

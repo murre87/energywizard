@@ -319,7 +319,8 @@ def report_error(cfg: dict, module: str, error_type: str) -> None:
     """module/error_type ska alltid vara korta konstanter (t.ex. modulnamn och
     exceptionens klassnamn via type(e).__name__) - aldrig str(exception) rakt
     av. Avdubblar en gång/timme per (modul, feltyp): en upprepad bugg spammar inte samlaren, men ett fel som
-    kvarstår rapporteras igen varje timme, så Installationer kan visa bara fel som fortfarande uppstår."""
+    kvarstår rapporteras igen varje timme, så Installationer kan visa bara fel som fortfarande uppstår.
+    #227: när supportutdrag är på (standard) bifogas ett sanerat loggutdrag."""
     if not (OPT_IN and ENDPOINT):
         return
     try:
@@ -336,7 +337,14 @@ def report_error(cfg: dict, module: str, error_type: str) -> None:
             "error_type": error_type,
             "ts": now.isoformat(),
         }
-        requests.post(f"{ENDPOINT}/ingest/error", json=payload, timeout=5)
+        try:
+            import support_bundle
+            excerpt = support_bundle.build(module, error_type)
+            if excerpt:
+                payload["support"] = excerpt
+        except Exception:
+            pass
+        requests.post(f"{ENDPOINT}/ingest/error", json=payload, timeout=8)
     except Exception as e:
         print(f"ℹ️ Telemetri (felrapport) kunde inte skickas, fortsätter ändå: {e}")
 
@@ -364,6 +372,11 @@ def install_error_hook(cfg: dict) -> None:
         try:
             if not args or not isinstance(args[0], str) or not args[0].lstrip().startswith("❌"):
                 return
+            try:
+                import support_bundle
+                support_bundle.note_error_line(str(args[0]))
+            except Exception:
+                pass
             f = sys._getframe(1)
             mod = os.path.splitext(os.path.basename(f.f_code.co_filename))[0]
             if mod == "telemetry":
