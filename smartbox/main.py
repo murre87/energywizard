@@ -156,6 +156,19 @@ _guest_state, _guest_price = {}, {}
 _cap_cache = {"at": None, "peaks": [], "info": None}   # effektavgift efter högsta timmar (capacity_tariff.py)          # gästbil per bilens laddbox (guest_charge.py)
 
 
+def _battery_note(model, live):
+    """Texten under batteribeslutet: det inlärda, och om dygnet just nu planeras långsammare (#251)."""
+    note = ""
+    if model:
+        note = battery_learning.describe(model)
+        saved = model.get("saving_yesterday_kr")
+        if saved is not None:
+            note += f" Igår sparade batteriet {saved:.0f} {nordpool.cost_settings()['symbol']} (uppmätt)."
+    if live:
+        note = (note + " " + live).strip()
+    return note or None
+
+
 def _battery_to_auto(reason):
     """Lämna tillbaka batteriet till växelriktarens eget läge (uppstart, avstängning)."""
     if battery_cfg["control"] == "styr" and "auto" in battery_driver.supported_intents():
@@ -1972,9 +1985,7 @@ while True:
                         "prices_rest_of_day": (all_prices or [])[_q:],
                         "planned_action": (_bplan or {}).get("action_now"), "plan_saving_kr": (_bplan or {}).get("saving_kr"),
                         "planned_power_w": (_bplan or {}).get("power_now_w"),
-                        "learned_note": (battery_learning.describe(_battery["model"])
-                                         + (f" Igår sparade batteriet {_battery['model']['saving_yesterday_kr']:.0f} {nordpool.cost_settings()['symbol']} (uppmätt)."
-                                            if (_battery["model"] or {}).get("saving_yesterday_kr") is not None else "")) if _battery["model"] else None,
+                        "learned_note": _battery_note(_battery["model"], (_bplan or {}).get("live_charge_note")),
                     }, battery_cfg, battery_driver.supported_intents())
                     gpm_actions["log"].append(f"🔋 (BATTERI): {_bdec['reason']}")
                     battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
