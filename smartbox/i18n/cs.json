@@ -2301,5 +2301,15 @@
  "# kör en äldre version som bara skickar version (anonymt) – de visar sin utrustning när de uppdaterat till #.#.#, där telemetrin är obligatorisk.": "# používá starší verzi, která odesílá pouze verzi (anonymně) – vybavení se zobrazí po aktualizaci na #.#.#, kde je telemetrie povinná.",
  "förinställning {name}": "předvolba {name}",
  "köp- och säljeffekt + ström per fas": "příkon a výkon dodávky + proud v jednotlivých fázích",
- "Värmen är på · {temperature} °": "Topení je zapnuté · {temperature} °"
+ "Värmen är på · {temperature} °": "Topení je zapnuté · {temperature} °",
+ "Skickad": "Odesláno",
+ "Skickade aviseringar": "Odeslaná oznámení",
+ "Inget hittades i Home Assistant": "V Home Assistantu nebylo nic nalezeno",
+ "Inget hittades i Home Assistant.": "V Home Assistantu nebylo nic nalezeno.",
+ "batteriet (laddar billigt, laddar ur dyrt).": "baterii (nabíjí levně, vybíjí draze).",
+ "Hög nettoförbrukning!": "Vysoká čistá spotřeba!",
+ "Sensor har tystnat": "Senzor neodpovídá",
+ "Sensor tillbaka": "Senzor je zpět",
+ "Onormal Baslast Upptäckt!": "Zjištěna neobvyklá základní spotřeba!",
+ "Varning: Effekttak hotat!": "Varování: hrozí překročení limitu příkonu!"
 }
