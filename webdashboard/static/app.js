@@ -2359,7 +2359,8 @@ async function boot() {
     showShell();
     if (me.role === "owner") showSponsorBanner();
     if (st && me.role === "owner" && !st.devices_chosen) { openPage("installningar"); return; }
-    openPage("oversikt");
+    // Flottkonto (#265): default_page=installationer — aldrig ägarens översikt.
+    openPage(me.default_page || (me.mode === "fleet" ? "installationer" : "oversikt"));
   } catch (e) { showLogin(); }
 }
 

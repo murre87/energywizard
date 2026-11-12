@@ -19,7 +19,7 @@ Ingen tyst backdoor till alla hus.
 ## Vad EnergyWizard har idag
 
 - **Telemetri (push):** hashad hus-id, version, drivrutiner, fel *klass* + modul — aldrig feltext, logg, setpoints eller plats.
-- **Flottvy (`Installationer`):** på utvecklarservern (`TELEMETRY_STATS_URL`). Owner, plus namn i `TELEMETRY_ADMIN_USERS` (#265), t.ex. `lazgeo` inloggad som `family`.
+- **Flottvy (`Installationer`):** på utvecklarservern (`TELEMETRY_STATS_URL`). Owner ser den plus sitt hus. Namn i `TELEMETRY_ADMIN_USERS` (#265), t.ex. `lazgeo` som `family`, ser **bara** Installationer — inte ägarens Översikt/Elbil/logg (UI + API-spärr).
 - **Ingen** tunnel, remote shell eller live-styrning av andras hus.
 
 ## Hur vi kommer närmare FTW-admin
