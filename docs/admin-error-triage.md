@@ -13,7 +13,7 @@ storage problems can also appear there.
 
 | Reported group | Issue | Fix / findings |
 | --- | --- | --- |
-| `nordpool.fetch_ha_nordpool_and_save: Error` | #211 | Invalid HA JSON and Czech unit misconfig now warn (`⚠️`). Unexpected exceptions still `❌`. Transport failures already warn (#284). |
+| `nordpool.fetch_ha_nordpool_and_save: Error` | #211 | Invalid HA JSON and Czech unit misconfig now warn (`⚠️`). Unexpected exceptions still `❌`. Any `requests` transport error warns and keeps another sensor's prices (#284). |
 | `nordpool.ensure_prices_exist: Error` | #210 | Missing-today KRITISKT no longer uses `❌` (was classified as generic `Error` without an exception). |
 | `gpm.evaluate: TypeError` | #282 / #208 | Only old builds `47090f7` / `a662a27`. Main normalizes `current_price=None` and stringifies phase states. Houses need update. |
 | `ftw_deye-svk.poll: LuaError` | #297 / #215 | Nil-SoC energy headroom guarded; self-heal now requires numeric `bat_w`. A failed Modbus read returns `(nil, err)` without raising; `read_rated_w` and `detect_hv` no longer index that nil, so poll keeps running while rated power is still unknown. |
