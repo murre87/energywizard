@@ -47,6 +47,65 @@ def style_params(style):
     return PLAN_STYLES.get(style or DEFAULT_STYLE, PLAN_STYLES[DEFAULT_STYLE])
 ACTIONS = ("auto", "hold", "idle", "charge", "discharge")
 
+# Pågående laddning som ligger långt under det planen räknar med (#251, punkt 4).
+# Schemat för resten av dygnet använder den uppmätta takten. Beställningen till
+# batteriet sänks inte: en tillfällig begränsning ska inte bli det vi ber om.
+LIVE_CHARGE_RATIO = 0.60
+LIVE_CHARGE_MIN_SAMPLES = 3
+LIVE_CHARGE_MIN_SPAN_S = 300.0
+LIVE_CHARGE_MIN_W = 400.0
+LIVE_CHARGE_ON_W = 150.0
+
+
+def live_charge_kw(planned_kw, samples):
+    """kW som dygnets schema ska räkna med när en pågående laddning är långsammare än planen.
+
+    samples = [(ts_sekunder, power_w)] med + som laddning, från ett fönster där planen redan
+    laddar. Kräver minst tre prover över 150 W utspridda på fem minuter, och ett medel som
+    ligger under 60 % av planned_kw men minst 400 W. Annars planned_kw, oförändrat.
+    Höjer aldrig effekten och sparar inget: nästa plan räknar om från nya prover.
+    """
+    try:
+        planned = float(planned_kw)
+    except (TypeError, ValueError):
+        return planned_kw
+    if not math.isfinite(planned) or planned <= 0:
+        return planned_kw
+    pts = []
+    for ts, power in samples or []:
+        try:
+            ts, power = float(ts), float(power)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(ts) and math.isfinite(power) and power > LIVE_CHARGE_ON_W:
+            pts.append((ts, power))
+    if len(pts) < LIVE_CHARGE_MIN_SAMPLES:
+        return planned
+    if max(t for t, _ in pts) - min(t for t, _ in pts) < LIVE_CHARGE_MIN_SPAN_S:
+        return planned
+    mean_w = sum(p for _, p in pts) / len(pts)
+    if mean_w < LIVE_CHARGE_MIN_W or mean_w >= LIVE_CHARGE_RATIO * planned * 1000.0:
+        return planned
+    return round(min(planned, mean_w / 1000.0), 2)
+
+
+def command_power_w(action, simulated_kw, command_kw, schedule_kw):
+    """Watt att beställa nu. Schemat får räkna med en lägre hållen laddeffekt, men
+    beställningen stannar på den inlärda eller konfigurerade effekten."""
+    try:
+        command, schedule = float(command_kw), float(schedule_kw)
+    except (TypeError, ValueError):
+        command = schedule = None
+    if (action == "charge" and command and schedule and math.isfinite(command) and math.isfinite(schedule)
+            and schedule + 0.05 < command):
+        return command * 1000.0
+    if simulated_kw is None:
+        return None
+    try:
+        return abs(float(simulated_kw)) * 1000.0
+    except (TypeError, ValueError):
+        return None
+
 
 def _battery_power(action, net_kw, pc, pd):
     """Batteriets AC-effekt (kW, + laddar) för en avsikt, före laddnivågränser."""
@@ -260,6 +319,32 @@ def blocks(rows):
 
 # ---------------------------------------------------------------- databas (main.py)
 
+def _charge_samples(engine, now):
+    """(ts, W) de senaste 20 minuterna, bara när den sparade planen redan laddar. Tomt vid fel."""
+    from datetime import timedelta
+    from sqlalchemy import text
+    start = now - timedelta(minutes=20)
+    try:
+        with engine.connect() as c:
+            try:
+                charging = c.execute(text(
+                    "SELECT 1 FROM battery_plan_slots WHERE action = 'charge' "
+                    "AND t_slot >= :a AND t_slot <= :b LIMIT 1"
+                ), {"a": start, "b": now}).scalar()
+                if not charging:
+                    return []
+                rows = c.execute(text(
+                    "SELECT EXTRACT(EPOCH FROM timestamp), battery_power_w FROM sensor_log "
+                    "WHERE timestamp >= :a AND timestamp <= :b AND battery_power_w IS NOT NULL"
+                ), {"a": start, "b": now}).fetchall()
+            except Exception:
+                c.rollback()
+                return []
+    except Exception:
+        return []
+    return [(float(t), float(p)) for t, p in rows if t is not None and p is not None]
+
+
 def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
     """Bygger kvartarna från nu till slutet av kända elpriser och kör optimize(). Sparar planen i
     battery_plan_slots. Returnerar resultatet + 'action_now' för pågående kvart."""
@@ -337,10 +422,12 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
         t += timedelta(minutes=15)
     if not slots:
         return None
+    command_kw = battery_learning.planning_kw(settings, "charge")
+    schedule_kw = live_charge_kw(command_kw, _charge_samples(engine, now))
     params = dict(soc0_kwh=soc_pct / 100.0 * cap, capacity_kwh=cap,
                   reserve_kwh=settings["reserve_soc"] / 100.0 * cap,
                   max_kwh=settings["max_soc"] / 100.0 * cap,
-                  charge_kw=battery_learning.planning_kw(settings, "charge"),
+                  charge_kw=schedule_kw,
                   discharge_kw=battery_learning.planning_kw(settings, "discharge"),
                   eff=settings.get("efficiency", 0.9), allowed=tuple(supported),
                   cycle_cost=settings.get("cycle_cost", 0.30), terminal_pct=terminal_pct,
@@ -374,7 +461,14 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
     except Exception as e:
         print(f"⚠️ Batteriplanen kunde inte sparas: {e}")
     r["action_now"] = r["rows"][0]["action"] if r["rows"] else None
-    r["power_now_w"] = abs(r["rows"][0]["battery_kw"]) * 1000.0 if r["rows"] else None
+    sim_kw = r["rows"][0]["battery_kw"] if r["rows"] else None
+    r["power_now_w"] = command_power_w(r["action_now"], sim_kw, command_kw, schedule_kw)
+    if schedule_kw + 0.05 < command_kw:
+        r["live_charge_note"] = (
+            f"Pågående laddning håller {schedule_kw:.1f} kW, så resten av dygnet planeras i den takten. "
+            f"Beställningen är fortfarande upp till {command_kw:.1f} kW."
+        )
+        print(f"🔋 {r['live_charge_note']}")
     if not allow_export and r["action_now"] == "discharge":
         r["action_now"] = "auto"        # självförbrukning täcker huset exakt och säljer aldrig från batteriet
     r["spot_now"] = slots[0]["spot"]
