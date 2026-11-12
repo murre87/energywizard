@@ -77,14 +77,35 @@ echo "ExecStart=${exec_start}"
 sudo tee "$UNIT_PATH" >/dev/null <"$tmp"
 sudo systemctl daemon-reload
 sudo systemctl enable "$UNIT_NAME"
+sudo systemctl stop "$UNIT_NAME" || true
 
-if pgrep -u emil -f '[a]gent worker' >/dev/null 2>&1 \
-  && ! systemctl is-active --quiet "$UNIT_NAME"; then
-  echo "En Cursor-worker körs redan utanför systemd. Tjänsten är påslagen och tar över vid nästa omstart."
-  echo "När den gamla processen är stoppad: sudo systemctl start ${UNIT_NAME}"
-else
-  sudo systemctl restart "$UNIT_NAME"
+# Cursor tillåter en worker per data-katalog. Den handstartade processen
+# heter inte "agent worker" i argv (det är index.js worker start) och håller
+# ~/.local/share/cursor-agent/worker.lock. Systemd kraschar då i loop.
+worker_pids() {
+  ps -u emil -o pid= -o args= | awk '/cursor-agent\/versions/ && /worker start/ {print $1}'
+}
+pids="$(worker_pids || true)"
+if [[ -n "$pids" ]]; then
+  echo "Stoppar befintlig worker: ${pids//$'\n'/ }"
+  # shellcheck disable=SC2086
+  kill $pids || true
+  sleep 2
 fi
+pids="$(worker_pids || true)"
+if [[ -n "$pids" ]]; then
+  echo "Tvingar stopp: ${pids//$'\n'/ }"
+  # shellcheck disable=SC2086
+  kill -9 $pids || true
+  sleep 1
+fi
+if [[ -n "$(worker_pids || true)" ]]; then
+  echo "En worker kör fortfarande. Startar inte en till." >&2
+  ps -u emil -o pid,args | awk '/cursor-agent\/versions/ && /worker start/'
+  exit 1
+fi
+rm -f "${HOME}/.local/share/cursor-agent/worker.lock"
+sudo systemctl start "$UNIT_NAME"
 
 if systemctl list-unit-files docker.service >/dev/null 2>&1; then
   sudo systemctl enable docker.service
