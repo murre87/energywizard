@@ -79,6 +79,8 @@ def sustained_quarter_kw(samples, sign):
             ts, p = float(ts), float(p)
         except (TypeError, ValueError):
             continue
+        if not math.isfinite(ts) or not math.isfinite(p):
+            continue
         buckets.setdefault(int(ts // QUARTER_S), []).append(p)
     out = []
     for powers in buckets.values():
