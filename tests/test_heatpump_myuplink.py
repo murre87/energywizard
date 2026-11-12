@@ -7,6 +7,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 import drivers.heatpump_myuplink as myuplink
 
@@ -49,10 +50,53 @@ def test_refresh_access_token_utan_konfiguration_ger_none(monkeypatch):
     assert driver._refresh_access_token() is None
 
 
-def test_refresh_access_token_natverksfel_ger_none_inte_krasch():
+def _http_error(status):
+    return requests.HTTPError(f"HTTP {status}", response=MagicMock(status_code=status))
+
+
+def test_refresh_access_token_natverksfel_ger_none_inte_krasch(capsys):
     driver = myuplink.MyUplinkHeatPumpDriver()
-    with patch.object(myuplink.requests, "post", side_effect=RuntimeError("timeout")):
+    with patch.object(myuplink.requests, "post", side_effect=requests.ConnectionError("timeout")):
         assert driver._refresh_access_token() is None
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "❌" not in out
+
+
+@pytest.mark.parametrize("exc, mark", [
+    (requests.Timeout("read timed out"), "⚠️"),
+    (ConnectionResetError("reset"), "⚠️"),
+    (_http_error(503), "⚠️"),
+    (_http_error(401), "❌"),
+    (RuntimeError("trasig json"), "❌"),
+])
+def test_myuplink_avbrott_ar_varning_ovantat_ar_fel(exc, mark, capsys):
+    driver = myuplink.MyUplinkHeatPumpDriver()
+    with patch.object(myuplink.requests, "post", side_effect=exc):
+        assert driver._refresh_access_token() is None
+    out = capsys.readouterr().out
+    assert mark in out
+    assert ("❌" if mark == "⚠️" else "⚠️") not in out
+
+
+def test_lasning_vid_avbrott_ar_varning_och_tom(capsys):
+    driver = myuplink.MyUplinkHeatPumpDriver(entities={"indoor_temp": "40033"})
+    driver._access_token = "tok-1"
+    driver._token_expiry = time.time() + 3600
+    with patch.object(myuplink.requests, "get", side_effect=requests.ConnectionError("reset")):
+        assert driver.read_sensors()["indoor_temp"] is None
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "kunde inte läsa points" in out and "❌" not in out
+
+
+def test_skrivning_vid_avbrott_ar_varning(capsys):
+    driver = myuplink.MyUplinkHeatPumpDriver(entities={"room_target": "47398"})
+    driver._access_token = "tok-1"
+    driver._token_expiry = time.time() + 3600
+    driver._writable["room_target"] = True
+    with patch.object(myuplink.requests, "patch", side_effect=requests.Timeout("write")):
+        assert driver.set_room_temp(21.0) is False
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "kunde inte skriva" in out and "❌" not in out
 
 
 def test_read_sensors_mappar_bara_konfigurerade_falt():
