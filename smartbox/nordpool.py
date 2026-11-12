@@ -341,22 +341,28 @@ def fetch_api_and_save(date_obj):
     url = f"https://www.elprisetjustnu.se/api/v1/prices/{date_str}_{area}.json"
     try:
         response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            records = [
-                (item['time_start'], item['time_end'], item['SEK_per_kWh'])
-                for item in data
-            ]
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    cur.executemany("""
-                        INSERT INTO elpriser (time_start, time_end, sek_per_kwh)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (time_start) DO NOTHING
-                    """, records)
-                conn.commit()
-            print(f"📥 Laddade ner {len(records)} rader för {date_str}.")
-            return True
+        if response.status_code != 200:
+            # Svarskod, avbrott och trasig JSON är driftstörning. ❌ skulle bli
+            # programfel i Admin när den svenska reservkällan inte svarar (#211).
+            print(f"⚠️ elprisetjustnu.se svarade {response.status_code} för {date_str} - försöker igen senare")
+            return False
+        data = response.json()
+        records = [
+            (item['time_start'], item['time_end'], item['SEK_per_kWh'])
+            for item in data
+        ]
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.executemany("""
+                    INSERT INTO elpriser (time_start, time_end, sek_per_kwh)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (time_start) DO NOTHING
+                """, records)
+            conn.commit()
+        print(f"📥 Laddade ner {len(records)} rader för {date_str}.")
+        return True
+    except (requests.RequestException, ValueError) as e:
+        print(f"⚠️ elprisetjustnu.se gick inte att läsa för {date_str} ({type(e).__name__}) - försöker igen senare")
     except Exception as e:
         print(f"❌ Fel vid API-hämtning för {date_str}: {e}")
     return False
@@ -516,9 +522,9 @@ def fetch_ha_nordpool_and_save(date_obj, refresh_all=False):
         for entity in _price_entities():
             try:
                 state = _ha_state(entity)
-            except (requests.ConnectionError, requests.Timeout) as e:
-                # A transport outage must not discard another sensor's usable prices.
-                # Keep the local diagnostic, like the HTTP-status warning in _ha_state.
+            except requests.RequestException as e:
+                # Avbrott, timeout och avhugget svar. Får inte kasta bort en annan
+                # sensors priser, och inte bli ❌ i Admin (#211, #284).
                 print(f"⚠️ Kunde inte nå HA-prissensorn ({entity}) för {date_str}: {e}")
                 continue
             if state is None:

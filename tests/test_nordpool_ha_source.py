@@ -141,6 +141,73 @@ def test_transport_failure_preserves_country_fallback(country, fallback_calls, m
     db.assert_not_called()
 
 
+def _se(monkeypatch):
+    monkeypatch.setattr(nordpool, "cost_settings", lambda: {"country": "SE", "area": "SE3"})
+
+
+def test_svensk_reservkalla_avbrott_ar_varning(capsys, monkeypatch):
+    _se(monkeypatch)
+    with patch("nordpool.requests.get", side_effect=requests.ConnectionError("dns")), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_api_and_save(_DAY) is False
+    db.assert_not_called()
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "ConnectionError" in out and "❌" not in out
+
+
+def test_svensk_reservkalla_felstatus_ar_varning(capsys, monkeypatch):
+    _se(monkeypatch)
+    r = MagicMock()
+    r.status_code = 503
+    with patch("nordpool.requests.get", return_value=r), patch("nordpool.get_db") as db:
+        assert nordpool.fetch_api_and_save(_DAY) is False
+    db.assert_not_called()
+    out = capsys.readouterr().out
+    assert "503" in out and "⚠️" in out and "❌" not in out
+
+
+def test_svensk_reservkalla_dalig_json_ar_varning(capsys, monkeypatch):
+    _se(monkeypatch)
+    r = MagicMock()
+    r.status_code = 200
+    r.json.side_effect = ValueError("No JSON")
+    with patch("nordpool.requests.get", return_value=r), patch("nordpool.get_db") as db:
+        assert nordpool.fetch_api_and_save(_DAY) is False
+    db.assert_not_called()
+    assert "❌" not in capsys.readouterr().out
+
+
+def test_svensk_reservkalla_sparar_vid_200(monkeypatch):
+    _se(monkeypatch)
+    r = MagicMock()
+    r.status_code = 200
+    r.json.return_value = [{"time_start": "a", "time_end": "b", "SEK_per_kWh": 1.2}]
+    with patch("nordpool.requests.get", return_value=r) as get, patch("nordpool.get_db") as db:
+        assert nordpool.fetch_api_and_save(_DAY) is True
+    assert get.call_args.args[0].endswith("_SE3.json")
+    cur = db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+    assert cur.executemany.call_args[0][1] == [("a", "b", 1.2)]
+
+
+def test_svensk_reservkalla_ovantat_fel_ar_kvar(capsys, monkeypatch):
+    _se(monkeypatch)
+    with patch("nordpool.requests.get", side_effect=RuntimeError("bug")), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_api_and_save(_DAY) is False
+    db.assert_not_called()
+    assert "❌" in capsys.readouterr().out
+
+
+def test_ha_avhugget_svar_ar_varning(capsys, monkeypatch):
+    monkeypatch.setattr(nordpool, "_ha_refresh_state", {})
+    with patch("nordpool.requests.get", side_effect=requests.exceptions.ChunkedEncodingError("cut")), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+    db.assert_not_called()
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "❌" not in out
+
+
 def test_unexpected_failure_still_reports_error(capsys):
     with patch("nordpool.requests.get", side_effect=RuntimeError("unexpected defect")), \
          patch("nordpool.get_db") as db:
