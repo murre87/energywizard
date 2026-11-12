@@ -188,21 +188,34 @@ local function write_seq(label, writes)
     return true
 end
 
+-- host.modbus_read returns (nil, err) without raising when the bus
+-- fails. pcall is then true and the register table is nil. Indexing
+-- it is a LuaError in driver_poll on every cycle while rated power
+-- is still unknown (#297).
+local function read_regs(addr, count, kind)
+    local ok, regs = pcall(host.modbus_read, addr, count, kind)
+    if not ok or regs == nil then return nil end
+    return regs
+end
+
 -- Device-type detection (reg 0). 0x0600 / 0x06xx = HV three-phase
 -- storage per V105.3 page 5.
 local function detect_hv()
-    local ok, regs = pcall(host.modbus_read, 0, 1, "holding")
-    if ok then
-        local v = regs[1]
-        is_hv = (v == 6) or (math.floor(v / 256) == 6)
-    end
+    local regs = read_regs(0, 1, "holding")
+    local v = regs and regs[1]
+    if type(v) ~= "number" then return end
+    is_hv = (v == 6) or (math.floor(v / 256) == 6)
 end
 
 -- Rated inverter power from regs 20-21 (U32 LE × 0.1 W → W).
 local function read_rated_w()
-    local ok, regs = pcall(host.modbus_read, 20, 2, "holding")
-    if not ok then return 0 end
-    return host.decode_u32_le(regs[1], regs[2]) * 0.1
+    local regs = read_regs(20, 2, "holding")
+    if regs == nil or type(regs[1]) ~= "number" or type(regs[2]) ~= "number" then
+        return 0
+    end
+    local raw = host.decode_u32_le(regs[1], regs[2])
+    if type(raw) ~= "number" then return 0 end
+    return raw * 0.1
 end
 
 -- ---------------------------------------------------------------------
