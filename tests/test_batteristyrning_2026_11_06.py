@@ -98,4 +98,7 @@ def test_ftw_styrning_valt_i_guiden():
 def test_ftw_lista_vet_vilka_som_kan_styra():
     d = asyncio.run(_wd().ftw_drivers())
     can = {x["id"]: x["can_control"] for x in d["drivers"]}
-    assert can["pixii"] and can["deye"] and can["sigenergy"] and not can["sma"] and not can["victron"]
+    assert can["pixii"] and can["deye"] and can["sigenergy"] and can["solinteg"] and not can["sma"] and not can["victron"]
+    caps = {x["id"]: x["capabilities"] for x in d["drivers"]}
+    assert "battery" in caps["solinteg"] and "pv" in caps["solinteg"]
+    assert "battery" in caps["sigenergy"] and "pv" in caps["sigenergy"]

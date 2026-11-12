@@ -13,6 +13,7 @@ inte för att skriva direkt till en levande config (se husets house_config.yaml
 """
 from __future__ import annotations
 
+import os
 import re
 
 import requests
@@ -622,6 +623,44 @@ def _cfos_charger_entities(ents):
     return out
 
 
+# HA kan läsa de här märkena men inte styra batteriet. Guiden namnger FTW-drivrutinen
+# och väljer den inte själv: användaren fyller i IP, och styrning förblir av.
+_FTW_WHEN_HA_CANNOT_CONTROL = (
+    (re.compile(r"deye|sunsynk", re.I), "deye", True),
+    (re.compile(r"sigenergy|sigenstor", re.I), "sigenergy", True),
+    (re.compile(r"solinteg", re.I), "solinteg", True),
+    (re.compile(r"pixii", re.I), "pixii", False),
+)
+
+
+def ftw_control_suggestion(battery, solar):
+    """Drivrutin att nämna i guiden, eller None när HA redan kan styra.
+
+    Returnerar driver, om den också läser sol, och en notis. Ingen config skrivs här.
+    """
+    if (battery or {}).get("control_preset") or ((battery or {}).get("generic_suggestion") or {}).get("modes"):
+        return None
+    parts = []
+    for obj in (battery, solar):
+        if not isinstance(obj, dict):
+            continue
+        for key in ("maker", "device_name", "soc_entity", "power_entity", "pv_power_entity"):
+            if obj.get(key):
+                parts.append(str(obj[key]))
+    blob = " ".join(parts)
+    folder = os.path.join(os.path.dirname(__file__), "ftw_drivers")
+    for rx, driver, also_solar in _FTW_WHEN_HA_CANNOT_CONTROL:
+        if not rx.search(blob):
+            continue
+        if not re.fullmatch(r"[a-z0-9_]{1,40}", driver) or not os.path.isfile(os.path.join(folder, driver + ".lua")):
+            return None
+        return {"driver": driver, "battery": True, "solar": also_solar, "note": (
+            f"Home Assistant kan läsa den här enheten men inte styra batteriet. "
+            f"Välj FTW-drivrutinen {driver} nedan och fyll i IP-adressen om EnergyWizard ska läsa den direkt. "
+            f"Styrning är av tills du kryssar i den. Drivrutinen är inte provad på riktig hårdvara, så börja i skuggläge.")}
+    return None
+
+
 def discover_house(entities: list[dict] | None = None) -> dict:
     """Returnerar kandidater per EnergyWizard-kategori. `entities` kan skickas
     in (t.ex. i tester mot ett syntetiskt svar) - annars hämtas de live."""
@@ -1012,5 +1051,14 @@ def discover_house(entities: list[dict] | None = None) -> dict:
     power_sensors = sorted(({"entity": e["e"], "name": e.get("n") or e["e"], "unit": e.get("u"), "state": e.get("st")}
                             for e in entities if e["e"].startswith("sensor.") and (e.get("dc") == "power" or e.get("u") in ("W", "kW"))),
                            key=lambda x: x["name"].lower())
-    return {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers, "grid_meters": grid_meters,
-            "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
+    hint = ftw_control_suggestion(battery, solar)
+    if hint:
+        target = battery if battery is not None else solar
+        if isinstance(target, dict):
+            prev = str(target.get("note") or "").strip()
+            target["note"] = (prev + " " + hint["note"]).strip()
+    found = {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers,
+             "grid_meters": grid_meters, "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
+    if hint:
+        found["ftw_suggestion"] = hint
+    return found

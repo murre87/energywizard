@@ -2100,9 +2100,14 @@ async def ftw_drivers():
         can_control = bool(_cmd and '"battery"' in _cmd.group(0))
         g = lambda k: (_re.search(k + r'\s*=\s*"([^"]*)"', head) or [None, None])[1]
         caps = _re.search(r'capabilities\s*=\s*\{([^}]*)\}', head)
+        found_caps = _re.findall(r'"([a-z0-9_-]+)"', caps.group(1)) if caps else []
+        # De här filerna läser sol, batteri och mätare men saknar capabilities-tabellen,
+        # så guiden filtrerade bort dem (#219 Solinteg, Sigenergy).
+        if not found_caps:
+            found_caps = {"solinteg": ["pv", "battery", "meter"], "sigenergy": ["pv", "battery", "meter"]}.get(f[:-4], [])
         out.append({"id": f[:-4], "name": g("name") or f[:-4], "manufacturer": g("manufacturer") or "",
                     "protocol": (_re.search(r'^PROTOCOL\s*=\s*"([^"]+)"', head, _re.M) or [None, ""])[1],
-                    "capabilities": _re.findall(r'"([a-z0-9_-]+)"', caps.group(1)) if caps else [],
+                    "capabilities": found_caps,
                     "verification": g("verification_status") or "", "can_control": can_control})
     return {"ok": True, "drivers": out}
 
