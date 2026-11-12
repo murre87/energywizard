@@ -2301,5 +2301,15 @@
  "# kör en äldre version som bara skickar version (anonymt) – de visar sin utrustning när de uppdaterat till #.#.#, där telemetrin är obligatorisk.": "# run an older version that only sends the version (anonymously) – their equipment appears after updating to #.#.#, where telemetry is mandatory.",
  "förinställning {name}": "preset {name}",
  "köp- och säljeffekt + ström per fas": "import and export power + current per phase",
- "Värmen är på · {temperature} °": "Heating is on · {temperature} °"
+ "Värmen är på · {temperature} °": "Heating is on · {temperature} °",
+ "Hög nettoförbrukning!": "High net consumption!",
+ "Inget hittades i Home Assistant": "Nothing was found in Home Assistant",
+ "Inget hittades i Home Assistant.": "Nothing was found in Home Assistant.",
+ "Onormal Baslast Upptäckt!": "Abnormal base load detected!",
+ "Sensor har tystnat": "Sensor has gone silent",
+ "Sensor tillbaka": "Sensor back",
+ "Skickad": "Sent",
+ "Skickade aviseringar": "Sent notifications",
+ "Varning: Effekttak hotat!": "Warning: power ceiling threatened!",
+ "batteriet (laddar billigt, laddar ur dyrt).": "the battery (charges cheap, discharges dear)."
 }
