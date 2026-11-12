@@ -1735,6 +1735,21 @@ async def proxy_schedule(request: Request):
     return await _ewapp_proxy("/api/schedule", await request.json())
 
 
+@app.get("/api/schedule/climate")
+async def climate_schedule_get():
+    """Kupévärme till ett klockslag (#233), samma svar som mobilappen."""
+    try:
+        r = requests.get(f"{EWAPP_URL}/api/schedule/climate", cookies={"ew": _ewapp_cookie()}, timeout=25)
+        return JSONResponse(r.json(), status_code=r.status_code)
+    except Exception as e:
+        return JSONResponse({"detail": f"Nådde inte ewapp: {e}"}, status_code=502)
+
+
+@app.post("/api/schedule/climate")
+async def proxy_climate_schedule(request: Request):
+    return await _ewapp_proxy("/api/schedule/climate", await request.json())
+
+
 @app.post("/api/settings-action")
 async def proxy_setting(request: Request):
     """Elförbrukning-sidan (effektvakt på/av + effektgräns) och Värmepump-sidan

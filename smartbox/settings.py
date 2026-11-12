@@ -408,5 +408,7 @@ def save_climate_schedule_db(car_id, enabled, target_time, target_temp):
                     ON CONFLICT (car_id) DO UPDATE SET target_time = EXCLUDED.target_time, target_temp = EXCLUDED.target_temp, enabled = EXCLUDED.enabled
                 """, (car_id, target_time, target_temp, enabled))
             conn.commit()
+        return True
     except Exception as e:
         print(f"❌ Fel vid sparning av klimatschema för {car_id}: {e}")
+        return False
