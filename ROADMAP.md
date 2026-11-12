@@ -19,7 +19,9 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   (Kollat 2026-11-07: simulatorn byggs från Go-källkod och har profiler för Sungrow, SolarEdge, Fronius, Huawei, SMA,
   Solis, Deye och Pixii, men inte för Solax, Ferroamp eller Thermia. Mest värde för FTW-drivrutinerna.)
 - **Max laddström och faser känns av själv** – klart (`ev_limits.py`): lärs av laddboxens fasströmmar där
-  installationen inte anger `phases`/`max_a`. Kvar: visa det inlärda i startguiden.
+  installationen inte anger `phases`/`max_a`. Startguiden visar det inlärda vid bilens id (och övriga inlärda
+  id:n), och den nedladdade konfigurationen får en kommentar. `phases` och `max_a` skrivs inte in, så de kan
+  fortsätta läras.
 - **Drivrutiner från evcc** ([evcc-io/evcc](https://github.com/evcc-io/evcc), MIT, får användas i AGPL med upphovsrättsraden
   kvar). evcc har YAML-mallar för 211 laddboxar, 251 mätare, växelriktare och batterier och 72 bilar, som pratar direkt
   med enheten via Modbus, HTTP eller MQTT. Mest värde ger det där Home Assistant bara kan läsa men inte styra:
