@@ -2297,6 +2297,10 @@
  "Journalen fylls varje minut när EnergyWizard styr (inte i skuggläge).": "The journal fills every minute while EnergyWizard controls (not in shadow mode).",
  "Laddström: {current} · Dynamisk gräns: {dynamic} · Målgräns just nu: {target}": "Charging current: {current} · Dynamic limit: {dynamic} · Current target limit: {target}",
  "inlärt av laddningarna": "learned from charging sessions",
+ "Inlärt av laddningarna:": "Learned from charging sessions:",
+ "Inlärt för bil-id": "Learned for car id",
+ "Lämna faser och maxström tomma i installationen så värdet följer med.": "Leave phases and max current empty in the installation so the value keeps updating.",
+ "max # A": "max # A",
  "huvudsäkring {current}, full stapel = {percent} %": "main fuse {current}, full bar = {percent} %",
  "# kör en äldre version som bara skickar version (anonymt) – de visar sin utrustning när de uppdaterat till #.#.#, där telemetrin är obligatorisk.": "# run an older version that only sends the version (anonymously) – their equipment appears after updating to #.#.#, where telemetry is mandatory.",
  "förinställning {name}": "preset {name}",
@@ -2307,5 +2311,15 @@
  "Dagsenergi": "Energy today",
  "ström per fas": "current per phase",
  "EnergyWizard: slutför installationen": "EnergyWizard: finish the installation",
- "Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) för att hitta din värmepump, bilar, solceller m.m. automatiskt.": "Nothing found in your house_config.yaml yet. Go to the [entity picker](URL) to find your heat pump, cars, solar panels and more automatically."
+ "Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) för att hitta din värmepump, bilar, solceller m.m. automatiskt.": "Nothing found in your house_config.yaml yet. Go to the [entity picker](URL) to find your heat pump, cars, solar panels and more automatically.",
+ "Hög nettoförbrukning!": "High net consumption!",
+ "Inget hittades i Home Assistant": "Nothing was found in Home Assistant",
+ "Inget hittades i Home Assistant.": "Nothing was found in Home Assistant.",
+ "Onormal Baslast Upptäckt!": "Abnormal base load detected!",
+ "Sensor har tystnat": "Sensor has gone silent",
+ "Sensor tillbaka": "Sensor back",
+ "Skickad": "Sent",
+ "Skickade aviseringar": "Sent notifications",
+ "Varning: Effekttak hotat!": "Warning: power ceiling threatened!",
+ "batteriet (laddar billigt, laddar ur dyrt).": "the battery (charges cheap, discharges dear)."
 }

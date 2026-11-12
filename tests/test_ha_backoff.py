@@ -1,5 +1,5 @@
-"""2026-11-06: när HA är nere ska inte varje avläsning försöka igen (dussintals försök/min), och felraden skrivs bara
-vid tredje försöket i rad och sedan var tionde - utan traceback för nätverksfel."""
+"""2026-11-06: när HA är nere ska inte varje avläsning försöka igen (dussintals försök/min).
+Avbrott utan HTTP-svar förblir varning (#228). HTTP-fel och oväntade fel skrivs som ❌."""
 from unittest.mock import patch
 
 import requests
@@ -34,4 +34,22 @@ def test_paus_efter_misslyckande_och_lugnare_logg(monkeypatch, capsys):
     with patch.object(ha.requests, "get", side_effect=boom):
         for _ in range(30):
             ha.update_states()
-    assert "❌ HA: Fel vid update_states" in capsys.readouterr().out          # varar det längre blir det ett fel
+    out = capsys.readouterr().out
+    assert "❌" not in out and "fortsätter försöka" in out                   # avbrott är drift, inte programfel (#228)
+
+
+def test_httpfel_och_ovantat_fel_ar_kvar(monkeypatch, capsys):
+    monkeypatch.setattr(ha, "_states_cache", {})
+    monkeypatch.setattr(ha, "_ha_fail", {"n": 0})
+    resp = requests.Response()
+    resp.status_code = 500
+    err = requests.HTTPError("500")
+    err.response = resp
+    with patch.object(ha.requests, "get", side_effect=err):
+        for _ in range(3):
+            ha.update_states()
+    assert "❌ HA: Fel vid update_states" in capsys.readouterr().out
+    monkeypatch.setattr(ha, "_ha_fail", {"n": 0})
+    with patch.object(ha.requests, "get", side_effect=ValueError("trasig")):
+        ha.update_states()
+    assert capsys.readouterr().out.count("❌ HA: Fel vid update_states") == 1

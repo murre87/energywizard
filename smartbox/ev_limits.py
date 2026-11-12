@@ -7,7 +7,9 @@ Mätning från laddboxens fasströmmar medan bilen laddar:
     sådana strömmen (avrundad nedåt) blir bilens maxström.
 
 Används bara där installationen inte själv anger phases/max_a (evs[].charger). Sparas i /data/energywizard.json
-("learned_ev") så att det överlever omstart. Ren logik i LimitLearner - testas i tests/test_ev_limits.py.
+("learned_ev") så att det överlever omstart. Startguiden visar det inlärda och skriver en kommentar i den
+nedladdade konfigurationen, men aldrig phases/max_a själva - då skulle värdet frysas. Ren logik i LimitLearner,
+testas i tests/test_ev_limits.py.
 """
 MIN_SAMPLES = 10
 ON_A, OFF_A = 2.0, 0.7
@@ -46,6 +48,36 @@ class LimitLearner:
 
     def max_a(self, car):
         return (self.data.get(car) or {}).get("max_a")
+
+    def for_guide(self):
+        """Det startguiden får visa: säkra faser, och maxström bara när motorn själv skulle använda den (under 16 A)."""
+        rows = []
+        for car in self.data:
+            if not isinstance(car, str) or not car or len(car) > 80 or "\n" in car or "\r" in car:
+                continue
+            ph = self.phases(car)
+            if ph not in ("1", "3"):
+                ph = None
+            ma = self.max_a(car)
+            if isinstance(ma, bool) or not isinstance(ma, (int, float)) or not (6 <= float(ma) < 16):
+                ma = None
+            else:
+                ma = int(ma)
+            if ph or ma is not None:
+                rows.append({"id": car, "phases": ph, "max_a": ma})
+        return rows
+
+    def guide_yaml_line(self, car_id):
+        """En YAML-kommentar under bilen. Innehåller inte bil-id, och skriver inte phases eller max_a."""
+        row = next((r for r in self.for_guide() if r["id"] == car_id), None)
+        if not row:
+            return None
+        bits = []
+        if row["phases"]:
+            bits.append(f"{row['phases']}-fas")
+        if row["max_a"] is not None:
+            bits.append(f"max {row['max_a']} A")
+        return "    # Inlärt av laddningarna: " + ", ".join(bits) + ". Lämna phases och max_a tomma så det följer med."
 
     def apply(self, specs, explicit):
         """Fyller i inlärda faser/maxström där installationen inte själv anger dem. explicit = {bil: {"phases", "max_a"}}."""

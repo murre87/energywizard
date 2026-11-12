@@ -2297,6 +2297,10 @@
  "Journalen fylls varje minut när EnergyWizard styr (inte i skuggläge).": "Deník se plní každou minutu, když EnergyWizard řídí (mimo stínový režim).",
  "Laddström: {current} · Dynamisk gräns: {dynamic} · Målgräns just nu: {target}": "Nabíjecí proud: {current} · Dynamický limit: {dynamic} · Aktuální cílový limit: {target}",
  "inlärt av laddningarna": "naučeno z nabíjení",
+ "Inlärt av laddningarna:": "Naučeno z nabíjení:",
+ "Inlärt för bil-id": "Naučeno pro id vozu",
+ "Lämna faser och maxström tomma i installationen så värdet följer med.": "Ponechte fáze a maximální proud v instalaci prázdné, aby se hodnota dál učila.",
+ "max # A": "max # A",
  "huvudsäkring {current}, full stapel = {percent} %": "hlavní jistič {current}, plný sloupec = {percent} %",
  "# kör en äldre version som bara skickar version (anonymt) – de visar sin utrustning när de uppdaterat till #.#.#, där telemetrin är obligatorisk.": "# používá starší verzi, která odesílá pouze verzi (anonymně) – vybavení se zobrazí po aktualizaci na #.#.#, kde je telemetrie povinná.",
  "förinställning {name}": "předvolba {name}",
@@ -2307,5 +2311,15 @@
   "Dagsenergi": "Dnešní energie",
   "ström per fas": "proud po fázích",
   "EnergyWizard: slutför installationen": "EnergyWizard: dokončete instalaci",
-  "Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) för att hitta din värmepump, bilar, solceller m.m. automatiskt.": "Ve vašem house_config.yaml zatím nic není. Přejděte na [výběr entit](URL) a nechte automaticky najít tepelné čerpadlo, auta, FVE a další."
+  "Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) för att hitta din värmepump, bilar, solceller m.m. automatiskt.": "Ve vašem house_config.yaml zatím nic není. Přejděte na [výběr entit](URL) a nechte automaticky najít tepelné čerpadlo, auta, FVE a další.",
+ "Skickad": "Odesláno",
+ "Skickade aviseringar": "Odeslaná oznámení",
+ "Inget hittades i Home Assistant": "V Home Assistantu nebylo nic nalezeno",
+ "Inget hittades i Home Assistant.": "V Home Assistantu nebylo nic nalezeno.",
+ "batteriet (laddar billigt, laddar ur dyrt).": "baterii (nabíjí levně, vybíjí draze).",
+ "Hög nettoförbrukning!": "Vysoká čistá spotřeba!",
+ "Sensor har tystnat": "Senzor neodpovídá",
+ "Sensor tillbaka": "Senzor je zpět",
+ "Onormal Baslast Upptäckt!": "Zjištěna neobvyklá základní spotřeba!",
+ "Varning: Effekttak hotat!": "Varování: hrozí překročení limitu příkonu!"
 }

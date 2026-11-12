@@ -141,6 +141,16 @@ def test_transport_failure_preserves_country_fallback(country, fallback_calls, m
     db.assert_not_called()
 
 
+def test_ha_avhugget_svar_ar_varning(capsys, monkeypatch):
+    monkeypatch.setattr(nordpool, "_ha_refresh_state", {})
+    with patch("nordpool.requests.get", side_effect=requests.exceptions.ChunkedEncodingError("cut")), \
+         patch("nordpool.get_db") as db:
+        assert nordpool.fetch_ha_nordpool_and_save(_DAY) is False
+    db.assert_not_called()
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "❌" not in out
+
+
 def test_unexpected_failure_still_reports_error(capsys):
     with patch("nordpool.requests.get", side_effect=RuntimeError("unexpected defect")), \
          patch("nordpool.get_db") as db:

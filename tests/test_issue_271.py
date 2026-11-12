@@ -86,7 +86,7 @@ function textNodes(html) {
     assert.equal(cs.I18N.tr(src), csT, src);
   }
   const app = fs.readFileSync(root + "/webdashboard/static/app.js", "utf8");
-  const m = app.match(/const useMeter = \(pm\) =>[\s\S]*?;\n/);
+  const m = app.match(/const useMeter = \(pm\) =>[\s\S]*?;\r?\n/);
   assert.ok(m, "useMeter");
   const ctx = vm.createContext({esc(s){return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}});
   vm.runInContext(m[0] + "\nthis.useMeter = useMeter;", ctx);
