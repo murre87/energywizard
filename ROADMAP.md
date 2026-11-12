@@ -62,8 +62,8 @@ optimeraren Energyplan är stängd och används inte):
   driftläge (egenförbrukning, manuell laddning/urladdning). Plan: förinställning för läsning + lägena
   auto/ladda/ladda ur. Behöver en testare med Sonnen.
 - **Solproduktion från flera växelriktare.** Klart 2026-11-07 för den generiska soldrivrutinen: `sum_inverters: true`
-  summerar listan i `pv_power_w`/`today_kwh` (utan den är listan reserv). Kvar: att guiden föreslår det själv när den
-  hittar flera växelriktare, utan att räkna strängar och totalsensorer två gånger.
+  summerar listan i `pv_power_w`/`today_kwh` (utan den är listan reserv). Guiden föreslår det själv från 2026-11-12:
+  en solgivare per växelriktare, och strängar/MPPT bara när den växelriktaren saknar en egen solgivare.
 - **Flera batterier och växelriktare samtidigt.** Idag ett batteri och en solcellsdrivrutin. Fördela effekten efter
   laddnivå och kapacitet, med gemensam säkringsgräns (FTW: multi-battery allocation). Efterfrågat av #78 (tre GoodWe +
   Ferroamp) och #86 (två Solax).

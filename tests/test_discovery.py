@@ -523,6 +523,31 @@ def test_inget_batteri_ger_none_inte_krasch():
     assert result["battery"] is None
 
 
+def _inverter(entity, name, device, maker="Growatt", unit="W", state="1000"):
+    return {"e": entity, "n": name, "a": "Tak", "d": device, "dn": device, "m": maker, "mo": "X",
+            "dc": "power" if unit == "W" else "energy", "u": unit, "st": state}
+
+
+def test_flera_vaxelriktare_summeras_utan_strangar():
+    """Guiden tar en solgivare per växelriktare. Totalen vinner över samma växelriktares strängar."""
+    ents = [
+        _inverter("sensor.east_pv_power_total", "PV power total", "dev_east"),
+        _inverter("sensor.east_mppt_module_0_dc_power", "MPPT module 0 DC power", "dev_east", state="400"),
+        _inverter("sensor.west_pv_power", "PV power", "dev_west", maker="Solis"),
+        _inverter("sensor.east_today", "Today's yield", "dev_east", unit="kWh", state="6"),
+        _inverter("sensor.west_today", "Today's yield", "dev_west", maker="Solis", unit="kWh", state="4"),
+        _inverter("number.east_export_limit", "Export limit", "dev_east", unit="%", state="100"),
+    ]
+    solar = discover_house(ents)["solar"]
+    sug = solar["generic_suggestion"]
+    assert sug["driver"] == "generic_number"
+    assert sug["entities"]["pv_power_w"] == ["sensor.east_pv_power_total", "sensor.west_pv_power"]
+    assert sug["entities"]["sum_inverters"] is True
+    assert sug["entities"]["today_kwh"] == ["sensor.east_today", "sensor.west_today"]
+    assert "export_limit_pct" not in sug["entities"] and "export_limit_w" not in sug["entities"]
+    assert solar["driver"] is None
+
+
 def test_fronius_mppt_moduler_summeras():
     """#139: Fronius GEN24 har en DC-effekt per MPPT-modul. Guiden föreslår alla moduler summerade, aldrig AC-effekten
     (den innehåller batteriets urladdning) och aldrig en totalgivare två gånger."""
