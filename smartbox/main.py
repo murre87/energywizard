@@ -336,6 +336,13 @@ EV_STALL_CURRENT_A = 2.0        # under detta anses laddaren inte dra ström all
 # istället för att han upptäcker det när han redan sitter i bilen. Larmar max en gång/dag/bil.
 _morning_floor_alerted = _dd(lambda: None)
 MORNING_FLOOR_WARN_MIN = 90     # varna när så här många minuter (eller färre) kvar till 06 och fortfarande under golvet
+# Missat morgonmål (2026-11-12): samla varför under natten, larma EN gång efter deadline om SoC fortfarande under målet.
+_ev_need_watch = _dd(lambda: {
+    "zero_order_min": 0.0, "stall_min": 0.0, "last_ordered": 0.0,
+    "last_power": 0.0, "last_status": None, "sibling_power": False,
+})
+_missed_charge_alerted = _dd(lambda: None)
+_EV_NEED_LOOP_MIN = 1.0  # main-loopen är ~1 min; används för att ackumulera minuter
 # Kalibrerad kurva: (framledning °C, pumpens el W). Medianer per framledningsintervall från 60 nätter (sol ~0),
 # 1687 minuter med kompressorn på: husets last minus elbil, spa och grundlast (657 W).
 _PUMP_EL_CURVE = [(25.0, 2000.0), (32.5, 2480.0), (37.5, 2655.0), (42.5, 2865.0), (50.0, 3460.0), (60.0, 4180.0)]
@@ -427,6 +434,7 @@ def _log_charger_status_if_changed(car_id, charger_data):
         _last_logged_charger_status[car_id] = status
 
 import ev_hold as _ev_hold_mod
+import ev_missed as _ev_missed_mod
 import ev_in_meter
 _EV_METER = {"in": None, "at": 0.0}
 try:
@@ -465,7 +473,13 @@ def _check_ev_stall(car_id, amps, charger_data, charger_id, phase_switch_active,
         charger_turn_on(charger_id)
         _ev_stall[car_id] = now_dt - timedelta(minutes=EV_STALL_RETRY_MIN - 2)  # försök igen om ~2 min, inte varje loop
         if stalled_min >= EV_STALL_ALERT_MIN:
-            notifier.send_emil(f"⚠️ {car_id.capitalize()} laddar inte", f"{amps}A beordrat i {stalled_min:.0f} minuter men laddaren drar ingen ström (status: {status}). Kolla kabeln/laddaren - det kan krävas manuell koll.", {"tag": f"ev_stall_{car_id}"})
+            notifier.send_emil(
+                f"⚠️ {car_id.capitalize()} laddar inte",
+                f"{amps}A beordrat i {stalled_min:.0f} minuter men laddaren drar ingen ström "
+                f"(status: {status}). EnergyWizard försöker starta om laddningen, men kolla kabeln/laddaren.",
+                {"tag": f"ev_stall_{car_id}"},
+                key="elbil",
+            )
 
 def _check_morning_floor(car_id, soc, plugged_in, now_dt):
     """Oberoende larm-vakt: varnar Emil i god tid om en bil ser ut att missa 50%-golvet kl 06,
@@ -488,7 +502,63 @@ def _check_morning_floor(car_id, soc, plugged_in, now_dt):
     notifier.send_emil(
         f"🚨 {car_id.capitalize()} riskerar missa 50%-golvet kl 06",
         f"{soc:.0f}% nu, {minutes_left:.0f} min kvar till 06:00. Planen ska tvinga full ström, men kolla gärna att kabeln sitter i och att laddaren faktiskt drar ström.",
-        {"tag": f"morning_floor_{car_id}"}
+        {"tag": f"morning_floor_{car_id}"},
+        key="elbil",
+    )
+
+def _track_ev_need(car_id, soc, ordered_a, charger_data, sibling_charging, now_dt):
+    """Ackumulera varför en bil under morgonmålet inte får ström - underlag till missad-laddning-notisen."""
+    if soc is None or soc >= decisions.MORNING_MIN_SOC:
+        _ev_need_watch[car_id] = {
+            "zero_order_min": 0.0, "stall_min": 0.0, "last_ordered": 0.0,
+            "last_power": 0.0, "last_status": None, "sibling_power": False,
+        }
+        return
+    w = _ev_need_watch[car_id]
+    power = float((charger_data or {}).get("power_kw") or 0.0)
+    status = (charger_data or {}).get("status")
+    ordered = float(ordered_a or 0)
+    w["last_ordered"] = ordered
+    w["last_power"] = power
+    w["last_status"] = status
+    if sibling_charging:
+        w["sibling_power"] = True
+    if ordered < 6:
+        w["zero_order_min"] = float(w.get("zero_order_min") or 0) + _EV_NEED_LOOP_MIN
+    elif power < 0.3:
+        w["stall_min"] = float(w.get("stall_min") or 0) + _EV_NEED_LOOP_MIN
+
+def _check_missed_charge(car_id, soc, plugged_in, now_dt):
+    """Efter morgondeadline: en notis med ORSAK om bilen fortfarande är under 50 % (Leaf 11/12 nov)."""
+    deadline = now_dt.replace(hour=decisions.MORNING_HOUR, minute=0, second=0, microsecond=0)
+    # Före kl 06 gäller dagens deadline senare i natt; efter 06 samma morgon.
+    if now_dt < deadline:
+        return
+    if not _ev_missed_mod.due_missed_alert(
+        soc=soc, target_soc=decisions.MORNING_MIN_SOC, plugged_in=plugged_in,
+        now=now_dt, deadline=deadline, already_key=_missed_charge_alerted.get(car_id),
+    ):
+        return
+    _missed_charge_alerted[car_id] = deadline
+    w = _ev_need_watch.get(car_id) or {}
+    sibling = next((n for c, n in _EV_NAMES.items() if c != car_id), None)
+    why = _ev_missed_mod.explain(
+        soc=soc, target_soc=decisions.MORNING_MIN_SOC,
+        ordered_a=float(w.get("last_ordered") or 0),
+        power_kw=float(w.get("last_power") or 0),
+        status=w.get("last_status"),
+        minutes_zero_order=float(w.get("zero_order_min") or 0),
+        minutes_stalled=float(w.get("stall_min") or 0),
+        sibling_name=sibling,
+        sibling_got_power=bool(w.get("sibling_power")),
+    )
+    name = _EV_NAMES.get(car_id, car_id.capitalize())
+    print(f"🚨 Missad laddning: {car_id} under morgonmålet. {why}")
+    notifier.send_emil(
+        f"🚨 {name} laddades inte klart inatt",
+        why,
+        {"tag": f"ev_missed_{car_id}_{deadline.date()}"},
+        key="elbil",
     )
 
 def _remember_soc(car, data, now_dt):
@@ -1200,10 +1270,12 @@ while True:
 
             # Morgongolv-vakt (2026-10-30): oberoende säkerhetsnät för "50% kl 06 varje dag".
             # Körs VARJE loop (inte bara var 15:e min) så vi hinner larma/tvinga i tid om allt annat failat.
+            # Missad-laddning-notis (2026-11-12): efter deadline, med orsak (0 A till syskon / awaiting_start).
             for _car_id in car_ids:
                 _soc = car_soc.get(_car_id)
                 _plugged = ev_connection_state[_car_id]['connected'] or ev_gps_state[_car_id]['approaching']
                 _check_morning_floor(_car_id, _soc, _plugged, now)
+                _check_missed_charge(_car_id, _soc, _plugged, now)
 
             # #200: ändras "klar senast" i Home Assistant räknas planen om direkt (inte först vid nästa kvart)
             _ready_sig = str([((_EV_BY_ID.get(_c) or {}).get("entities") or {}).get("ready_by") and
@@ -2040,6 +2112,15 @@ while True:
                         _check_ev_stall(car_id, ev_amps[car_id], charger_data, charger_id, ev_phase_switch_active[car_id], now)
                 else:
                     last_sent_ev_limit[car_id] = None
+                try:
+                    _sib = any(
+                        ((car_charger_data.get(_o) or {}).get("power_kw") or 0) > 0.5
+                        for _o in car_ids if _o != car_id
+                    )
+                    _track_ev_need(car_id, car_soc.get(car_id), ev_amps.get(car_id, 0),
+                                   charger_data if connected else None, _sib, now)
+                except Exception as _twe:
+                    print(f"⚠️ Missad-laddning-spårning ({car_id}): {_twe}")
                 # Laddar bilen långsammare än vi beställt? Säg varför (ev_hold.py) - visas i appen och på webben
                 try:
                     _ht = _ev_hold.step(car_id, ev_amps[car_id] if connected and not ev_phase_switch_active[car_id] else 0,
@@ -2222,9 +2303,12 @@ while True:
             for _c in car_ids:                       # "laddningen startade" per bil (förut bara Nissan)
                 _cd = car_charger_data.get(_c) or {}
                 c_status = _cd.get("status")
-                if c_status == "charging" and last_ev_status.get(_c) not in (None, "charging"):
+                _pw = float(_cd.get("power_kw") or 0.0)
+                # 2026-11-12: status kunde bli "charging" med 0 kW (Leaf) och gav falsk startnotis
+                # samtidigt som Tesla faktiskt laddade - kräv uppmätt effekt.
+                if c_status == "charging" and _pw >= 0.5 and last_ev_status.get(_c) not in (None, "charging"):
                     if cfg.get("notify_ev_start", True):
-                        notifier.notify_ev_charging(CAR_SPECS.get(_c, {}).get("name", _c), _cd.get("power_kw") or 0.0)
+                        notifier.notify_ev_charging(CAR_SPECS.get(_c, {}).get("name", _c), _pw)
                 last_ev_status[_c] = c_status
 
             for _an, _ast in appliance_states.items():
