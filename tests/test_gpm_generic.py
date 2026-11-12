@@ -101,6 +101,16 @@ def test_phase_reset_accepts_numeric_driver_states(configured, reported, expecte
     assert actions['car_set_phases'] == expected
 
 
+def test_evaluate_accepts_explicit_none_price():
+    """#208/#282: current_price=None must not TypeError on price < 0 (gpm.py ~502)."""
+    actions = _engine().evaluate({
+        'now': datetime(2026, 11, 11, 12, tzinfo=timezone.utc),
+        'current_price': None, 'avg_net_w': 0, 'solar_auto_export': True,
+        'car_ids': [], 'car_specs': {},
+    })
+    assert isinstance(actions, dict)
+
+
 def test_plan_laddar_bilar_med_andra_namn_och_egna_faser():
     """Generisk N-bilsladdning: en Kia på 3-fas och en Volvo på 1-fas enligt laddplanen."""
     import pandas as pd

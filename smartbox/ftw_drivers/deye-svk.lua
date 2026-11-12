@@ -342,7 +342,9 @@ function driver_poll()
     -- battery flow for two consecutive polls. The wiggle write here is
     -- the one bus write driver_poll is allowed to do — it recovers from
     -- a known firmware quirk that l1 cannot see.
-    if control_initialized and bat_w_raw then
+    -- Guard bat_w as number: truthy bat_w_raw alone is not enough if decode
+    -- ever yields a non-number (LuaError on math.abs / string.format, #297).
+    if control_initialized and type(bat_w) == "number" then
         if last_commanded_pct == 0 and math.abs(bat_w) > SELF_HEAL_FLOOR_W then
             self_heal_disagree_polls = self_heal_disagree_polls + 1
             if self_heal_disagree_polls >= SELF_HEAL_RUN_REQUIRED then

@@ -492,7 +492,12 @@ def _ha_state(entity):
     if response.status_code != 200:
         print(f"⚠️ HA-prissensorn ({entity}) svarade {response.status_code}.")
         return None
-    return response.json()
+    try:
+        return response.json()
+    except ValueError as e:
+        # Ogiltig JSON (t.ex. HA reverse-proxy HTML) är driftstörning, inte programfel.
+        print(f"⚠️ HA-prissensorn ({entity}) returnerade ogiltig JSON: {e}")
+        return None
 
 
 def _is_czech_price_unit(unit):
@@ -521,7 +526,8 @@ def fetch_ha_nordpool_and_save(date_obj, refresh_all=False):
             attrs = state.get("attributes") or {}
             unit = attrs.get("unit_of_measurement", "")
             if cost_settings()["country"] == "CZ" and not _is_czech_price_unit(unit):
-                print(f"❌ Czech price sensor ({entity}) must use CZK/kWh or CZK/MWh; currency conversion is not automatic.")
+                # Fel konfiguration i HA — varning, inte ❌ (telemetri skulle annars räkna det som programfel).
+                print(f"⚠️ Czech price sensor ({entity}) must use CZK/kWh or CZK/MWh; currency conversion is not automatic.")
                 continue
             amber = "forecasts" in attrs
             refreshing = price_final_mode() == "false" or (price_final_mode() == "auto" and amber)
@@ -654,7 +660,9 @@ def ensure_prices_exist():
                     # FIX: Agera på fetch-status så tyst degradering (tom prislista -> dyra
                     # default-lägen) syns i loggen istället för att ignoreras.
                     if not _fetch_and_save(today):
-                        print("❌ KRITISKT: Kunde inte hämta dagens priser – pris-optimering "
+                        # Varning (inte ❌): saknade priser är driftläge tills källan svarar.
+                        # ❌ utan aktiv exception blev Admin-gruppen ensure_prices_exist: Error (#210).
+                        print("⚠️ KRITISKT: Kunde inte hämta dagens priser – pris-optimering "
                               "(peak shaving/EV/värme/spa) faller tillbaka till default tills priser finns.")
 
                 if (now.hour == 13 and now.minute >= 30) or now.hour >= 14:
