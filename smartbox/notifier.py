@@ -102,7 +102,10 @@ def _send(target: str, title: str, message: str, data: dict = None, key: str | N
         _hist(title, message, "sent", target, key)
         return True
     except Exception as e:
-        print(f"❌ Notis misslyckades ({target}): {e}")
+        # HA nere, timeout eller HTTP-svar från notify-tjänsten är drift (#249), inte programfel.
+        # Telemetrin gör GitHub-ärenden av ❌. Historiken sparar ändå "failed".
+        mark = "⚠️" if isinstance(e, requests.RequestException) else "❌"
+        print(f"{mark} Notis misslyckades ({target}): {e}")
         try:
             import notify_log
             _hist(title, message, "failed", target, key, notify_log.short_error(e))
