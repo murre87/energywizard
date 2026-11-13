@@ -1593,13 +1593,16 @@ async function mountPriceSource(slotId, country) {
   let d;
   try { d = await api("api/price-entities"); } catch (e) { slot.innerHTML = ""; return; }
   if (!slot.isConnected) return;                           // fliken byttes medan hämtningen pågick
-  const opts = [`<option value="">${country && country !== "SE" ? "Ingen vald" : "Standard: elprisetjustnu.se (Sverige)"}</option>`]
+  // #392: Nord Pools öppna portal täcker de här länderna - där behövs ingen prissensor i HA
+  const npAuto = ["NO", "DK", "FI", "EE", "LV", "LT", "DE", "NL", "BE", "AT", "FR", "PL", "GB"].includes(country);
+  const opts = [`<option value="">${country && country !== "SE" ? (npAuto ? "Standard: Nord Pool (automatiskt)" : "Ingen vald") : "Standard: elprisetjustnu.se (Sverige)"}</option>`]
     .concat(d.entities.map((e) => `<option value="${esc(e.entity_id)}"${e.entity_id === d.selected ? " selected" : ""}>${esc(e.name)} · ${esc(e.integration)}${e.unit ? " · " + esc(e.unit) : ""}</option>`));
   slot.innerHTML = `
     <label style="display:flex;flex-direction:column;gap:4px"><span class="note">Priskälla (spotpriset per kvart/timme)</span>
       <select id="psrc" style="max-width:100%">${opts.join("")}</select></label>
+    ${npAuto ? `<div class="note" style="margin-top:4px">Spotpriset hämtas automatiskt från Nord Pool. Välj en prissensor bara om du hellre vill använda din elleverantörs pris. Slutar sensorn fungera tar Nord Pool över.</div>` : ""}
     <div class="note" style="margin-top:4px">${d.entities.length ? `${d.entities.length} prissensor${d.entities.length > 1 ? "er" : ""} hittades i Home Assistant.`
-      : `Ingen prissensor hittades. Installera t.ex. <a href="https://github.com/custom-components/nordpool" target="_blank" rel="noopener">Nord Pool</a>,
+      : npAuto ? `Ingen prissensor hittades i Home Assistant. Det behövs inte.` : `Ingen prissensor hittades. Installera t.ex. <a href="https://github.com/custom-components/nordpool" target="_blank" rel="noopener">Nord Pool</a>,
         <a href="https://github.com/JaccoR/hass-entso-e" target="_blank" rel="noopener">ENTSO-e</a> (hela Europa),
         Energi Data Service (Danmark) eller Octopus Energy (Storbritannien) i Home Assistant och skanna igen.`}</div>
     ${country === "CZ" ? `<div class="note">Råa OTE-spotpriser är normalt utan moms. Kontrollera om den valda sensorn redan inkluderar moms innan du sparar.</div>` : ""}
@@ -1835,7 +1838,7 @@ const DRIVER_NAMES = { thermia_husdata: "Thermia (Husdata)", generic_climate: "c
   myuplink: "myUplink", heishamon: "Panasonic (HeishaMon)", solaredge: "SolarEdge", generic_number: "exportgräns i HA",
   huawei_solar: "Huawei", modbus_register: "Modbus-register", gecko: "Gecko", balboa: "Balboa", switch: "relä/brytare",
   shelly: "Shelly", generic: "generisk", easee: "Easee", tesla: "Tesla", nissan: "Nissan", generic_ev: "generisk elbil",
-  ha: "via HA", elprisetjustnu: "elprisetjustnu.se", ha_nordpool: "prissensor i HA", shadow: "skuggläge",
+  ha: "via HA", elprisetjustnu: "elprisetjustnu.se", ha_nordpool: "prissensor i HA", nordpool_api: "Nord Pool", shadow: "skuggläge",
   tou_tariff: "tidstariff", battery_styr: "styr batteriet", battery_samarbete: "läser batteriet", battery_av: "batteri av",
   SE: "Sverige", NO: "Norge", DK: "Danmark", FI: "Finland", DE: "Tyskland", GB: "Storbritannien", NL: "Nederländerna" };
 function installsCard(d) {
@@ -2239,7 +2242,7 @@ async function runDiscovery(ev, cached) {
   html += `</div>`;
 
   html += `<div class="card" style="margin-bottom:16px"><h2>💶 Elpris</h2>
-    <div class="note">Varifrån spotpriset hämtas. Utanför Sverige: välj ditt lands prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.</div>
+    <div class="note">Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.</div>
     <div id="discprice" style="margin-top:8px"></div></div>`;
 
   html += `<button class="icobtn" id="savebtn" style="margin-top:6px;display:none">Spara och starta</button>

@@ -2418,5 +2418,13 @@
   "MyUplinkHeatPumpDriver: myUplink nekar inloggningen, HTTP #": "MyUplinkHeatPumpDriver: myUplink odmítá přihlášení, HTTP #",
   "Logga in på nytt med scripts/myuplink_authorize.py och byt MYUPLINK_REFRESH_TOKEN": "Přihlaste se znovu pomocí scripts/myuplink_authorize.py a vyměňte MYUPLINK_REFRESH_TOKEN",
   "Värmepumpen styrs inte så länge": "Do té doby se tepelné čerpadlo neřídí",
-  "MyUplinkHeatPumpDriver: inloggningen fungerar igen": "MyUplinkHeatPumpDriver: přihlášení opět funguje"
+  "MyUplinkHeatPumpDriver: inloggningen fungerar igen": "MyUplinkHeatPumpDriver: přihlášení opět funguje",
+  "Nord Pool: {n} priser för {date}, elområde {area} i {currency}": "Nord Pool: {n} cen pro {date}, cenová oblast {area} v {currency}",
+  "Nord Pool svarade inte ({err}) - försöker igen senare": "Nord Pool neodpověděl ({err}) - zkusí to znovu později",
+  "Nord Pool gav ett oväntat svar ({err}) - försöker igen senare": "Nord Pool vrátil neočekávanou odpověď ({err}) - zkusí to znovu později",
+  "HA-prissensorn misslyckades - hämtar från Nord Pool i stället": "Cenový senzor v HA selhal - načítá se z Nord Pool",
+  "Standard: Nord Pool (automatiskt)": "Výchozí: Nord Pool (automaticky)",
+  "Spotpriset hämtas automatiskt från Nord Pool. Välj en prissensor bara om du hellre vill använda din elleverantörs pris. Slutar sensorn fungera tar Nord Pool över.": "Spotová cena se načítá automaticky z Nord Pool. Cenový senzor vyberte, jen pokud chcete raději používat cenu svého dodavatele. Pokud senzor přestane fungovat, převezme to Nord Pool.",
+  "Ingen prissensor hittades i Home Assistant. Det behövs inte.": "V Home Assistantu nebyl nalezen žádný cenový senzor. Není potřeba.",
+  "Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.": "Odkud se bere spotová cena. Mimo Švédsko se načítá automaticky z Nord Pool, kromě Česka a Austrálie, kde vyberete cenový senzor v Home Assistantu. DPH a poplatky nastavíte v části Cena elektřiny a poplatky."
 }

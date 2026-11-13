@@ -1,5 +1,15 @@
 # Ändringar
 
+## 1.2.79 (2026-11-13)
+- **Elpriset utanför Sverige hämtas direkt från Nord Pool** (#392): Norden, Baltikum, Nederländerna, Belgien,
+  Frankrike, Tyskland, Österrike, Polen och Storbritannien, i rätt valuta och utan nyckel eller prissensor i Home
+  Assistant. Har man valt en prissensor (t.ex. elleverantörens pris) används den som förut, och Nord Pool tar över
+  när den slutar fungera. Det var orsaken till de flesta prisfelen utanför Sverige (#210, #211). Tjeckien och
+  Australien använder prissensorn i Home Assistant som förut.
+- **Guiden föreslår inte längre fel enheter som elbil eller husbatteri** (#393): mobiltelefoner, surfplattor,
+  robotgräsklippare, UPS, brandvarnare och andra sensorer valdes ibland, eftersom korta bilmärken som "mini" och
+  "smart" matchade mitt i modellnamn och en positionsspårare räckte för att räknas som bil.
+
 ## 1.2.78 (2026-11-13)
 - **myUplink: inloggningen håller** (#384). myUplink byter refresh-token vid varje förnyelse, men EnergyWizard
   fortsatte använda den gamla, så efter en tid nekades varje inloggning (400 Bad Request) och värmepumpen styrdes

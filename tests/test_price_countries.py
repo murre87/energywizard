@@ -58,8 +58,13 @@ def test_tyskland_egna_avgifter_och_nordpool_kalla():
     ew_settings.update(price_country="DE", price_buy_extra=0.21, price_sell_extra=0.08)
     c = nordpool.cost_settings()
     assert (c["vat_pct"], c["currency"], c["symbol"], c["area"]) == (19.0, "EUR", "€", "DE-LU")
+    # #392: utan vald prissensor hämtas spotpriset från Nord Pools portal, utan moms
+    assert nordpool.price_source() == "nordpool_api" and not nordpool.prices_include_vat()
+    assert nordpool.full_buy_cost(0.1) == pytest.approx(0.1 * 1.19 + 0.21)
+    # Med vald prissensor i HA: som förut, priset från HA har redan moms
+    ew_settings.update(price_ha_entity="sensor.nordpool_de")
     assert nordpool.price_source() == "ha_nordpool" and nordpool.prices_include_vat()
-    assert nordpool.full_buy_cost(0.119) == pytest.approx(0.119 + 0.21)       # priset från HA har redan moms
+    assert nordpool.full_buy_cost(0.119) == pytest.approx(0.119 + 0.21)
     assert nordpool.full_sell_income(0.119) == pytest.approx(0.1 + 0.08)       # ingen moms på såld el som standard
 
 

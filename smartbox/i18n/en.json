@@ -2418,5 +2418,13 @@
  "MyUplinkHeatPumpDriver: myUplink nekar inloggningen, HTTP #": "MyUplinkHeatPumpDriver: myUplink is rejecting the sign-in, HTTP #",
  "Logga in på nytt med scripts/myuplink_authorize.py och byt MYUPLINK_REFRESH_TOKEN": "Sign in again with scripts/myuplink_authorize.py and replace MYUPLINK_REFRESH_TOKEN",
  "Värmepumpen styrs inte så länge": "The heat pump is not controlled until then",
- "MyUplinkHeatPumpDriver: inloggningen fungerar igen": "MyUplinkHeatPumpDriver: the sign-in works again"
+ "MyUplinkHeatPumpDriver: inloggningen fungerar igen": "MyUplinkHeatPumpDriver: the sign-in works again",
+ "Nord Pool: {n} priser för {date}, elområde {area} i {currency}": "Nord Pool: {n} prices for {date}, bidding zone {area} in {currency}",
+ "Nord Pool svarade inte ({err}) - försöker igen senare": "Nord Pool did not respond ({err}) - trying again later",
+ "Nord Pool gav ett oväntat svar ({err}) - försöker igen senare": "Nord Pool returned an unexpected response ({err}) - trying again later",
+ "HA-prissensorn misslyckades - hämtar från Nord Pool i stället": "The HA price sensor failed - fetching from Nord Pool instead",
+ "Standard: Nord Pool (automatiskt)": "Default: Nord Pool (automatic)",
+ "Spotpriset hämtas automatiskt från Nord Pool. Välj en prissensor bara om du hellre vill använda din elleverantörs pris. Slutar sensorn fungera tar Nord Pool över.": "The spot price is fetched automatically from Nord Pool. Only choose a price sensor if you would rather use your electricity supplier's price. If the sensor stops working, Nord Pool takes over.",
+ "Ingen prissensor hittades i Home Assistant. Det behövs inte.": "No price sensor was found in Home Assistant. None is needed.",
+ "Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.": "Where the spot price comes from. Outside Sweden it is fetched automatically from Nord Pool, except in the Czech Republic and Australia, where you choose a price sensor in Home Assistant. VAT and fees are set under Electricity price and fees."
 }

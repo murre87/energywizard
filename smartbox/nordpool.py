@@ -175,8 +175,24 @@ def tou_extra_at(t, c=None) -> float:
     return c["tou_extra"]
 
 
+# Nord Pools öppna dataportal (samma som Home Assistants inbyggda Nord Pool-integration använder): day-ahead
+# per elområde i vald valuta, utan nyckel (#392). Täcker Norden, Baltikum, NL, BE, FR, DE, AT, PL och
+# Storbritannien (N2EX, timpriser). Inte Tjeckien och Australien - där gäller HA-sensorn som förut.
+NORDPOOL_API = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"
+NORDPOOL_API_AREA = {"DE-LU": "GER", "GB": "UK"}
+NORDPOOL_API_CURRENCIES = ("EUR", "SEK", "NOK", "DKK", "PLN", "GBP")
+NORDPOOL_API_COUNTRIES = ("SE", "NO", "DK", "FI", "EE", "LV", "LT", "DE", "NL", "BE", "AT", "FR", "PL", "GB")
+
+
+def nordpool_api_supported(c=None) -> bool:
+    c = c or cost_settings()
+    return (c["country"] in NORDPOOL_API_COUNTRIES and c["area"] in COUNTRIES.get(c["country"], {}).get("areas", [])
+            and c["currency"] in NORDPOOL_API_CURRENCIES)
+
+
 def price_source() -> str:
-    """elprisetjustnu.se har bara Sverige. Andra länder läser HA:s Nordpool-integration om inget annat är valt."""
+    """Sverige: elprisetjustnu.se. Vald prissensor i HA: den (med Nord Pools portal som reserv). Andra länder
+    utan vald sensor: Nord Pools portal där den täcker landet, annars HA:s prissensor."""
     if "PRICE_SOURCE" in os.environ:
         return PRICE_SOURCE
     try:
@@ -187,6 +203,8 @@ def price_source() -> str:
         pass
     if cost_settings()["country"] == "SE":
         return PRICE_SOURCE
+    if nordpool_api_supported():
+        return "nordpool_api"
     return "ha_nordpool"
 
 
@@ -362,6 +380,48 @@ def fetch_api_and_save(date_obj):
         print(f"⚠️ elprisetjustnu.se svarade inte ({type(e).__name__}) - försöker igen senare")
     except Exception as e:
         print(f"❌ Fel vid API-hämtning för {date_str}: {e}")
+    return False
+
+
+def fetch_nordpool_api_and_save(date_obj, include_vat=False):
+    """Ett dygns day-ahead-priser från Nord Pools portal (#392). include_vat: lagra med moms, för att stämma med
+    en HA-sensor som har moms när portalen används som reserv för den."""
+    c = cost_settings()
+    if not nordpool_api_supported(c):
+        return False
+    date_str = date_obj.strftime("%Y-%m-%d")
+    area = NORDPOOL_API_AREA.get(c["area"], c["area"])
+    market = "N2EX_DayAhead" if area == "UK" else "DayAhead"
+    try:
+        r = requests.get(NORDPOOL_API, params={"date": date_str, "market": market, "deliveryArea": area,
+                                               "currency": c["currency"]}, timeout=15)
+        if r.status_code == 204:                      # inte publicerat än (före ~13:00)
+            return False
+        r.raise_for_status()
+        data = r.json() or {}
+        factor = (_vat_factor() if include_vat else 1.0) / 1000.0     # /MWh -> /kWh
+        records = []
+        for e in data.get("multiAreaEntries") or []:
+            v = (e.get("entryPerArea") or {}).get(area)
+            if v is None or not e.get("deliveryStart") or not e.get("deliveryEnd"):
+                continue
+            records.append((e["deliveryStart"], e["deliveryEnd"], round(float(v) * factor, 5)))
+        if not records:
+            return False
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.executemany("""
+                    INSERT INTO elpriser (time_start, time_end, sek_per_kwh)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (time_start) DO NOTHING
+                """, records)
+            conn.commit()
+        print(f"📥 Nord Pool: {len(records)} priser för {date_str}, elområde {c['area']} i {c['currency']}.")
+        return True
+    except requests.RequestException as e:
+        print(f"⚠️ Nord Pool svarade inte ({type(e).__name__}) - försöker igen senare")
+    except (ValueError, TypeError) as e:
+        print(f"⚠️ Nord Pool gav ett oväntat svar ({type(e).__name__}) - försöker igen senare")
     return False
 
 
@@ -612,10 +672,15 @@ def _fetch_and_save(date_obj):
     """Hämtar och sparar ett dygns priser enligt konfigurerad PRICE_SOURCE, med automatisk
     fallback till elprisetjustnu.se samma cykel om den primära källan misslyckas - pris-
     optimeringen får aldrig stå helt utan källa bara för att HA-integrationen är otillgänglig."""
+    if price_source() == "nordpool_api":
+        return fetch_nordpool_api_and_save(date_obj)
     if price_source() == "ha_nordpool":
         if fetch_ha_nordpool_and_save(date_obj):
             return True
         if cost_settings()["country"] != "SE":          # elprisetjustnu.se har bara svenska priser - fel land vore värre
+            if nordpool_api_supported():                # #392: Nord Pools portal som reserv, med samma moms som sensorn
+                print("⚠️ HA-prissensorn misslyckades - hämtar från Nord Pool i stället.")
+                return fetch_nordpool_api_and_save(date_obj, include_vat=prices_include_vat())
             print("⚠️ HA-prissensorn misslyckades - försöker igen nästa cykel.")
             return False
         print("⚠️ HA nordpool-källan misslyckades, faller tillbaka till elprisetjustnu.se.")
