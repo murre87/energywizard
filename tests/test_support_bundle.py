@@ -77,3 +77,37 @@ def test_note_and_build_include_ring():
     assert "module=nordpool.fetch" in out
     assert "sensor.<…>" in out
     assert "recent_errors" in out
+
+
+def test_large_journal_preserves_error_context_and_latest_complete_lines(monkeypatch):
+    from datetime import datetime, timezone
+    support_bundle._ring.clear()
+    support_bundle.note_error_line('primary fault sensor.private 192.168.1.20')
+    monkeypatch.setattr(support_bundle, 'enabled', lambda: True)
+    now = datetime(2026, 11, 13, tzinfo=timezone.utc)
+    rows = [(now, 'main', 'INFO', f'event-id{i:04d} ' + 'context ' * 60) for i in range(400)]
+    monkeypatch.setattr(support_bundle, '_journal_lines', lambda: rows)
+    with mock.patch('logger.get_db', side_effect=Exception('isolated')):
+        out = support_bundle.build('ftw.poll', 'LuaError')
+    assert out.startswith('module=ftw.poll\nerror_type=LuaError\n--- recent_errors ---')
+    assert 'primary fault' in out and 'sensor.private' not in out and '192.168' not in out
+    assert 'log truncated: older lines omitted' in out
+    assert 'event-id0399' in out and 'event-id0000' not in out
+    assert len(out) <= support_bundle._MAX_BUNDLE
+    journal = out.split('--- log truncated: older lines omitted ---\n', 1)[1]
+    assert journal.startswith('00:00:00 main INFO event-id')
+
+
+def test_short_journal_is_unchanged_and_opt_out_avoids_reading_it(monkeypatch):
+    from datetime import datetime, timezone
+    support_bundle._ring.clear()
+    read = mock.Mock(return_value=[(datetime(2026,11,13,tzinfo=timezone.utc),'main','INFO','single event')])
+    monkeypatch.setattr(support_bundle, '_journal_lines', read)
+    monkeypatch.setattr(support_bundle, 'enabled', lambda: True)
+    with mock.patch('logger.get_db', side_effect=Exception('isolated')):
+        out = support_bundle.build('m','E')
+    assert out == 'module=m\nerror_type=E\n--- log (senaste 2 h, sanerad) ---\n00:00:00 main INFO single event'
+    read.reset_mock()
+    monkeypatch.setattr(support_bundle, 'enabled', lambda: False)
+    assert support_bundle.build('m','E') == ''
+    read.assert_not_called()
