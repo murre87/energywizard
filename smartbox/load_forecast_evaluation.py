@@ -62,6 +62,83 @@ def percentile(values,q):
     return values[lo]+(values[hi]-values[lo])*(i-lo)
 
 
+def forecasts_at_origin(rows,origin,targets,timezone_name='Europe/Stockholm'):
+    """One frozen horizon: observations at/after origin never become features."""
+    zone=ZoneInfo(timezone_name)
+    history={}
+    profile=defaultdict(list)
+    local=defaultdict(list)
+    for row in rows:
+        t=number(row['t']);kw=number(row['kw'])
+        if t%900 or kw<0 or t in history:raise ValueError('Invalid or duplicate quarter')
+        history[t]=kw
+    history={t:kw for t,kw in history.items() if t+900<=origin}
+    if len(history)<672:raise ValueError('At least seven days of completed training quarters required')
+    for t,kw in history.items():
+        dt=datetime.fromtimestamp(t,zone)
+        profile[dt.weekday(),dt.hour].append(kw)
+        local[dt.date(),dt.hour,dt.minute,dt.fold].append(kw)
+    recent=[history[t] for t in (origin-900,origin-1800,origin-2700,origin-3600) if t in history]
+    predictions=[]
+    for t in targets:
+        dt=datetime.fromtimestamp(t,zone)
+        values=profile[dt.weekday(),dt.hour]
+        baseline=max(1.,min(6.,percentile(values,.85))) if values else 2.5
+        support=list(recent)
+        for days in (1,7):
+            day=(dt-timedelta(days=days)).date()
+            values=local.get((day,dt.hour,dt.minute,dt.fold),[])
+            if values:support.append(statistics.median(values))
+        candidate=.5*baseline+.5*statistics.median(support) if support else baseline
+        predictions.append({'t':t,'baseline_kw':baseline,'candidate_kw':max(.05,min(25.,candidate))})
+    return predictions
+
+
+def evaluate_planner_snapshot(rows,snapshot,timezone_name='Europe/Stockholm'):
+    """Paired offline cash-flow counterfactual, never an adoption decision.
+
+    Only exact quarter-boundary snapshots with supported simulation semantics
+    are accepted. Exogenous price/PV/EV inputs stay identical in both runs.
+    """
+    import battery_plan
+    import plan_snapshot
+    if not plan_snapshot.replay(snapshot)['matches']:
+        raise ValueError('Recorded planner output cannot be reproduced')
+    inputs=plan_snapshot.normalize_inputs(**snapshot['inputs'])
+    slots,params=inputs['slots'],inputs['params']
+    origin=epoch(snapshot['made_at']);targets=[epoch(s['t']) for s in slots]
+    if origin%900 or targets[0]!=origin:
+        raise ValueError('Initial SOC and first slot must share an exact quarter-boundary origin')
+    if not params['allow_export'] or params['ev_mode']!='block' or params['balance_target_kwh']:
+        raise ValueError('Simulator supports export-enabled, EV-blocking, non-balancing snapshots only')
+    if not (0<=params['reserve_kwh']<=params['soc0_kwh']<=params['max_kwh']<=params['capacity_kwh']
+            and 0<params['eff']<=1 and params['charge_kw']>=0 and params['discharge_kw']>=0):
+        raise ValueError('Invalid physical battery parameters')
+    predictions=forecasts_at_origin(rows,origin,targets,timezone_name)
+    actual={number(r['t']):number(r['kw']) for r in rows}
+    if any(t not in actual for t in targets):raise ValueError('Missing realized load quarter')
+    if any(s['solar_kw']<0 or s['ev_kw']<0 for s in slots):raise ValueError('Invalid unsigned exogenous load')
+    realized=[{**slot,'load_kw':actual[t]} for slot,t in zip(slots,targets)]
+    results={}
+    for label in ('baseline','candidate'):
+        forecast=[{**slot,'load_kw':p[label+'_kw']} for slot,p in zip(slots,predictions)]
+        plan=battery_plan.optimize(forecast,**params)
+        actions=[r['action'] for r in plan['rows']]
+        if len(actions)!=len(slots):raise ValueError('Incomplete counterfactual plan')
+        _,simulation=battery_plan.simulate(realized,params['soc0_kwh'],actions,
+            params['capacity_kwh'],params['reserve_kwh'],params['max_kwh'],
+            params['charge_kw'],params['discharge_kw'],params['eff'])
+        cash=sum(battery_plan._cost(r['grid_kw'],s['buy'],s['sell']) for r,s in zip(simulation,slots))
+        results[label]={'energy_cash_cost':cash,'ending_soc_kwh':simulation[-1]['soc_kwh'],
+            'soc_bounds_respected':all(params['reserve_kwh']-1e-9<=r['soc_kwh']<=params['max_kwh']+1e-9 for r in simulation),
+            'actions':actions}
+    return {'plan_id':snapshot['plan_id'],'origin':origin,'quarters':len(slots),
+            'results':results,'predictions':predictions,
+            'candidate_minus_baseline_cash_cost':results['candidate']['energy_cash_cost']-results['baseline']['energy_cash_cost'],
+            'adoption_ready':False,
+            'scope':'Simulated energy cash flow using recorded prices/PV/EV and realized load; excludes wear, switching and terminal energy valuation. Different ending SOC prevents interpreting cash delta as savings. No fuse/comfort or hardware qualification.'}
+
+
 def evaluate(rows,split_at,timezone_name='Europe/Stockholm',min_train=7*96,min_test=96,
              min_relative_mae_improvement=.05):
     """Frozen p85 weekday/hour baseline vs causal recent/historical blend.
