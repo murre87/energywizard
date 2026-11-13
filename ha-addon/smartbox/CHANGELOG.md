@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.72 (2026-11-13)
+- **Större graf i appens Historik** (#371): tryck på effektgrafen så öppnas en stor, lättläst version med axlar,
+  tider och teckenförklaring, samma periodval (24 h, 7 d, 30 d, 1 år) och värdena där man trycker eller drar med
+  fingret.
+- Översatt: "30 dagar" och raden under varje enhet i "Höll vi planen?".
+
 ## 1.2.71 (2026-11-13)
 - **Laddplanen räknar med kyla** (av natanoj, valfritt och avstängt som standard): när det blir kallare drar värmen
   mer, så säkringen räcker till mindre ström åt bilen och laddningen sprids över fler timmar. Hur mycket mer huset

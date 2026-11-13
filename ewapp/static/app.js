@@ -41,8 +41,8 @@ function showLogin(msg) {
   $("#lf").onsubmit = async (e) => { e.preventDefault(); try { await api("login", { user: $("#un").value, password: $("#pw").value }); start(); } catch (er) { showLogin(er.message); } };
 }
 const ER = () => (ROLE === "owner" && VIEWAS) ? VIEWAS : ROLE;                    // effektiv roll: ägaren kan förhandsgranska Elins vy och gästläget
-const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "clim", "climclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
-              guest: ["theme", "ser", "tab", "health", "settings", "swap", "schcar", "cardata", "rooms", "greet", "log", "report", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"] };
+const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "clim", "climclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
+              guest: ["theme", "ser", "tab", "health", "settings", "swap", "schcar", "cardata", "rooms", "greet", "log", "report", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"] };
 const can = (a) => ER() === "owner" || (ROLE === "owner" && a === "viewas") || (CAN[ER()] || []).includes(a);   // ägaren kan alltid byta tillbaka från förhandsvisningen
 const TABS = { owner: ["hem", "bil", "hus", "plan", "historik"], family: ["hem", "bil", "plan"], guest: ["hem", "bil", "hus", "plan", "historik"] };
 const TABNAME = { hem: "Hem", bil: "Bil", hus: "Hus", plan: "Plan", historik: "Historik" };
@@ -382,7 +382,56 @@ function powerSvg(sr) {                                   // nät/sol/hus/batter
   const X = (i) => (n <= 1 ? 0 : (i / (n - 1)) * W), Y = (v) => Hh / 2 - (v / mx) * (Hh / 2 - 4);
   const paths = ser.map(([s, c]) => { let d = ""; s.forEach((v, i) => { if (v != null) d += (d ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }); return `<path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`; }).join("");
   const lbl = (x) => sr.range === "24h" ? x.slice(11, 16) : `${x.slice(8, 10)}/${x.slice(5, 7)}`;
-  return `<div class="ch"><span>${f1(mx, 0)} kW in</span><span></span></div><svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Hh / 2}" y2="${Hh / 2}" stroke="var(--line)" vector-effect="non-scaling-stroke"/>${paths}</svg><div class="ch"><span>${lbl(sr.t[0])}</span><span>${f1(mx, 0)} kW ut</span><span>nu</span></div>`;
+  // #371: tryck på grafen -> stor, lättläst version (bigChartSheet)
+  return `<div data-a="bigchart" style="cursor:zoom-in"><div class="ch"><span>${f1(mx, 0)} kW in</span><span class="note" style="margin:0">Tryck för större</span></div><svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Hh / 2}" y2="${Hh / 2}" stroke="var(--line)" vector-effect="non-scaling-stroke"/>${paths}</svg><div class="ch"><span>${lbl(sr.t[0])}</span><span>${f1(mx, 0)} kW ut</span><span>nu</span></div></div>`;
+}
+// #371 (Emil 2026-11-13): grafen var svår att läsa. Stor vy med axlar, tider, teckenförklaring, periodval och
+// värden där man trycker eller drar med fingret.
+function bigPowerSvg(sr) {
+  if (!sr || !sr.t.length) return `<div class="note">Ingen data</div>`;
+  const ser = [["Nät", sr.grid_kw, HC.grid], ["Sol", sr.solar_kw.map((v) => (v == null ? null : -v)), HC.solar], ["Hus", sr.house_kw, HC.house]];
+  if (sr.battery_kw.some((v) => v != null)) ser.push(["Batteri", sr.battery_kw, HC.battery]);
+  const all = ser.flatMap(([, s]) => s).filter((v) => v != null), mx = Math.max(0.5, ...all.map(Math.abs));
+  const W = 1000, H = 460, L = 54, R = 12, T = 14, B = 34, pw = W - L - R, ph = H - T - B, n = sr.t.length;
+  const X = (i) => L + (n <= 1 ? 0 : (i / (n - 1)) * pw), Y = (v) => T + ph / 2 - (v / mx) * (ph / 2);
+  const grid = [mx, mx / 2, 0, -mx / 2, -mx].map((v) => `<line x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width="${v === 0 ? 1.6 : 0.8}" ${v === 0 ? "" : 'stroke-dasharray="4 6"'}/><text x="${L - 6}" y="${(Y(v) + 4).toFixed(1)}" font-size="15" fill="var(--mut)" text-anchor="end">${v > 0 ? "+" : ""}${f1(v, mx >= 5 ? 0 : 1)}</text>`).join("");
+  const lbl = (x) => sr.range === "24h" ? x.slice(11, 16) : sr.range === "1y" ? `${x.slice(5, 7)}/${x.slice(2, 4)}` : `${x.slice(8, 10)}/${x.slice(5, 7)}`;
+  const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1].map((f) => Math.round(f * (n - 1))).map((i) => `<text x="${X(i).toFixed(1)}" y="${H - 10}" font-size="15" fill="var(--mut)" text-anchor="${i === 0 ? "start" : i === n - 1 ? "end" : "middle"}">${esc(lbl(sr.t[i]))}</text>`).join("");
+  const paths = ser.map(([, s, c]) => { let d = ""; s.forEach((v, i) => { if (v != null) d += (d ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }); return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2.2" stroke-linejoin="round"/>`; }).join("");
+  const legend = ser.map(([nm, , c]) => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><span style="width:14px;height:4px;border-radius:2px;background:${c}"></span>${nm}</span>`).join("");
+  return `<div class="note" style="margin:0 0 6px">${legend}</div>
+    <div class="note" style="margin:0 0 4px">kW · uppåt = in i huset (köpt), nedåt = ut (sålt, solproduktion)</div>
+    <div id="bigwrap" style="position:relative;touch-action:none">
+      <svg id="bigsvg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}${ticks}${paths}<line id="bigcur" x1="0" x2="0" y1="${T}" y2="${T + ph}" stroke="var(--txt)" stroke-width="1.2" opacity="0"/></svg>
+      <div id="bigtip" class="card" style="position:absolute;top:6px;left:60px;padding:8px 10px;font-size:.85rem;pointer-events:none;display:none;min-width:150px"></div>
+    </div>
+    <div class="note" style="margin-top:6px">Tryck eller dra över grafen för att se värdena.</div>`;
+}
+function bigChartSheet() {
+  const draw = () => {
+    sheet(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">Effekt</h3><button class="mini" data-a="closesheet">Stäng</button></div>
+      <div class="seg" style="margin:8px 0">${[["24h", "24 h"], ["7d", "7 d"], ["30d", "30 d"], ["1y", "1 år"]].map(([k, l]) => `<button data-a="bigrange" data-v="${k}" class="${hxRange === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      ${bigPowerSvg(HX && HX.series)}`);
+    const p = $("#sheet .panel"); if (p) { p.style.maxWidth = "1100px"; p.style.width = "100%"; p.style.maxHeight = "94dvh"; }
+    const sr = HX && HX.series, svg = $("#bigsvg"), tip = $("#bigtip"), cur = $("#bigcur");
+    if (!sr || !svg) return;
+    const n = sr.t.length, L = 54, pw = 1000 - 54 - 12;
+    const kw = (v) => v == null ? "–" : `${f1(Math.abs(v), Math.abs(v) >= 10 ? 0 : 1)} kW`;
+    const show = (ev) => {
+      const r = svg.getBoundingClientRect(), x = ((ev.clientX - r.left) / r.width) * 1000;
+      const i = Math.max(0, Math.min(n - 1, Math.round(((x - L) / pw) * (n - 1))));
+      const cx = L + (n <= 1 ? 0 : (i / (n - 1)) * pw);
+      cur.setAttribute("x1", cx); cur.setAttribute("x2", cx); cur.setAttribute("opacity", ".6");
+      const g = sr.grid_kw[i], when = sr.t[i].slice(0, 16).replace("T", " ");
+      tip.innerHTML = `<b>${esc(when)}</b><br>Nät: ${kw(g)} ${g != null ? (g < 0 ? "säljer" : "köper") : ""}<br>Sol: ${kw(sr.solar_kw[i])}<br>Hus: ${kw(sr.house_kw[i])}${sr.battery_kw.some((v) => v != null) ? `<br>Batteri: ${kw(sr.battery_kw[i])} ${sr.battery_kw[i] != null ? (sr.battery_kw[i] < 0 ? "laddar ur" : "laddar") : ""}` : ""}`;
+      tip.style.display = "block";
+      const left = (cx / 1000) * r.width; tip.style.left = (left > r.width / 2 ? Math.max(0, left - 170) : left + 12) + "px";
+    };
+    svg.addEventListener("pointerdown", (e) => { svg.setPointerCapture(e.pointerId); show(e); });
+    svg.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "mouse") show(e); });
+  };
+  draw();
+  bigChartSheet.redraw = draw;
 }
 function dayWhen(iso) {
   if (!iso) return "";
@@ -775,6 +824,8 @@ document.addEventListener("click", async (e) => {
   if (a === "planall") { sheet(`<h3>Planen framåt</h3>${(PL.items || []).map((i) => `<div class="plrow"><div class="plw">${esc(i.when)}</div><div><b>${esc(i.title)}</b><div class="note">${esc(i.detail)}</div></div></div>`).join("")}<button class="mini" data-a="closesheet">Stäng</button>`); return; }
   if (a === "histview") { histView = v; LS.set("ew_hist_view", v); render(); return load(); }
   if (a === "hp") { hxPeriod = v; LS.set("ew_hx_period", v); return render(); }
+  if (a === "bigchart") return bigChartSheet();
+  if (a === "bigrange") { hxRange = v; LS.set("ew_hx_range", v); try { HX = await api("energyhistory?range=" + v); } catch (er) { toast(er.message); } if (bigChartSheet.redraw) bigChartSheet.redraw(); return; }
   if (a === "hr") { hxRange = v; LS.set("ew_hx_range", v); try { HX = await api("energyhistory?range=" + v); } catch (er) { toast(er.message); } return render(); }
   if (a === "peaks") { sheet(`<h3>Effekttoppar denna månad</h3>${EN && EN.peaks.length ? EN.peaks.map((p) => `<div style="display:flex;justify-content:space-between"><b>${f1(p.kw)} kW</b><span class="note">${p.t}</span></div>`).join("") : '<div class="note">Ingen data</div>'}<button class="mini" data-a="closesheet">Stäng</button>`); return; }
   if (a === "spaready") return spaReadySheet();

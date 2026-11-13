@@ -2355,5 +2355,21 @@
   "Nya versioner har rättningar och förbättringar, och fel som redan är rättade försvinner först när du uppdaterat": "Nové verze obsahují opravy a vylepšení a již opravené chyby zmizí až po aktualizaci",
   "Ny version av EnergyWizard: #": "Nová verze EnergyWizard: #",
   "Uppdatera i Home Assistant: Inställningar → Tillägg → EnergyWizard → Uppdatera": "Aktualizujte v Home Assistantu: Nastavení → Doplňky → EnergyWizard → Aktualizovat",
-  "Nyheter och rättningar": "Novinky a opravy"
+  "Nyheter och rättningar": "Novinky a opravy",
+  "# dagar": "# dní",
+  "Gjorde som planen # h kontrollerat": "Dodržel plán, kontrolováno # h",
+  "Gjorde som planen # min kontrollerat": "Dodržel plán, kontrolováno # min",
+  "avvek # h # min": "odchylka # h # min",
+  "avvek # h": "odchylka # h",
+  "avvek # min": "odchylka # min",
+  "Tryck för större": "Klepnutím zvětšíte",
+  "kW · uppåt = in i huset (köpt), nedåt = ut (sålt, solproduktion)": "kW · nahoru = do domu (nakoupeno), dolů = ven (prodáno, výroba FVE)",
+  "Tryck eller dra över grafen för att se värdena": "Klepněte nebo táhněte přes graf pro zobrazení hodnot",
+  "Nät: # kW köper": "Síť: # kW nákup",
+  "Nät: # kW säljer": "Síť: # kW prodej",
+  "Sol: # kW": "FVE: # kW",
+  "Hus: # kW": "Dům: # kW",
+  "Batteri: # kW laddar": "Baterie: # kW nabíjení",
+  "Batteri: # kW laddar ur": "Baterie: # kW vybíjení",
+  "1 år": "1 rok"
 }

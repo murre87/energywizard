@@ -2355,5 +2355,21 @@
  "Nya versioner har rättningar och förbättringar, och fel som redan är rättade försvinner först när du uppdaterat": "New versions have fixes and improvements, and errors that are already fixed only go away once you update",
  "Ny version av EnergyWizard: #": "New version of EnergyWizard: #",
  "Uppdatera i Home Assistant: Inställningar → Tillägg → EnergyWizard → Uppdatera": "Update in Home Assistant: Settings → Add-ons → EnergyWizard → Update",
- "Nyheter och rättningar": "News and fixes"
+ "Nyheter och rättningar": "News and fixes",
+ "# dagar": "# days",
+ "Gjorde som planen # h kontrollerat": "Followed the plan, # h checked",
+ "Gjorde som planen # min kontrollerat": "Followed the plan, # min checked",
+ "avvek # h # min": "deviated # h # min",
+ "avvek # h": "deviated # h",
+ "avvek # min": "deviated # min",
+ "Tryck för större": "Tap to enlarge",
+ "kW · uppåt = in i huset (köpt), nedåt = ut (sålt, solproduktion)": "kW · up = into the house (bought), down = out (sold, solar production)",
+ "Tryck eller dra över grafen för att se värdena": "Tap or drag across the chart to see the values",
+ "Nät: # kW köper": "Grid: # kW buying",
+ "Nät: # kW säljer": "Grid: # kW selling",
+ "Sol: # kW": "Solar: # kW",
+ "Hus: # kW": "House: # kW",
+ "Batteri: # kW laddar": "Battery: # kW charging",
+ "Batteri: # kW laddar ur": "Battery: # kW discharging",
+ "1 år": "1 year"
 }
