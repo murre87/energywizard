@@ -1086,7 +1086,15 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         for e in entities if e["e"].split(".")[0] in ("sensor", "binary_sensor")
         and re.search(r"kompressor|compressor|43427", f"{e.get('n') or ''} {e['e']}", re.I)
     ), key=lambda e: e["name"].lower())
+    # Official Adax cloud/local climate devices report manufacturer Adax. Keep
+    # every zone visible without pretending the single heat-pump planner controls it.
+    radiators = sorted((
+        {"entity": e["e"], "name": e.get("n") or e["e"], "area": e.get("a"), "maker": "Adax"}
+        for e in entities if e["e"].startswith("climate.")
+        and str(e.get("m") or "").strip().casefold() == "adax"
+    ), key=lambda e: (e["name"].casefold(), e["entity"]))
     found = {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers,
+             "radiators": radiators,
              "compressor_sensors": compressor_sensors,
              "grid_meters": grid_meters, "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
     if hint:
