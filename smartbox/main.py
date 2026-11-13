@@ -38,6 +38,7 @@ import capacity_tariff
 import ev_limits
 import car_log
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
+import battery_balance
 import battery_learning  # Planen lär sig batteriets verkliga verkningsgrad, kapacitet, effekt och solprognosens fel
 import signal
 import spa_bath           # Badtider för spabadet: eco-golv utanför, uppvärmning inför nästa badtid
@@ -152,6 +153,7 @@ def charger_set_phases(cid, phases):
 battery_cfg = house_config.battery_settings(house_cfg)
 _battery = {"last": None, "at": None, "plan": None, "plan_at": None, "model": None, "model_at": None}
 _battery_follow = battery_follow.FollowWatch()
+_battery_balance = battery_balance.Monitor()
 _battery_commands = battery_commands.Tracker()
 _guest_state, _guest_price = {}, {}
 _cap_cache = {"at": None, "peaks": [], "info": None}   # effektavgift efter högsta timmar (capacity_tariff.py)          # gästbil per bilens laddbox (guest_charge.py)
@@ -1949,6 +1951,17 @@ while True:
             _battery["decision_rule"] = None
             try:
                 battery_state = _battery_early or battery_driver.read_state() or {}   # redan läst ovan (husets förbrukning)
+                _bplan, _bdec = None, None
+                _balance = _battery_balance.update(battery_state, battery_cfg["balance"], time.time(),
+                    battery_cfg["control"] == "styr" and battery_cfg.get("plan") and
+                    bool(battery_cfg.get("capacity_kwh")) and
+                    {"charge", "hold"} <= battery_driver.supported_intents(),
+                    active=_battery.get("balance_active", False))
+                # A trigger, completion or loss of fresh module data invalidates
+                # the cached maintenance plan immediately, not next quarter.
+                _balance_key = (_balance["request"], _balance.get("hold_slots"))
+                if _battery.get("balance_key") != _balance_key:
+                    _battery.update(plan=None, plan_at=None, balance_key=_balance_key)
                 if solar_data is not None:
                     solar_data["battery_soc"] = battery_state.get("soc_pct")
                     solar_data["battery_power_w"] = battery_state.get("power_w")
@@ -1974,7 +1987,7 @@ while True:
                             try:
                                 from database_engine import engine as _peng
                                 _battery["plan"] = battery_plan.plan_from_db(_peng, now, battery_state.get("soc_pct"),
-                                                                             battery_learning.apply(battery_cfg, _battery["model"]),
+                                                                             dict(battery_learning.apply(battery_cfg, _battery["model"]), balance_request=_balance),
                                                                              dynamic_base_load_profile, battery_driver.supported_intents())
                                 _battery["plan_at"] = now
                             except Exception as _pe:
@@ -1993,10 +2006,14 @@ while True:
                         "prices_rest_of_day": (all_prices or [])[_q:],
                         "planned_action": (_bplan or {}).get("action_now"), "plan_saving_kr": (_bplan or {}).get("saving_kr"),
                         "planned_power_w": (_bplan or {}).get("power_now_w"),
+                        "balance_target_soc": (_bplan or {}).get("balance_target_soc") if _balance["request"] else None,
+                        "balance_hold_now": (_bplan or {}).get("balance_hold_now") if _balance["request"] else False,
                         "learned_note": _battery_note(_battery["model"], (_bplan or {}).get("live_charge_note")),
                     }, battery_cfg, battery_driver.supported_intents())
                     gpm_actions["log"].append(f"🔋 (BATTERI): {_bdec['reason']}")
-                    battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
+                    battery_driver.set_balancing(_bdec.get("rule") == "balance")
+                    if _bdec.get("rule") not in battery_control.SAFETY_RULES:
+                        battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
                     if battery_control.should_apply(_bdec, _battery["last"], _battery["at"], now,
                                                     battery_cfg["min_change_minutes"]):
                         if battery_commands.apply(_battery_commands, battery_driver, _bdec["intent"], _bdec.get("power_w")):
@@ -2006,7 +2023,7 @@ while True:
                     if _battery_commands.current:
                         try:
                             _battery_commands.observe(_battery_commands.current["command_id"], battery_state, time.time(),
-                                                      battery_cfg.get("reserve_soc"), battery_cfg.get("max_soc"))
+                                                      battery_cfg.get("reserve_soc"), (_bplan or {}).get("balance_target_soc") or battery_cfg.get("max_soc"))
                         except Exception:
                             pass  # Observability must not change existing follow/control behavior.
                     # Följer batteriet det vi säger åt det? (battery_follow.py) - visas i appen/webben, notis vid avvikelse
@@ -2024,6 +2041,11 @@ while True:
                             notifier.send_emil("🔋 Husbatteriet gör inte som det blir tillsagt",
                                                f"{_txt} Batteriet har inte sagt varför - kolla dess app eller display. "
                                                f"EnergyWizard fortsätter försöka.", key="batteri")
+                _balance_text = battery_balance.display(_balance, _bplan, _bdec, _battery.get("last")) if battery_cfg["balance"]["enabled"] else ""
+                _battery["balance_active"] = _balance_text == battery_balance.MESSAGES["active"]
+                if _battery.get("balance_text") != _balance_text:
+                    logger.set_override("battery_balance", json.dumps({"text": _balance_text}, ensure_ascii=False))
+                    _battery["balance_text"] = _balance_text
             except Exception as _be:
                 print(f"⚠️ Batteribeslutet hoppade över: {_be}")
             ai_thoughts_list = gpm_actions["log"].copy()

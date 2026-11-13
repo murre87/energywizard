@@ -208,10 +208,11 @@ def battery_items(rows, now, currency="SEK", symbol="kr"):
         t, action, soc, spot = r[:4]
         kw = r[4] if len(r) > 4 else None
         grid = r[5] if len(r) > 5 else None
+        balance = bool(r[6]) if len(r) > 6 else False
         if action == "discharge" and grid is not None and float(grid) < -EXPORT_KW:
             action = "export"
         t = _local(t)
-        if blocks and blocks[-1]["action"] == action and blocks[-1]["end"] == t:
+        if blocks and blocks[-1]["action"] == action and blocks[-1]["end"] == t and blocks[-1]["balance"] == balance:
             b = blocks[-1]
             b["end"] = t + SLOT
             b["soc"] = soc
@@ -219,11 +220,11 @@ def battery_items(rows, now, currency="SEK", symbol="kr"):
             b["kws"].append(kw)
         else:
             blocks.append({"action": action, "start": t, "end": t + SLOT, "soc": soc, "soc_from": prev_soc,
-                           "spots": [spot], "kws": [kw]})
+                           "spots": [spot], "kws": [kw], "balance": balance})
         prev_soc = soc
     out = []
     for b in blocks:
-        if b["action"] not in _BAT or b["end"] <= now:
+        if (b["action"] not in _BAT and not b["balance"]) or b["end"] <= now:
             continue
         sp = [float(x) for x in b["spots"] if x is not None]
         avg = sum(sp) / len(sp) if sp else None
@@ -234,7 +235,8 @@ def battery_items(rows, now, currency="SEK", symbol="kr"):
         if avg is not None:
             parts.append(f"spotpris {_kr(avg, currency, symbol)}/kWh")
         out.append({"kind": "battery", "action": b["action"], "start": b["start"].isoformat(), "end": b["end"].isoformat(),
-                    "when": _span(max(b["start"], now), b["end"], now), "title": _BAT[b["action"]],
+                    "when": _span(max(b["start"], now), b["end"], now),
+                    "title": "🔋 Batteriet balanseras" if b["balance"] else _BAT[b["action"]],
                     "detail": " · ".join(x for x in parts if x), "active": b["start"] <= now < b["end"],
                     "soc_from": None if b["soc_from"] is None else round(float(b["soc_from"])),
                     "soc_to": None if b["soc"] is None else round(float(b["soc"])),
@@ -246,7 +248,8 @@ def load_battery_rows(conn):
     """Batteriplanens kvartar till battery_items (webben och appen). grid_kw finns först när motorn sparat en plan
     med den kolumnen - innan dess utan, så att planen inte försvinner under uppdateringen."""
     from sqlalchemy import text
-    for cols in ("t_slot, action, soc_pct, spot, battery_kw, grid_kw", "t_slot, action, soc_pct, spot, battery_kw"):
+    for cols in ("t_slot, action, soc_pct, spot, battery_kw, grid_kw, balance",
+                 "t_slot, action, soc_pct, spot, battery_kw, grid_kw", "t_slot, action, soc_pct, spot, battery_kw"):
         try:
             return [tuple(r) for r in conn.execute(text(f"SELECT {cols} FROM battery_plan_slots "
                                                          "WHERE t_slot >= now() - interval '15 minutes' ORDER BY t_slot")).fetchall()]

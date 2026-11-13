@@ -19,6 +19,9 @@ def _j(raw):
 
 def build(ov: dict, car_names: dict | None = None) -> list:
     out = []
+    balance = _j(ov.get("battery_balance"))
+    if isinstance(balance, dict) and balance.get("text"):
+        out.append({"device": "Husbatteriet", "title": "Balansering", "text": balance["text"], "hint": "", "level": "info"})
     d = _j(ov.get("battery_follow"))
     if isinstance(d, dict) and d.get("status") == "not_following":
         out.append({"device": "Husbatteriet", "title": "Följer inte", "text": d.get("text") or "",

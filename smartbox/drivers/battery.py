@@ -12,6 +12,10 @@ from abc import ABC, abstractmethod
 
 
 class BatteryDriver(ABC):
+    def set_balancing(self, active):
+        """Optional transient maintenance context; never changes vendor SOC settings."""
+        return None
+
     @abstractmethod
     def read_state(self) -> dict:
         """{'soc_pct': float|None, 'power_w': float|None (+ = laddar, - = laddar ur),
