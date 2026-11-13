@@ -106,3 +106,25 @@ probe's `--platform linux/arm64` option before adoption.
 Configured engine/device behavior, real deployment volumes, nonroot ownership
 migration and all-in-one shell/PostgreSQL compatibility remain outside these
 isolated checks. Production images, release gates and deployments are unchanged.
+
+## Full-image audit of the runtime-qualified builds (#273)
+
+The native AMD64/ARM64 runtime jobs now feed their four successful component
+image IDs into `scripts/audit_dhi_images.py`. Mutable tags, incomplete component
+sets, failed probes, wrong-platform rows and unverified owned-volume results are
+rejected before auditing. Each immutable ID is passed to the existing
+`audit_image.py` policy: installed Python advisories, raw Grype findings, current
+CISA KEV data and available Debian fixes. The four reports use separate folders;
+a failed image does not skip the other audits, and missing/failing results make
+the job fail. Prior summary files cannot stand in for fresh results.
+
+The existing artifact upload retains the per-image inventories, requirements,
+scanner/KEV evidence and aggregate result even if an audit fails. Grype receives
+a local image archive, with no Docker socket, home directory or authentication
+file mounted. Registry credentials remain scoped to the existing login action.
+Default images, deployment behavior and DHI ownership/control gates do not change.
+
+This closes the workflow coverage gap left by `pip check` and startup checks;
+it does not itself resolve vendor investigations, apply a blanket VEX exemption
+or establish that an image is CVE-free. Live workflow results must be checked
+before claiming that a particular pair of platform builds passed these audits.
