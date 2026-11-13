@@ -149,3 +149,12 @@ power_meter:
 
 fuse:
   main_fuse_a: 25   # standardvärde (MAX_FUSE_A i decisions.py); överstyrs i drift av fuse_size_a i system_settings
+
+# Laddplanen räknar med kyla (ev_heating.py, natanoj, 1.2.71) - påslaget 2026-11-13 (Emil)
+ev_planning:
+  heating_adjustment:
+    enabled: true
+    balance_temp_c: 10
+    kw_per_degree: auto
+    max_base_kw: 10
+    window_days: 30
