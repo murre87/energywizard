@@ -35,3 +35,5 @@ restarts; persisted commands are never restored as authority or retried. Read wi
 Stage B remains pending: choose hardware-validated drivers and define bounded,
 idempotent retries, cancellation, supported fallback and restart behavior. No
 universal HOLD command or automatic recovery is enabled by this PR.
+
+New events include a code-owned driver_kind: generic_ha, ferroamp_modbus, ftw, none or unknown. This identifies the transport implementation, not a qualified hardware model. Generic HA and FTW labels do not infer an inverter brand. Configured hosts, entity IDs and credentials are excluded. Older events may lack the field; manual callers and unrecognized driver implementations remain unknown. Driver provenance never enables retries or recovery.
