@@ -289,7 +289,7 @@ function flowCard() {                    // delad med webbens Översikt (smartbo
 function pageHem() {
   if (!EN) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
   const s = EN.solar, g = EN.grid, net = g.net_w;
-  const alerts = (EN.alerts || []).map((a) => `<section class="card" style="border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}"><b>${a.level === "info" ? "ℹ️" : "⚠️"} ${esc(a.device)}: ${esc(a.title)}</b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`).join("");
+  const alerts = (EN.alerts || []).map((a) => `<section class="card" style="border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}"><b>${a.level === "info" ? "ℹ️" : "⚠️"} <span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`).join("");
   // Planklockan/Skyline ligger bara under Plan (Emil 2026-11-08: framsidan visar vad som händer just nu)
   return `<div class="page">${alerts}${flowCard()}${planNow()}${quickGrid(s, g, net, !!(FL && FL.ok))}${carsRow()}${ljusRow()}</div>`;
 }
