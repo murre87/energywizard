@@ -1,0 +1,222 @@
+{
+  "workflow": {
+    "id": 43363817998,
+    "url": "https://github.com/murre87/energywizard/actions/runs/43363817998",
+    "head_sha": "c32f8b3fb74c7d0250506a88120b670ce8302cd4",
+    "status": "completed",
+    "conclusion": "success",
+    "artifacts": [
+      {
+        "id": 14010030794,
+        "name": "dhi-signatures"
+      },
+      {
+        "id": 14009822239,
+        "name": "dhi-runtime-amd64"
+      },
+      {
+        "id": 14008954464,
+        "name": "dhi-runtime-arm64"
+      }
+    ],
+    "jobs": [
+      {
+        "id": 131683360529,
+        "name": "signatures",
+        "conclusion": "success"
+      },
+      {
+        "id": 131684836627,
+        "name": "runtime (ubuntu-24.04-arm, arm64)",
+        "conclusion": "success"
+      },
+      {
+        "id": 131684836724,
+        "name": "runtime (ubuntu-24.04, amd64)",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "signed_vex": {
+    "checked_at": "2026-11-13T04:14:55.737659+00:00",
+    "key_url": "https://registry.scout.docker.com/keyring/dhi/latest.pub",
+    "key_sha256": "1d02bbccf149283ae6288d96264dcad3fb23ee1911d90324a48eab28e4cb8a5f",
+    "results": [
+      {
+        "base": "builder",
+        "reference": "dhi.io/python:3.11-debian13-dev@sha256:5718cc9f67bccbb0b54c9badc50988b8617292aa4e730d38854d1b81cdb9121a",
+        "platform": "linux/amd64",
+        "manifest_digest": "sha256:e8cf20fd5706b0074173be2bf97b51e2dee3d551072fbda29ae7538eaf932253",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "052fc9612dca4a21a1e218ae9c0bf901980186180d788b90799490265b66a528",
+        "statuses": {
+          "not_affected": 1016,
+          "under_investigation": 16
+        },
+        "unresolved": [
+          "CVE-2024-2236",
+          "CVE-2025-12781",
+          "CVE-2026-18508",
+          "CVE-2026-3446",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411"
+        ]
+      },
+      {
+        "base": "builder",
+        "reference": "dhi.io/python:3.11-debian13-dev@sha256:5718cc9f67bccbb0b54c9badc50988b8617292aa4e730d38854d1b81cdb9121a",
+        "platform": "linux/arm64",
+        "manifest_digest": "sha256:765a0d54bc2114057aaa3f8776847e1c8fe820c967ebbc1cd3d050854d605c5e",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "ae5d9e3f3a20cf569adfe564e83c665c3078e6f9dfaf28c3ea4908ce91f56fe5",
+        "statuses": {
+          "not_affected": 1016,
+          "under_investigation": 16
+        },
+        "unresolved": [
+          "CVE-2024-2236",
+          "CVE-2025-12781",
+          "CVE-2026-18508",
+          "CVE-2026-3446",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411",
+          "CVE-2026-54411"
+        ]
+      },
+      {
+        "base": "runtime",
+        "reference": "dhi.io/python:3.11-debian13@sha256:1bb857892e25f7df5c34a6bd5f8695a450e85c8ab8511c02f98ad9282943435e",
+        "platform": "linux/amd64",
+        "manifest_digest": "sha256:b09f7c3e5be003ad27b5749b3dd0138e9c1bb22c41c10a302c708092575f22cc",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "bb83427037d3b4bee1da7e2d05f910b1ec308465f6a623ef20064aa5eafdd1f2",
+        "statuses": {
+          "not_affected": 190,
+          "under_investigation": 2
+        },
+        "unresolved": [
+          "CVE-2025-12781",
+          "CVE-2026-3446"
+        ]
+      },
+      {
+        "base": "runtime",
+        "reference": "dhi.io/python:3.11-debian13@sha256:1bb857892e25f7df5c34a6bd5f8695a450e85c8ab8511c02f98ad9282943435e",
+        "platform": "linux/arm64",
+        "manifest_digest": "sha256:7b961d13820ffb234f15944bcf9ebbfd6f07dbdd433981343ae72893deb4da39",
+        "verification": "docker-key-only-public-log-entry-missing",
+        "vex_sha256": "e326ae02cb53a90abc659fe5bbf2847b1f562d9e98513b2ed48573ad8cd71618",
+        "statuses": {
+          "not_affected": 190,
+          "under_investigation": 2
+        },
+        "unresolved": [
+          "CVE-2025-12781",
+          "CVE-2026-3446"
+        ]
+      }
+    ]
+  },
+  "native_runtime": {
+    "amd64": {
+      "checked_at": "2026-11-13T04:17:11.709448+00:00",
+      "scope": "Isolated startup and synthetic root-owned volumes; no device control",
+      "results": [
+        {
+          "component": "smartbox",
+          "platform": "linux/amd64",
+          "image_id": "sha256:0a56caa3ab7a93b637d1726076fa73daa5fd5cce76b3d098d0ec242395bb7bbf",
+          "readiness": "installation-wait",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        },
+        {
+          "component": "webdashboard",
+          "platform": "linux/amd64",
+          "image_id": "sha256:949ced524c2e4aa77faa0ba720e818635d718694ee20f195b42b9910323e91d0",
+          "readiness": "/api/ping",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        },
+        {
+          "component": "ewapp",
+          "platform": "linux/amd64",
+          "image_id": "sha256:830b089649dbf48a05201412b614884d32f02f910a3d679c1c9ac5c9353c3201",
+          "readiness": "/api/ping",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        },
+        {
+          "component": "telemetry-collector",
+          "platform": "linux/amd64",
+          "image_id": "sha256:7920812961c251dca4fb5cd78331f69cb0c6c80d165988c7ad5920196f5dc567",
+          "readiness": "/api/stats",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        }
+      ]
+    },
+    "arm64": {
+      "checked_at": "2026-11-13T04:16:59.721139+00:00",
+      "scope": "Isolated startup and synthetic root-owned volumes; no device control",
+      "results": [
+        {
+          "component": "smartbox",
+          "platform": "linux/arm64",
+          "image_id": "sha256:385be7ff343ff6f31ee7214e22eeed8c9482b1f87791665ae1926f4011812932",
+          "readiness": "installation-wait",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        },
+        {
+          "component": "webdashboard",
+          "platform": "linux/arm64",
+          "image_id": "sha256:bf48e474f37921f6c15fc883df85a6e949569aded580bec1cf2c1df2c8d1ff7c",
+          "readiness": "/api/ping",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        },
+        {
+          "component": "ewapp",
+          "platform": "linux/arm64",
+          "image_id": "sha256:c585275d746151dd29603d0a8f9fb111172de9d06811d3620426f4bc6b5414ef",
+          "readiness": "/api/ping",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        },
+        {
+          "component": "telemetry-collector",
+          "platform": "linux/arm64",
+          "image_id": "sha256:89b5cfcd29725ad09536659dfb16c45db996a3f2ed8287ffde4a3bad045cfc92",
+          "readiness": "/api/stats",
+          "root_owned_volume": "passed",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "All four signatures verified against the Docker key using the narrowly allowed missing-transparency-entry fallback; no public-log inclusion established.",
+    "Runtime checks include dependency integrity (pip check), not a fresh full-image CVE audit.",
+    "Unresolved VEX investigations remain; no CVE-free, reachability or production-adoption claim."
+  ]
+}
