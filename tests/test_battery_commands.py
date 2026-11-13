@@ -12,6 +12,32 @@ def tracker():
     return t,cid,events
 
 
+def test_driver_provenance_is_code_owned_and_survives_transitions(monkeypatch):
+    import shadow
+    from drivers.battery_generic import GenericBatteryDriver
+    monkeypatch.setattr(shadow,'active',lambda:False)
+    driver=GenericBatteryDriver(entities={'power':'sensor.private_installation'})
+    monkeypatch.setattr(driver,'apply_intent',Mock(return_value=True))
+    events=[];t=B.Tracker(events.append)
+    assert B.apply(t,driver,'charge',1000,now=100)
+    assert {event['driver_kind'] for event in events}=={'generic_ha'}
+    assert 'private_installation' not in json.dumps(events)
+    driver.apply_intent.assert_called_once_with('charge',1000)
+    t.begin('hold',None,200,driver_kind='secret-host.example')
+    assert events[-2]['driver_kind']=='generic_ha'
+    assert events[-1]['driver_kind']=='unknown'
+
+
+def test_unknown_driver_and_legacy_callers_are_not_brand_qualified(monkeypatch):
+    import shadow
+    monkeypatch.setattr(shadow,'active',lambda:False)
+    events=[];t=B.Tracker(events.append)
+    B.apply(t,Mock(), 'hold',None)
+    assert all(event['driver_kind']=='unknown' for event in events)
+    t.begin('hold',None,200)
+    assert events[-1]['driver_kind']=='unknown'
+
+
 def test_ack_readback_and_physical_evidence_are_distinct():
     t,cid,events=tracker()
     assert events[-1]['state']=='sent'
