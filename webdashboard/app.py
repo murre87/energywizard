@@ -618,6 +618,18 @@ def api_update_status():
     return {"ok": True, "status": update_check.status(block=True)}   # väntar bara när svaret är äldre än sex timmar
 
 
+@app.get("/api/snapshot-status")
+def api_snapshot_status(request: Request):
+    if AUTH.session(request)[0] != 'owner':
+        return JSONResponse({'detail':'Bara ägaren kan se diagnostiken'},status_code=403)
+    import snapshot_status
+    try:
+        with ENGINE.connect() as connection:
+            return {'ok':True,'status':snapshot_status.read(connection)}
+    except Exception:
+        return {'ok':True,'status':{'state':'unknown','fresh':False}}
+
+
 @app.get("/api/control-journal")
 def api_control_journal(back: int = 1):
     """Höll vi planen? Per enhet för ett dygn (0 = idag, 1 = igår), smartbox/control_journal.py - samma i appen och webben."""

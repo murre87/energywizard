@@ -25,3 +25,28 @@ is not a guarantee of numeric portability between arbitrary Python environments.
 
 This supports planning diagnostics, not reproduction of every runtime error.
 It does not alter optimizer decisions, device commands or savings definitions.
+
+## Storage status
+
+The owner can open Settings → Planning snapshots in the web UI and refresh its
+status: disabled, waiting for a first capture, queued, saving, saved, or failed.
+Last successful save and failed/dropped attempt counts are shown. Counts cover
+the current engine process and reset on restart; a successful save retains the
+counts while clearing the current failed state. Queue saturation counts as a
+dropped attempt; validation or storage errors count as failed attempts.
+
+The capture path updates only in-memory counters. A separate daemon publishes
+allowlisted diagnostics through the existing shared database, independently of
+the snapshot writer. It checks every five seconds, publishing changes or a
+60-second heartbeat. Database statements have a two-second timeout. A blocked
+writer or status publisher never makes capture wait for disk or database work.
+No configuration, paths, exception messages or snapshot contents are published.
+
+The owner-only `/api/snapshot-status` endpoint rejects malformed, oversized,
+unsupported, stale (>90 seconds) or implausibly future reports. Missing or failed
+publication/database access is shown as unknown, never as a successful current
+save. A full snapshot disk can be reported using the independent database; if the
+database is also unavailable, only unknown status is possible. Pending counters
+can be lost at process exit, and this report does not prove historical retention
+or that storage remains writable after the last successful save. English and
+Czech labels are included. Snapshot schema and replay behavior are unchanged.

@@ -1246,6 +1246,25 @@ const BAT_STYLES = {
   very_bold: ["Mycket djärv", "Planerar på prognosen som den är. Tjänar mest när den stämmer och kostar mer när den slår fel."],
 };
 // Home Assistant via MQTT (smartbox/mqtt_bridge.py): broker + status. Bara ägaren ser kortet.
+function snapshotStatusHtml(status) {
+  const labels = {disabled:"Avstängd",waiting:"Väntar på första ögonblicksbilden",queued:"I kö",
+    saving:"Sparar",failed:"Sparning misslyckades eller tappades",saved:"Sparad",unknown:"Okänd eller inaktuell status"};
+  const stamp = value => value == null ? "–" : new Date(value * 1000).toLocaleString((window.I18N && I18N.lang) || "sv-SE");
+  const state = status && status.fresh ? status.state : "unknown";
+  return `<div><b>${labels[state] || labels.unknown}</b></div>
+    ${status && status.fresh ? `<div class="note"><span>Senast sparad</span>: ${esc(stamp(status.last_saved_at))}<br>
+    <span>Misslyckade sedan motorstart</span>: ${esc(status.failed)} · <span>Tappade sedan motorstart</span>: ${esc(status.dropped)}</div>` : ""}
+    <div class="note">Status rapporteras av motorn. Inga råa inställningar eller feltexter visas.</div>`;
+}
+
+async function mountSnapshotStatus() {
+  const body = document.getElementById("snapshotstatusbody");
+  if (!body) return;
+  let status;
+  try { const data = await api("api/snapshot-status"); status = data.status; } catch (e) { /* unknown */ }
+  if (body.isConnected) body.innerHTML = snapshotStatusHtml(status);
+}
+
 async function mountMqtt() {
   let d;
   try { d = await api("api/mqtt-settings"); } catch (e) { return; }
@@ -1976,6 +1995,11 @@ async function renderInstallningar() {
         <div class="note" style="margin-top:4px;line-height:1.5"><span>När något går fel skickas ett</span> <b>sanerat</b> <span>utdrag (senaste felloggrader utan entiteter/IP) till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga. På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.</span></div></div>
         <label class="switch" style="flex:0 0 auto"><input type="checkbox" id="supporttoggle"><span class="slider"></span></label></div>
     </div>
+    <div class="card" style="margin-bottom:16px" id="snapshotstatuscard">
+      <h2>Planernas ögonblicksbilder</h2>
+      <div id="snapshotstatusbody" class="note">Laddar…</div>
+      <button class="icobtn" id="snapshotstatusrefresh" style="margin-top:8px">Uppdatera status</button>
+    </div>
     <div class="card" style="margin-bottom:16px" id="sensorcard" hidden>
       <div style="font-size:1.1rem;font-weight:700">🏠 Givare inne och ute</div>
       <div class="note" style="margin-top:4px">Välj vilka temperaturgivare som visar husets innetemperatur (medianen används när du har tre eller fler) och vilken som sitter ute. Förslagen är markerade ⭐.</div>
@@ -2044,6 +2068,8 @@ async function renderInstallningar() {
   mountSupportDiag();
   mountShadow();
   mountMqtt();
+  mountSnapshotStatus();
+  document.getElementById("snapshotstatusrefresh").onclick = mountSnapshotStatus;
   if (window.I18N && I18N.lang !== "sv") {
     const mb = document.getElementById("missingbtn");
     mb.hidden = false; mb.onclick = () => I18N.downloadMissing();
