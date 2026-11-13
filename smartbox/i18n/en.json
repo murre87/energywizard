@@ -2386,5 +2386,7 @@
  "Normalt just nu": "Normal right now",
  "Stil": "Style",
  "Ny (standard)": "New (default)",
- "Klassisk": "Classic"
+ "Klassisk": "Classic",
+  "Radiatorer i Home Assistant": "Radiators in Home Assistant",
+  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Discovered radiators are shown as inventory only. Control them in Home Assistant; separate zone scheduling is not supported yet."
 }

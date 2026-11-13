@@ -2175,6 +2175,14 @@ async function runDiscovery(ev, cached) {
       <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div>${item.note ? `<div class="note" style="margin-top:6px">${esc(item.note)}</div>` : ""}</div>`;
   };
   html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? `${esc(d.heat_pump.device_name || "")} ${compressorPicker(d)}` : "");
+  if ((d.radiators || []).length) {
+    html += `<div class="card" style="margin-bottom:16px"><h2>Radiatorer i Home Assistant</h2>
+      <div class="note">Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.</div>`;
+    d.radiators.forEach(r => {
+      html += `<div class="note"><b>${esc(r.name)}</b> · <code>${esc(r.entity)}</code>${r.area ? ` · ${esc(r.area)}` : ""}</div>`;
+    });
+    html += `</div>`;
+  }
   // Etikett och värde i var sin textnod (#271): ordlistan kan översätta etiketten utan att
   // entitets-id:t hamnar i nyckeln. En sammanslagen sträng matchar bara just den installationen.
   html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `<span>Effekt</span>: ${d.solar.pv_power_entity || "-"} · <span>Dagsenergi</span>: ${d.solar.today_kwh_entity || "-"}` : "");

@@ -2386,5 +2386,7 @@
   "Normalt just nu": "Normální cena právě teď",
   "Stil": "Styl",
   "Ny (standard)": "Nový (výchozí)",
-  "Klassisk": "Klasický"
+  "Klassisk": "Klasický",
+  "Radiatorer i Home Assistant": "Radiátory v Home Assistant",
+  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Nalezené radiátory se zobrazují pouze jako přehled zařízení. Ovládejte je v Home Assistant; samostatné plánování zón zatím není podporováno."
 }

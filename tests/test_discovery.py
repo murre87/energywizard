@@ -10,6 +10,23 @@ import discovery
 from discovery import discover_house
 
 
+def test_adax_zones_are_inventory_without_heat_pump_control_mapping():
+    entities = [
+        dict(e='climate.bedroom',n='Bedroom',a='Upstairs',m='Adax',d='a'),
+        dict(e='climate.study',n='Study',m='Adax',d='b'),
+        dict(e='sensor.adax_temperature',n='Temperature',m='Adax',d='b',dc='temperature'),
+        dict(e='climate.fake',n='Adax',m='Other',d='c'),
+    ]
+    with patch('discovery._check_configured_heat_pump',return_value=None):
+        result=discover_house(entities)
+    assert result['radiators']==[
+        dict(entity='climate.bedroom',name='Bedroom',area='Upstairs',maker='Adax'),
+        dict(entity='climate.study',name='Study',area=None,maker='Adax'),
+    ]
+    assert result['heat_pump'] is None
+    assert discover_house([])['radiators']==[]
+
+
 def _hybrid_sensor(entity, name, unit="W", state="0", device="hybrid"):
     return dict(e="sensor." + entity, n=name, d=device, dn="SolaX Inverter",
                 m="SolaX", mo="Hybrid", dc="power" if unit == "W" else "energy",
@@ -359,7 +376,7 @@ def test_huawei_foreslar_tjanstedrivrutinen_med_enhetens_id():
 def test_tomt_hus_ger_inga_fynd_kraschar_inte():
     with patch("discovery._check_configured_heat_pump", return_value=None):
         result = discover_house([])
-    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": [], "power_meter": None, "battery": None, "power_sensors": [], "compressor_sensors": []}
+    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": [], "power_meter": None, "battery": None, "power_sensors": [], "compressor_sensors": [], "radiators": []}
 
 
 def test_ha_fynd_vinner_over_serverchecken_inte_overskrivs():
