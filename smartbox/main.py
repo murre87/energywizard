@@ -25,6 +25,7 @@ import health            # Sensor-/länkövervakning (varnar när en sensor tyst
 import learning         # AI-modeller för temperatur och avsvalning
 import mpc               # Prediktiv förvärmnings-planerare (skuggläge + veckovis självvalidering)
 import house_config      # EnergyWizard Open: drivrutinsarkitektur (bil/laddare/värmepump/sol/spa)
+import smart_plugs
 import ev_handshake      # Generisk laddar-handskakning (vilken fysisk laddare hör till vilken bil)
 import decision_summary  # Vad görs nu och varför, per enhet (ur gpm.py:s logg)
 import solar_write_guard # Hur ofta exportgränsen får skrivas (flashminnet i växelriktaren)
@@ -37,6 +38,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_balance
@@ -114,6 +116,11 @@ try:
 except Exception as e:
     print(f"⚠️ Kunde inte ladda house_config.yaml från {HOUSE_CONFIG_PATH} ({e}) - fortsätter med tomt hus (bara Null-drivrutiner).")
     house_cfg = {}
+try:
+    _smart_plugs = smart_plugs.Controller(house_cfg.get('smart_plugs'))
+except ValueError as e:
+    print(f"Smart plugs disabled: {e}")
+    _smart_plugs = smart_plugs.Controller(None)
 car_drivers = house_config.build_car_drivers(house_cfg)
 charger_drivers = house_config.build_charger_drivers(house_cfg)
 physical_charger_drivers = house_config.build_physical_charger_drivers(house_cfg)
@@ -301,7 +308,7 @@ indoor_temp          = None  # FIX: för-initieras så pumpen offline vid uppsta
 
 last_sent_temp           = None
 last_sent_water          = None
-last_sent_water_target   = None
+water_sp = water_setpoints.WaterSetpoints()
 last_sent_spa_target     = None
 last_sent_spa_eco        = None
 last_sent_operating_mode = None
@@ -1136,6 +1143,15 @@ while True:
                 )
             pump_data, price_tuple = asyncio.run(fetch_heavy_data())
             current_price, dynamic_limit, strategy, all_prices = price_tuple
+            # Explicit nonessential devices only; never switch from yesterday's
+            # fallback profile or a missing current interval. Prices use the
+            # configured contract's complete import-price calculation.
+            if _smart_plugs.devices:
+                try:
+                    _plug_price = smart_plugs.policy_price(current_price, strategy, now, nordpool.planning_buy_price)
+                    smart_plugs.run(_smart_plugs, _plug_price, now.timestamp())
+                except Exception as e:
+                    print(f"Smart plug policy skipped: {type(e).__name__}")
 
             # Notis (deduppad per dygn) om vi kör på gårdagens prisprofil pga prisbortfall
             if strategy and strategy.get("price_fallback") and last_price_fallback_notify_date != now.date():
@@ -2499,12 +2515,7 @@ while True:
                     print(f"  {log_msg}")
 
                 if ov_smart_mode != "manual":
-                    water_target = gpm_actions["water_target_temp"]
-                    if last_sent_water_target != water_target:
-                        heat_pump_driver.set_water_stop_temp(water_target)
-                        time.sleep(2)
-                        heat_pump_driver.set_water_start_temp(water_target - 5)
-                        last_sent_water_target = water_target
+                    water_sp.apply(heat_pump_driver, gpm_actions["water_target_temp"], sleep=time.sleep)
                         
                     ov_water = all_overrides.get("hotwater", "auto")
                     if ov_water == "on": print("🔧 Överstyrning: Varmvatten TILL")

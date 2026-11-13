@@ -32,6 +32,55 @@ def history():
     return [{'t':START.timestamp()+i*900,'kw':2 if i<7*96 else 1} for i in range(8*96)]
 
 
+def planner_snapshot(**changes):
+    import battery_plan,plan_snapshot
+    origin=START+timedelta(days=7)
+    slots=[dict(t=origin+timedelta(minutes=i*15),buy=1 if i<4 else 3,sell=.1,
+                load_kw=2,solar_kw=0,ev_kw=0) for i in range(8)]
+    params=dict(soc0_kwh=2,capacity_kwh=5,reserve_kwh=1,max_kwh=5,
+                charge_kw=2,discharge_kw=2,step_kwh=.5,**changes)
+    return plan_snapshot.build(slots,params,battery_plan.optimize(slots,**params),origin)
+
+
+def test_paired_planner_uses_realized_load_but_never_as_forecast_features():
+    from load_forecast_evaluation import evaluate_planner_snapshot
+    data=history();snapshot=planner_snapshot()
+    a=evaluate_planner_snapshot(data,snapshot,'UTC')
+    for row in data[672:]:row['kw']=20
+    b=evaluate_planner_snapshot(data,snapshot,'UTC')
+    assert a['predictions']==b['predictions']
+    for label in ('baseline','candidate'):
+        assert a['results'][label]['actions']==b['results'][label]['actions']
+        assert a['results'][label]['energy_cash_cost']!=b['results'][label]['energy_cash_cost']
+        assert b['results'][label]['soc_bounds_respected']
+    assert not a['adoption_ready']
+    assert a['plan_id']==snapshot['plan_id']
+
+
+@pytest.mark.parametrize('changes',[{'allow_export':False},{'ev_mode':'free'},
+    {'balance_target_kwh':5,'balance_hold_slots':1,'balance_deadline_slots':8}])
+def test_paired_planner_rejects_unmatched_simulator_policies(changes):
+    from load_forecast_evaluation import evaluate_planner_snapshot
+    with pytest.raises(ValueError,match='Simulator supports'):
+        evaluate_planner_snapshot(history(),planner_snapshot(**changes))
+
+
+def test_paired_planner_rejects_gaps_tampering_and_unaligned_origin():
+    from load_forecast_evaluation import evaluate_planner_snapshot
+    import hashlib,plan_snapshot
+    snapshot=planner_snapshot()
+    with pytest.raises(ValueError,match='Missing realized'):
+        evaluate_planner_snapshot(history()[:675],snapshot)
+    snapshot['plan_id']='tampered'
+    with pytest.raises(ValueError,match='identity'):
+        evaluate_planner_snapshot(history(),snapshot)
+    snapshot=planner_snapshot()
+    snapshot['made_at']=(START+timedelta(days=7,seconds=1)).isoformat()
+    snapshot['plan_id']=hashlib.sha256(plan_snapshot.canonical({k:v for k,v in snapshot.items() if k!='plan_id'}).encode()).hexdigest()
+    with pytest.raises(ValueError,match='quarter-boundary'):
+        evaluate_planner_snapshot(history(),snapshot)
+
+
 def test_causal_comparison_reports_metrics_but_never_adopts():
     r=evaluate(history(),START+timedelta(days=7))
     assert r['candidate']['mae_kw']<r['baseline']['mae_kw']

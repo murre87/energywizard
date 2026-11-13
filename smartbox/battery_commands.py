@@ -15,6 +15,14 @@ _WORKER = None
 MAX_EVENTS = 5000
 MAX_AGE_S = 30*86400
 
+# Code-owned labels only: never persist configured hosts, entities or credentials.
+_DRIVER_KINDS = {
+    ('drivers.battery_generic', 'GenericBatteryDriver'): 'generic_ha',
+    ('drivers.battery_ferroamp', 'FerroampBatteryDriver'): 'ferroamp_modbus',
+    ('drivers.ftw_device', 'FtwBatteryDriver'): 'ftw',
+    ('drivers.battery', 'NullBatteryDriver'): 'none',
+}
+
 
 def finite(value):
     try:
@@ -70,10 +78,11 @@ class Tracker:
         try:self.sink(event)
         except Exception:pass
 
-    def begin(self,intent,power_w,now):
+    def begin(self,intent,power_w,now,driver_kind='unknown'):
         if self.current:
             self._emit('superseded','new_decision',now)
         self.current={'command_id':str(uuid.uuid4()),'intent':intent,
+                      'driver_kind':driver_kind if driver_kind in _DRIVER_KINDS.values() else 'unknown',
                       'requested_w':float(power_w) if finite(power_w) else None,'created_at':now}
         self.last=None
         self._emit('queued','awaiting_transport',now)
@@ -117,7 +126,10 @@ class Tracker:
 def apply(tracker,driver,intent,power_w,now=None):
     """One existing driver call; tracking failures never change its return/exception."""
     now=time.time() if now is None else now
-    try:command_id=tracker.begin(intent,power_w,now)
+    try:
+        cls=type(driver)
+        kind=_DRIVER_KINDS.get((cls.__module__,cls.__name__),'unknown')
+        command_id=tracker.begin(intent,power_w,now,driver_kind=kind)
     except Exception:command_id=None
     try:ok=driver.apply_intent(intent,power_w)
     except Exception:

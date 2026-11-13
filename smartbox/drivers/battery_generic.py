@@ -220,6 +220,19 @@ class GenericBatteryDriver(BatteryDriver):
                 v = int(round(soc))
             elif v is None:
                 v = p * (1 if step.get("sign", 1) >= 0 else -1)
+                if step.get("power_units") is True:
+                    unit = str(homeassistant.get_attribute(step["number"], "unit_of_measurement") or "").lower()
+                    if unit not in ("w", "kw"):
+                        return False
+                    v /= 1000.0 if unit == "kw" else 1.0
+                    try:
+                        lower = float(homeassistant.get_attribute(step["number"], "min"))
+                        upper = float(homeassistant.get_attribute(step["number"], "max"))
+                    except (TypeError, ValueError):
+                        return False
+                    if not (math.isfinite(lower) and math.isfinite(upper) and lower < 0 < upper):
+                        return False
+                    v = max(lower, min(upper, v))
             return bool(homeassistant.set_number(step["number"], v, **self._fkw()))
         return False
 

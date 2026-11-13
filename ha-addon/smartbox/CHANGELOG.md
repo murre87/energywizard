@@ -1,5 +1,48 @@
 # Ändringar
 
+## 1.2.77 (2026-11-13)
+- **Thermia: varmvattnets startvärde hålls inom pumpens intervall** (30–55 °C enligt installatörsmenyn
+  SERVICE → HOT WATER). Bortaläge och effekttak bad om start 5 °C, vilket pumpen inte tar emot.
+- **Kontrollen av start/stopp görs nästa kvart** i stället för direkt efter skrivningen. Husdata-gatewayen visar
+  ett nyskrivet värde först efter ungefär en halv minut, så den direkta kontrollen kunde varna i onödan.
+- Thermias stoppregister är nu belagt i manualen som legionellakörningens stopptemperatur (TOPH. STOP, 60 °C från
+  fabrik, 50–65 °C). EnergyWizard rör det inte (sedan 1.2.76).
+
+## 1.2.76 (2026-11-13)
+- **Thermia via Husdata: bara varmvattnets startvärde styrs.** Kompressorns varmvattenladdning stoppar vid
+  pressostaten, inte vid stoppregistret (Thermias manual). Stoppregistret styr troligen elpatronens toppvärmning,
+  så det lämnas nu som installatören satt det. Det enda som avgör när en ren varmvattenladdning startar är
+  startvärdet, och det sänks som förut när elen är dyr.
+- **Övriga pumpar som före 1.2.74**: för HeishaMon, ThermIQ, NIBE och myUplink är stoppvärdet laddningens mål
+  (för HeishaMon den enda spärren), så dyrt ger åter stopp 40 °C och start 35 °C. 1.2.74 höll stoppet på
+  normalnivån för alla pumpar, vilket tog bort spärren för HeishaMon.
+- Thermias växelventil (varmvatten eller husvärme) loggas varje minut, så att varmvattenladdningar kan mätas
+  exakt.
+
+## 1.2.75 (2026-11-13)
+- **Ruta om det nya utseendet**: den som uppdaterat och får den nya stilen ser en gång en ruta i appen som
+  berättar vad som ändrats och hur man byter tillbaka (Inställningar → Appen → Stil → Klassisk), med knapparna
+  "Behåll det nya" och "Byt till klassisk". Nya användare och den som redan valt stil ser den inte. På svenska,
+  engelska och tjeckiska.
+- Varmvattnets tillbakaläsning (1.2.74) läser start och stopp i en läsning och försöker en gång till om
+  Husdata-gatewayen släpper anslutningen.
+
+## 1.2.74 (2026-11-13)
+- **Varmvattenspärren vid dyrt elpris fäster nu** (Thermia via Husdata): när elen är dyr sänks bara
+  varmvattnets startvärde (så ingen dyr laddning startar förrän tanken är kall). Stoppvärdet ligger kvar på
+  normalnivån. Förut sänktes även stoppet till 40 °C, vilket pumpen inte tog emot (den visade 60 °C), så en
+  laddning som ändå startade under en dyr timme gick ända upp till 60 °C.
+- Efter varje ändring läses start- och stoppvärdet tillbaka från pumpen. Fäster de inte görs nya försök (högst
+  tre per värde) med en varning i loggen, i stället för att motorn tyst tror att det gick.
+
+## 1.2.73 (2026-11-13)
+- **Ny stil i appen (standard)**: lugnare ytor utan gradienter, glas och färgad glöd, en accentfärg bara på det som
+  betyder något, inga emoji i flödet och planen, inga versaler med spärrning, lättare vikter och en enda knappstil.
+  Överst står priset just nu ("Billigt just nu · 0,83 kr/kWh") i stället för en slumpad rad. Flödet "Just nu",
+  laddringen och skylinen behåller sina färger.
+- **Klassisk stil** finns kvar under Inställningar → Appen → Stil, för den som vill ha det gamla utseendet (med
+  glas och dygnsfärger som förut). I den nya stilen är glas och dygnsfärger av som standard men går att slå på.
+
 ## 1.2.72 (2026-11-13)
 - **Större graf i appens Historik** (#371): tryck på effektgrafen så öppnas en stor, lättläst version med axlar,
   tider och teckenförklaring, samma periodval (24 h, 7 d, 30 d, 1 år) och värdena där man trycker eller drar med

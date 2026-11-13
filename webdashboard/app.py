@@ -2064,6 +2064,8 @@ def _build_house_config_yaml(sel: dict) -> str:
             lines.append(f"  preset: {gs['preset']}   # vilken förinställning lägena kommer från (för telemetrin)")
         if gs.get("keepalive_s"):
             lines.append(f"  keepalive_s: {int(gs['keepalive_s'])}     # skriv om laddkommandot så här ofta (växelriktarens fjärrstyrning släpper annars)")
+        if "power_invert" in gs:
+            lines.append("  power_invert: " + ("true" if gs["power_invert"] is True else "false"))
         if modes:
             lines.append(f"  modes:               # förifyllt för {gs.get('preset') or 'din integration'} - kontrollera mot HA")
             for intent, opt in modes.items():
