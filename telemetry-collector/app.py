@@ -6,6 +6,7 @@ Tar bara emot och lagrar det smartbox/telemetry.py redan sanerat: en hashad
 husidentifierare, drivrutinkategorier, feltyper, version, tidsstämpel. Inget UI
 än - bara lagring + /api/recent för att själv fråga ut det senaste.
 """
+import log_scrub  # noqa: E402  (samma sanering som motorn, smartbox/log_scrub.py)
 import os
 import smtplib
 import sqlite3
@@ -137,7 +138,8 @@ async def ingest_error(request: Request):
     module = _str_field(body, "module", 100)
     error_type = _str_field(body, "error_type", 100)
     support = body.get("support")
-    support_txt = str(support)[:8000] if isinstance(support, str) and support.strip() else ""
+    # #227: sanera igen här (skydd i två lager) innan utdraget kan hamna i ett offentligt ärende
+    support_txt = log_scrub.scrub(str(support)[:60000]) if isinstance(support, str) and support.strip() else ""
     now = datetime.now(timezone.utc).isoformat()
     with _db() as c:
         c.execute(
@@ -345,7 +347,7 @@ async def error_groups(request: Request, days: int = 14):
                 cleaned = "\n".join(
                     ln for ln in str(support).splitlines()
                     if not (len(ln.strip()) == 16 and all(ch in "0123456789abcdef" for ch in ln.strip()))
-                )[:4000]
+                )[-30000:]
                 groups[key]["support"] = cleaned
     out = [{"key": k, "module": g["module"], "error_type": g["error_type"], "houses": len(g["houses"]),
             "versions": sorted(g["versions"]), "first": g["first"], "last": g["last"], "reports": g["count"],

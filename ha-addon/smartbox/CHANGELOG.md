@@ -1,5 +1,15 @@
 # Ändringar
 
+## 1.2.66 (2026-11-13)
+- **Felrapporterna får loggen med** (#227): när ett fel rapporteras följer husets logg de senaste två timmarna med
+  (högst 400 rader), utöver felraderna och de senaste besluten, så att felet går att förstå utan att fråga.
+- **Inget känsligt följer med**: allt saneras rad för rad i huset (`log_scrub.py`) och igen i samlaren innan det kan
+  hamna i ett offentligt ärende. Bort tas husets egna namn ur Home Assistant och inställningarna (platsen, personer,
+  zoner, telefoner, användare, bilnamn som blir `<bil 1>`, `<bil 2>`), adresser och värdnamn, IP- och MAC-adresser,
+  e-post, token och nycklar, lösenord, koordinater och serienummer. Entiteter visas bara med sin domän
+  (`sensor.<…>`). En rad där något ändå ser känsligt ut tas bort helt. Felsökningsutdraget går som förut att stänga
+  av i Inställningar.
+
 ## 1.2.65 (2026-11-10)
 - **Licenser och ursprung förtydligade** (#231): FTW-drivrutinerna från srcfl/device-drivers används enligt deras
   licens (AGPL-3.0). Upstreams LICENSE, NOTICE, LICENSING och tredjepartsnotiser följer nu med, och ändringen i
