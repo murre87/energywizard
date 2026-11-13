@@ -368,6 +368,7 @@ def _battery_control_preset(ents, all_ents=None):
                 dispatch = lambda sign: [{"number": target["e"], "sign": sign, "power_units": True}, select("EMS BattCtrl")]
                 result["modes"] = {"auto": [select("General")], "charge": dispatch(-1), "discharge": dispatch(1),
                                    "hold": [{"number": target["e"], "value": 0}, select("EMS BattCtrl")]}
+            result["ftw_fallback"] = not bool(result["modes"])
             return result
     # Felicity Solar via partach/ha_felicity: BARA avläsning. Integrationen har en egen prisstyrning (EMS) som
     # skriver växelriktarens Economic-regler, och dess "Operating Mode"-val skriver Economic (2) även när man väljer
@@ -1020,6 +1021,8 @@ def discover_house(entities: list[dict] | None = None) -> dict:
                 if "power_invert" in preset:
                     battery["generic_suggestion"]["power_invert"] = preset["power_invert"]
                 battery["control_preset"] = preset["name"]
+                if preset.get("ftw_fallback"):
+                    battery["control_preset"] = None  # mapping readings is not a control capability
                 if preset.get("note"):
                     battery["note"] = preset["note"]
                 if preset.get("keepalive_s"):

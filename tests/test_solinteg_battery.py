@@ -63,6 +63,7 @@ def test_incomplete_control_contract_only_monitors(missing):
     cfg=config(rows)
     assert cfg['battery']['power_invert'] is True
     assert not build_battery_driver(cfg).supported_intents()
+    assert discovery.discover_house(rows)['ftw_suggestion']['driver']=='solinteg'
 
 
 def test_unknown_runtime_units_refuse_forced_control_but_allow_general():
