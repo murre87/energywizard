@@ -1,5 +1,5 @@
 # Optional hardened build; authenticate to dhi.io before building.
-FROM dhi.io/python:3.11-debian13-dev@sha256:e78bcf38fb9df94be5d2d8a34ad41e38a4ff8a743976c5e53f58b41b51ea822b AS builder
+FROM dhi.io/python:3.11-debian13-dev@sha256:5718cc9f67bccbb0b54c9badc50988b8617292aa4e730d38854d1b81cdb9121a AS builder
 WORKDIR /app
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -12,7 +12,7 @@ COPY ftw_drivers/ ./ftw_drivers/
 COPY LICENSE ./LICENSE
 COPY i18n/ ./i18n/
 
-FROM dhi.io/python:3.11-debian13@sha256:65ba5f9799f9d684d649cc3649abeb80776f2942d47ec9cb3495f6b30db39f33
+FROM dhi.io/python:3.11-debian13@sha256:1bb857892e25f7df5c34a6bd5f8695a450e85c8ab8511c02f98ad9282943435e
 # Retain access to existing root-owned volumes; nonroot requires an ownership migration.
 USER 0
 ARG APP_VERSION=dev
