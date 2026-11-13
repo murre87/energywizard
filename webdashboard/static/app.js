@@ -467,7 +467,7 @@ async function renderOversikt() {
   api("api/control-alerts").then((r) => {                // en enhet som inte gör som den blir tillsagd syns överst
     if (!r || !r.alerts || !r.alerts.length || document.getElementById("ctrlalerts")) return;
     main.insertAdjacentHTML("afterbegin", `<div id="ctrlalerts">${r.alerts.map((a) => `<div class="card" style="margin-bottom:16px;border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}">
-      <b>${a.level === "info" ? "ℹ️" : "⚠️"} ${esc(a.device)}: ${esc(a.title)}</b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></div>`).join("")}</div>`);
+      <b>${a.level === "info" ? "ℹ️" : "⚠️"} <span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></div>`).join("")}</div>`);
   }).catch(() => {});
   api("api/update-status").then((u) => {                // en nyare version finns: säg det överst (update_check.py)
     const st = u && u.status;
