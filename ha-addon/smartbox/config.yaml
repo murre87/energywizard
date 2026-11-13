@@ -10,6 +10,8 @@ arch:
 startup: application
 boot: auto
 homeassistant_api: true
+# Supervisor-API (standardroll): tilläggets egen version och om en nyare finns (smartbox/update_check.py)
+hassio_api: true
 map:
   - type: addon_config
     read_only: false

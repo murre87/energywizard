@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.70 (2026-11-13)
+- **Säger till när en nyare version finns**: appens sidhuvud visar "✓ senaste" bara när det är bekräftat, annars en
+  knapp "Ny version X" med hur man uppdaterar. Webben visar en banderoll överst på Översikt, och motorn skickar en
+  avisering per ny version. HA-tillägget frågar Supervisor (nytt: `hassio_api: true`), Docker jämför med senaste
+  bildbygget. Fel som redan är rättade försvinner först när man uppdaterat; de flesta hus körde en äldre version.
+
 ## 1.2.69 (2026-11-13)
 - **"Databasen svarar inte" blir ett samlat fel** när disken inte är full: `PoolTimeout` och liknande rapporteras som
   ett enda fel (`database: DatabaseUnavailable`) i stället för ett per modul, så att en riktig bugg (som poolfelet i

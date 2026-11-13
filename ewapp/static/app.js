@@ -455,6 +455,19 @@ function pageHistorik() {
   ${window.EWJournal && JR && JR.ok ? `<section class="card" id="journalcard">${EWJournal.html(JR, { compact: true, back: jBack })}</section>` : ""}</div>`;
 }
 // ---- ram, render, laddning ----------------------------------------------------------------------------------------------------------
+// Version i sidhuvudet: "✓ senaste" bara när det är bekräftat, annars en knapp om en nyare finns (update_check.py)
+let UPD = null, updAt = 0;
+function verBadge() {
+  const u = UPD && UPD.status, v = (u && u.running) || (S && S.version);
+  if (u && u.outdated && u.latest) return `<button class="ver" data-a="update" style="color:var(--warn);background:none;border:0;padding:0;font:inherit;cursor:pointer">⬆️ Ny version ${esc(u.latest)} · tryck här</button>`;
+  if (!v || v === "dev" || v === "local") return "";
+  return `<span class="ver">v${esc(v)}${u && u.latest && !u.outdated ? " ✓ senaste" : ""}</span>`;
+}
+function updateSheet() {
+  const u = (UPD && UPD.status) || {};
+  const how = u.kind === "addon" ? "Öppna Home Assistant → <b>Inställningar → Tillägg → EnergyWizard</b> och tryck <b>Uppdatera</b>." : "Hämta den nya bilden (<code>docker compose pull</code> och starta om) eller låt Watchtower göra det.";
+  sheet(`<h3>Ny version: ${esc(u.latest || "")}</h3><div class="note" style="margin-bottom:8px">Du kör ${esc(u.running || "en äldre version")}. Nya versioner har rättningar och förbättringar, och fel som redan är rättade försvinner först när du uppdaterat.</div><p>${how}</p><a class="mini" href="${esc(u.changelog || "")}" target="_blank" rel="noopener">Vad är nytt</a>`);
+}
 function render() {
   if (page === "bil" && !primary() && S && S.cars.length) return chooseCar();
   const warn = S && S.health && S.health.length;
@@ -465,7 +478,7 @@ function render() {
   // Scrollar sidan (stor text, tscroll) ska omritningen var 5:e sekund inte kasta en tillbaka till toppen
   const _oldPg = document.querySelector(".page"), _keepScroll = _oldPg && _oldPg.dataset.p === page ? _oldPg.scrollTop : 0;
   const _oldDay = document.querySelector(".dayscroll"), _keepDay = _oldDay ? _oldDay.scrollLeft : null;
-  app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? GR.hello : "EnergyWizard")}</b>${GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : ""}${S && S.version && S.version !== "dev" && S.version !== "local" ? `<span class="ver" title="Du kör senaste versionen">v${esc(S.version)} ✓ senaste</span>` : ""}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
+  app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? GR.hello : "EnergyWizard")}</b>${GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : ""}${verBadge()}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
   let tb = $("#tabs"); if (!tb) { tb = document.createElement("nav"); tb.id = "tabs"; tb.className = "tabs"; document.body.insertBefore(tb, $("#toast")); }
   tb.style.setProperty("--ntabs", tabs.length);
   tb.innerHTML = tabs.map(([k, l]) => `<button class="tab ${page === k ? "on" : ""}" data-a="tab" data-v="${k}">${ICON[k]}<span>${l}</span></button>`).join("");
@@ -522,6 +535,7 @@ async function load() {
     if (page === "hus") H = await api("home");
     if (page === "hem") { if (!S || Date.now() - (S._t || 0) > 30000) { S = await api("state").catch(() => S); if (S) S._t = Date.now(); }
       [EN, PL, SV, FL] = await Promise.all([api("energy"), api("plan").catch(() => PL), ER() === "owner" ? api("savings").catch(() => null) : null, api("flow").catch(() => FL)]); if (!LJ && can("lights")) LJ = await api("lights").catch(() => null); await loadClock(); }
+    if (Date.now() - updAt > 3600000) { updAt = Date.now(); api("update-status").then((d) => { UPD = d; render(); }).catch(() => {}); }
     if (page === "bil" && Date.now() - ecAt > 300000) { ecAt = Date.now(); api("ev-cost").then((d) => { EC = d; if (page === "bil") render(); }).catch(() => {}); }
     if (page === "plan") { PL = await api("plan").catch(() => PL); if (!SCH) SCH = await api("schedule"); if (!CLIM) CLIM = await api("schedule/climate").catch(() => CLIM); await loadClock(); }
     if (page === "historik") {
@@ -724,6 +738,7 @@ document.addEventListener("click", async (e) => {
   if (a === "planlist") return planSheet(c);
   if (a === "power") return powerSheet(c);
   if (a === "swap") { LS.set("ew_primary", c); return render(); }
+  if (a === "update") return updateSheet();
   if (a === "settings") { NL = null; return settingsSheet(); }
   if (a === "health") return healthSheet();
   if (a === "access") return accessSheet(c);

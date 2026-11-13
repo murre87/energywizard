@@ -1068,6 +1068,11 @@ while True:
             heat_pump_driver.tick()                         # släpper en tidsbegränsad paus (Matter-lagret) när tiden gått ut
             telemetry.maybe_send_daily(house_cfg)           # daglig "aktiv"-signal
             _publish_ftw_status()                           # FTW-enheter som inte svarar syns på Översikt (#184-#186)
+            try:
+                import update_check
+                update_check.notify_if_new()                # en avisering per ny version (kollas högst var sjätte timme)
+            except Exception:
+                pass
             async def fetch_heavy_data():
                 return await asyncio.gather(
                     asyncio.to_thread(heat_pump_driver.read_sensors),

@@ -2347,5 +2347,13 @@
  "Balansering är pausad eftersom underhållsstatus inte kunde sparas. Vanlig batteriplanering fortsätter.": "Balancing is paused because maintenance status could not be saved. Normal battery scheduling continues.",
  "Batteri # %": "Battery # %",
  "EnergyWizard: lampa offline": "EnergyWizard: lamp offline",
- "EnergyWizard: sensor saknas": "EnergyWizard: sensor missing"
+ "EnergyWizard: sensor saknas": "EnergyWizard: sensor missing",
+ "Ny version #": "New version #",
+ "tryck här": "tap here",
+ "Ny version: #": "New version: #",
+ "Vad är nytt": "What's new",
+ "Nya versioner har rättningar och förbättringar, och fel som redan är rättade försvinner först när du uppdaterat": "New versions have fixes and improvements, and errors that are already fixed only go away once you update",
+ "Ny version av EnergyWizard: #": "New version of EnergyWizard: #",
+ "Uppdatera i Home Assistant: Inställningar → Tillägg → EnergyWizard → Uppdatera": "Update in Home Assistant: Settings → Add-ons → EnergyWizard → Update",
+ "Nyheter och rättningar": "News and fixes"
 }

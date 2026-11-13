@@ -469,6 +469,13 @@ async function renderOversikt() {
     main.insertAdjacentHTML("afterbegin", `<div id="ctrlalerts">${r.alerts.map((a) => `<div class="card" style="margin-bottom:16px;border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}">
       <b>${a.level === "info" ? "ℹ️" : "⚠️"} ${esc(a.device)}: ${esc(a.title)}</b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></div>`).join("")}</div>`);
   }).catch(() => {});
+  api("api/update-status").then((u) => {                // en nyare version finns: säg det överst (update_check.py)
+    const st = u && u.status;
+    if (!st || !st.outdated || !st.latest || document.getElementById("updbanner")) return;
+    const how = st.kind === "addon" ? "Home Assistant → Inställningar → Tillägg → EnergyWizard → Uppdatera" : "docker compose pull (eller Watchtower)";
+    main.insertAdjacentHTML("afterbegin", `<div class="card" id="updbanner" style="margin-bottom:16px;border-color:var(--warn)">
+      ⬆️ <b>Ny version ${esc(st.latest)}</b> (du kör ${esc(st.running || "en äldre")}). Uppdatera: ${how}. <a href="${esc(st.changelog)}" target="_blank" rel="noopener">Vad är nytt</a></div>`);
+  }).catch(() => {});
   api("api/shadow").then((sh) => {                       // skuggläget syns alltid överst, så ingen tror att huset styrs
     if (!sh || !sh.active || document.getElementById("shadowbanner")) return;
     main.insertAdjacentHTML("afterbegin", `<div class="card" id="shadowbanner" style="margin-bottom:16px;border-color:var(--warn)">

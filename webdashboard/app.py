@@ -606,6 +606,13 @@ def api_notify_log(days: int = 7):
         return {"ok": True, "rows": notify_log.recent(c, max(1, min(60, int(days))))}
 
 
+@app.get("/api/update-status")
+def api_update_status():
+    """Finns en nyare EnergyWizard? (smartbox/update_check.py) - samma i appen och webben. None = inte känt än."""
+    import update_check
+    return {"ok": True, "status": update_check.status(block=True)}   # väntar bara när svaret är äldre än sex timmar
+
+
 @app.get("/api/control-journal")
 def api_control_journal(back: int = 1):
     """Höll vi planen? Per enhet för ett dygn (0 = idag, 1 = igår), smartbox/control_journal.py - samma i appen och webben."""
