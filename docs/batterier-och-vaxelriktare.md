@@ -39,7 +39,7 @@ bör köras i skuggläge först.
 | – | Enphase IQ Battery | HA:s inbyggda enphase_envoy | ✅ | ⚠️ bara självförbrukning ↔ full backup | – | Ny 2026-11-05 |
 | – | Emaldo | – (ingen integration) | ❌ | ❌ | – | Saknas, väntar på API |
 | – | HomeWizard Plug-In Battery | HA:s inbyggda homewizard | ✅ | ✅ laddstrategi | – | Förinställning |
-| – | Solinteg MHT/MHS | – (FTW direkt; guiden namnger `solinteg` när märket syns i HA) | ✅ via FTW | – | `solinteg` (har styrning) | Ej verifierad på hårdvara (#219). Styrning är av tills användaren kryssar i den. |
+| – | Solinteg MHT/MHS | Solinteg-plugin via Solax Modbus ([mappning](solinteg.md)) | ✅ via HA/FTW | – | `solinteg` (har styrning) | HA kräver annonserade lägen och signed effektbörvärde; annars bara mätning. Ej hårdvaruverifierad (#219), samarbete som standard. |
 
 ## FTW-drivrutinerna mot Sourcefuls simulator (GitHub Actions, `simulator.yml`)
 
