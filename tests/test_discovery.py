@@ -359,7 +359,7 @@ def test_huawei_foreslar_tjanstedrivrutinen_med_enhetens_id():
 def test_tomt_hus_ger_inga_fynd_kraschar_inte():
     with patch("discovery._check_configured_heat_pump", return_value=None):
         result = discover_house([])
-    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": [], "power_meter": None, "battery": None, "power_sensors": []}
+    assert result == {"cars": [], "heat_pump": None, "solar": None, "spa": None, "chargers": [], "grid_meters": [], "power_meter": None, "battery": None, "power_sensors": [], "compressor_sensors": []}
 
 
 def test_ha_fynd_vinner_over_serverchecken_inte_overskrivs():

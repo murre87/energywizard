@@ -2371,5 +2371,7 @@
   "Hus: # kW": "Dům: # kW",
   "Batteri: # kW laddar": "Baterie: # kW nabíjení",
   "Batteri: # kW laddar ur": "Baterie: # kW vybíjení",
-  "1 år": "1 rok"
+  "1 år": "1 rok",
+  "Kompressorgivare (valfri)": "Senzor kompresoru (volitelný)",
+  "Välj status eller frekvens för kompressorn. Lämna tomt om givaren saknas.": "Vyberte stav nebo frekvenci kompresoru. Pokud senzor není k dispozici, nechte pole prázdné."
 }

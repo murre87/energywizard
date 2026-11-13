@@ -2371,5 +2371,7 @@
  "Hus: # kW": "House: # kW",
  "Batteri: # kW laddar": "Battery: # kW charging",
  "Batteri: # kW laddar ur": "Battery: # kW discharging",
- "1 år": "1 year"
+ "1 år": "1 year",
+ "Kompressorgivare (valfri)": "Compressor sensor (optional)",
+ "Välj status eller frekvens för kompressorn. Lämna tomt om givaren saknas.": "Select compressor status or frequency. Leave empty if the sensor is unavailable."
 }
