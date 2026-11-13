@@ -255,15 +255,14 @@ def update_states():
         # varning även efter många försök: det är drift, och ❌ blir ett GitHub-ärende (#228).
         # Nätverksfel skrivs utan förlopp - bara oväntade fel får hela tracebacken.
         n = _ha_fail["n"]
-        # 502/503/504 = Home Assistant startar om (Supervisor-proxyn svarar innan HA är uppe) - som ett nätverksavbrott,
-        # och fel först efter 30 försök i rad (~5 min). 2026-11-08: 13 hus rapporterade HTTPError vid vanliga omstarter.
+        # 502/503/504 = Supervisor-proxyn svarar innan HA är uppe. Även långa avbrott är driftvarningar.
         dropped = net and not isinstance(e, requests.HTTPError)
         restart = status in (502, 503, 504) or dropped
         if restart and n < 30:
             if n in (1, 10, 20):
                 print(f"⚠️ HA svarar inte än ({type(e).__name__}{' ' + str(status) if status else ''}) - väntar, troligen en omstart")
             return False
-        if dropped:
+        if restart:
             if n % 10 == 0:
                 print(f"⚠️ HA svarar inte ({n} i rad, {type(e).__name__}) - fortsätter försöka")
             return False
