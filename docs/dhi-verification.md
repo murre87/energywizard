@@ -128,3 +128,18 @@ This closes the workflow coverage gap left by `pip check` and startup checks;
 it does not itself resolve vendor investigations, apply a blanket VEX exemption
 or establish that an image is CVE-free. Live workflow results must be checked
 before claiming that a particular pair of platform builds passed these audits.
+
+### Recorded native audit, 2026-11-13
+
+[Run 43416592353](https://github.com/murre87/energywizard/actions/runs/43416592353)
+passed signatures and both native runtime/audit jobs at `f2dd5d8`. All eight
+service/platform image audits reported no installed-Python advisories or findings
+blocked by the current KEV/available-Debian-fix policy. Each raw image scan still
+contains **184 matches**, retained without a blanket VEX exemption. This is
+policy success, not a CVE-free result or resolution of every vendor investigation.
+
+[Compact evidence](dhi-full-image-audit-2026-11-13.json) records immutable image
+IDs, scanner/feed metadata, raw vulnerability IDs, runtime results and the signed
+VEX status. All three downloaded artifact archives matched their GitHub SHA256
+digests. All four VEX verifications used the documented Docker-key-only fallback
+for missing public-log entries; transparency-log inclusion remains unproven.
