@@ -1,5 +1,7 @@
 """#249: HTTP-fel från Home Assistant vid notis ska vara varning, inte programfel (❌)."""
 import requests
+import pytest
+from unittest.mock import Mock
 
 import notifier
 
@@ -48,3 +50,32 @@ def test_ovantat_fel_ar_fortfarande_programfel(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "❌" in out
     assert "⚠️" not in out
+
+
+@pytest.mark.parametrize("status", [400, 401, 503])
+@pytest.mark.parametrize("target, service", [
+    ("mobile_app_x", "notify/mobile_app_x"),
+    ("script.phone_notice", "script/phone_notice"),
+])
+def test_http_failure_records_safe_reason_without_retry(monkeypatch, capsys, status, target, service):
+    """#249: a failed notification stays failed without retrying a possibly delivered push."""
+    _ready(monkeypatch)
+    history = Mock()
+    monkeypatch.setattr(notifier, "_hist", history)
+    post = Mock(side_effect=_http_error(status))
+    monkeypatch.setattr(notifier.requests, "post", post)
+    monkeypatch.setattr(notifier, "_localized_payload", lambda title, message, data: {
+        "title": title, "message": message, "data": data})
+    data = {"tag": "charging", "actions": [{"action": "EV_PAUSE", "title": "Pause"}]}
+    assert notifier._send(target, "Charging", "16 A", data, key="elbil") is False
+    post.assert_called_once()
+    assert post.call_args.args == (f"http://ha/api/services/{service}",)
+    assert post.call_args.kwargs["json"]["data"] == data
+    assert post.call_args.kwargs["timeout"] == 20
+    history.assert_called_once()
+    title, message, state, recipient, key, detail = history.call_args.args
+    assert (title, message, state, recipient, key) == ("Charging", "16 A", "failed", target, "elbil")
+    assert "Home Assistant" in detail and "http" not in detail and "mobile_app_x" not in detail
+    assert "token" in detail if status == 401 else str(status) in detail or "mottagaren" in detail
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "❌" not in out and "Notis →" not in out
