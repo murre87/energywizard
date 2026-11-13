@@ -2380,7 +2380,13 @@
  "Batteri: # kW laddar ur": "Battery: # kW discharging",
  "1 år": "1 year",
  "Kompressorgivare (valfri)": "Compressor sensor (optional)",
- "Välj status eller frekvens för kompressorn. Lämna tomt om givaren saknas.": "Select compressor status or frequency. Leave empty if the sensor is unavailable.",
+ "Välj status eller frekvens för kompressorn. Lämna tomt om givaren saknas.": "Select compressor status or frequency. Leave empty if the sensor is unavailable.",
+ "Billigt just nu": "Cheap right now",
+ "Dyrt just nu": "Expensive right now",
+ "Normalt just nu": "Normal right now",
+ "Stil": "Style",
+ "Ny (standard)": "New (default)",
+ "Klassisk": "Classic",
   "Radiatorer i Home Assistant": "Radiators in Home Assistant",
   "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Discovered radiators are shown as inventory only. Control them in Home Assistant; separate zone scheduling is not supported yet."
 }

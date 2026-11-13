@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/dhi.yml
       - scripts/verify_dhi_*.py
+      - scripts/audit_dhi_images.py
+      - scripts/audit_image.py
       - tests/test_dhi_*.py
       - smartbox/Dockerfile.dhi
       - smartbox/requirements.txt
@@ -80,6 +82,15 @@ jobs:
         env:
           DHI_ARCH: ${{ matrix.arch }}
         run: python3 scripts/verify_dhi_runtime.py --platform "linux/$DHI_ARCH" --output "$RUNNER_TEMP/dhi-runtime/$DHI_ARCH.json"
+      - name: Audit the exact tested optional images
+        env:
+          DHI_ARCH: ${{ matrix.arch }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/dhi-audit-venv"
+          "$RUNNER_TEMP/dhi-audit-venv/bin/python" -m pip --disable-pip-version-check install pip-audit==2.10.1
+          "$RUNNER_TEMP/dhi-audit-venv/bin/python" scripts/audit_dhi_images.py \
+            --runtime-results "$RUNNER_TEMP/dhi-runtime/$DHI_ARCH.json" \
+            --platform "linux/$DHI_ARCH" --output "$RUNNER_TEMP/dhi-audit/$DHI_ARCH"
       - name: Retain runtime evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -88,5 +99,7 @@ jobs:
           path: |
             ${{ runner.temp }}/dhi-runtime/*.json
             ${{ runner.temp }}/dhi-runtime/*.log
+            ${{ runner.temp }}/dhi-audit/**/*.json
+            ${{ runner.temp }}/dhi-audit/**/requirements.txt
           if-no-files-found: warn
           retention-days: 14

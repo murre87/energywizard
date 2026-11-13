@@ -60,10 +60,10 @@
       const p = c ? 10 : 14;
       cards += `<g ${at} transform="translate(${n.x},${(n.y - n.h / 2).toFixed(1)})" style="cursor:pointer">
         <rect width="${w}" height="${n.h}" rx="${c ? 12 : 16}" fill="var(--card2, var(--card))" stroke="${n.active ? col : "var(--line)"}" stroke-width="${n.active ? 1.6 : 1}"/>`
-        + (isL ? `<text x="${p}" y="${c ? 19 : 26}" font-size="${G.fs.lab}" fill="${col}" font-weight="700">${esc(n.icon)} ${esc(n.label)}</text>
+        + (isL ? `<text x="${p}" y="${c ? 19 : 26}" font-size="${G.fs.lab}" fill="${col}" font-weight="700">${opts.icons === false ? "" : esc(n.icon) + " "}${esc(n.label)}</text>
         <text x="${p}" y="${c ? 41 : 55}" font-size="${G.fs.big}" font-weight="800" fill="var(--txt)">${kw(n.w)}</text>
         <text x="${w - p + 2}" y="${c ? 19 : 55}" font-size="${G.fs.st}" fill="var(--mut)" text-anchor="end">${st}</text>`
-        : `<text x="${p - 1}" y="${c ? 15 : 24}" font-size="${G.fs.rlab}" fill="${n.active ? col : "var(--mut)"}" font-weight="700">${esc(n.icon)} ${esc(c ? n.label.split(" ")[0] : n.label)}</text>
+        : `<text x="${p - 1}" y="${c ? 15 : 24}" font-size="${G.fs.rlab}" fill="${n.active ? col : "var(--mut)"}" font-weight="700">${opts.icons === false ? "" : esc(n.icon) + " "}${esc(c ? n.label.split(" ")[0] : n.label)}</text>
         <text x="${p - 1}" y="${c ? 30 : 47}" font-size="${G.fs.rbig}" font-weight="700" fill="var(--txt)">${big}</text>
         <text x="${w - p + 3}" y="${c ? 30 : 47}" font-size="${G.fs.rst}" fill="var(--mut)" text-anchor="end">${st}</text>`) + `</g>`;
     });

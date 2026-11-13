@@ -1,5 +1,13 @@
 # Ändringar
 
+## 1.2.73 (2026-11-13)
+- **Ny stil i appen (standard)**: lugnare ytor utan gradienter, glas och färgad glöd, en accentfärg bara på det som
+  betyder något, inga emoji i flödet och planen, inga versaler med spärrning, lättare vikter och en enda knappstil.
+  Överst står priset just nu ("Billigt just nu · 0,83 kr/kWh") i stället för en slumpad rad. Flödet "Just nu",
+  laddringen och skylinen behåller sina färger.
+- **Klassisk stil** finns kvar under Inställningar → Appen → Stil, för den som vill ha det gamla utseendet (med
+  glas och dygnsfärger som förut). I den nya stilen är glas och dygnsfärger av som standard men går att slå på.
+
 ## 1.2.72 (2026-11-13)
 - **Större graf i appens Historik** (#371): tryck på effektgrafen så öppnas en stor, lättläst version med axlar,
   tider och teckenförklaring, samma periodval (24 h, 7 d, 30 d, 1 år) och värdena där man trycker eller drar med

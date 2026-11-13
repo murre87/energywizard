@@ -6,7 +6,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '
     const dict = lang === 'sv' ? {} : JSON.parse(fs.readFileSync(`smartbox/i18n/${lang}.json`, 'utf8'));
     const ctx = vm.createContext({ window: {}, document: {readyState:'loading', addEventListener(){}},
       localStorage:{getItem:()=>lang}, fetch:async url=>({ok:true,json:async()=>url.endsWith('config')?{languages:{sv:'Svenska',en:'English',cs:'Čeština'}}:dict}), esc,
-      EN:{alerts,solar:{},grid:{}}, FL:null,flowCard:()=>'',planNow:()=>'',quickGrid:()=>'',carsRow:()=>'',ljusRow:()=>'', r:{alerts} });
+      EN:{alerts,solar:{},grid:{}}, FL:null,flowCard:()=>'',planNow:()=>'',quickGrid:()=>'',carsRow:()=>'',ljusRow:()=>'', CL:()=>false, r:{alerts} });   // CL: appens stilval (ny = false)
     vm.runInContext(fs.readFileSync('smartbox/i18n/i18n.js','utf8'),ctx);
     await ctx.window.I18N.ready;
     const tr=ctx.window.I18N.tr;
