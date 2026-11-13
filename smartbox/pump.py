@@ -1,7 +1,10 @@
 import os
 import time
+_READ_TRANSPORT_ERRORS = (OSError,)
 try:                                # finns i motorns bild men inte i mobilappens (som bara läser installationen)
     from pymodbus.client import ModbusTcpClient
+    from pymodbus.exceptions import ConnectionException, ModbusIOException
+    _READ_TRANSPORT_ERRORS += (ConnectionException, ModbusIOException)
 except ImportError:                 # pragma: no cover
     ModbusTcpClient = None
  
@@ -175,7 +178,7 @@ def read_sensors():
             "accumulated_consumption_kwh": reg[39] / 10.0, # 39: Accumulated consumption
         }
 
-    except (ConnectionError, ConnectionResetError, TimeoutError, OSError) as e:
+    except _READ_TRANSPORT_ERRORS as e:
         # Tillfälliga nätverksfel — ⚠️ så Admin räknar dem gråa (#299).
         print(f"⚠️ Husdata: Nätverksfel vid läsning (Modbus): {e}")
         return None
