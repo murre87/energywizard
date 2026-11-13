@@ -11,6 +11,17 @@ RUN python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels \
     -Csetup-args=-Dcpu-baseline=none -Csetup-args=-Dblas=blas \
     -Csetup-args=-Dlapack=lapack -Csetup-args=-Dallow-noblas=false -Ccompile-args=-j2
 
+FROM python:3.11.18-slim-trixie@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS openblas-builder
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_ROOT_USER_ACTION=ignore
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends build-essential gfortran pkg-config libopenblas-pthread-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --no-cache-dir pip==26.3 setuptools==84.2.1 wheel==0.46.3
+RUN python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels \
+    'https://files.pythonhosted.org/packages/d0/ad/fed0499ce6a338d2a03ebae59cd15093910c8875328855781952abf6c2fe/numpy-2.4.6.tar.gz#sha256=f3a3570c4a2a16746ac2c31a7c7c7b0c186b95ce902e33db6f28094ed7387dda' \
+    -Csetup-args=-Dcpu-baseline=none -Csetup-args=-Dblas=openblas \
+    -Csetup-args=-Dlapack=openblas -Csetup-args=-Dallow-noblas=false -Ccompile-args=-j2
+
 FROM python:3.11.18-slim-trixie@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS upstream
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_ROOT_USER_ACTION=ignore OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1
 RUN apt-get update && apt-get upgrade -y \
@@ -32,6 +43,13 @@ RUN python -m pip install --no-cache-dir --no-deps --force-reinstall numpy==2.3.
 
 FROM upstream AS candidate
 COPY --from=builder /wheels /wheels
+RUN python -m pip install --no-cache-dir --no-deps --force-reinstall /wheels/*.whl \
+    && rm -rf /wheels && python -m pip check
+
+FROM upstream AS candidate-openblas
+RUN apt-get update && apt-get install -y --no-install-recommends libopenblas0-pthread \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=openblas-builder /wheels /wheels
 RUN python -m pip install --no-cache-dir --no-deps --force-reinstall /wheels/*.whl \
     && rm -rf /wheels && python -m pip check
 

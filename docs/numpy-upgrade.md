@@ -115,3 +115,9 @@ removing the cap:
 PR #279 only loosens a requirements cap; it does not implement this build or
 validation path. It must not be treated as an automatically safe upgrade, nor
 should its failure become justification for freezing NumPy indefinitely.
+
+## OpenBLAS comparison candidate
+
+The evaluation Dockerfile also provides candidate-openblas, built from the same SHA256-pinned NumPy 2.4.6 source with cpu-baseline=none and explicit OpenBLAS BLAS/LAPACK selection (https://numpy.org/doc/stable/building/blas_lapack.html). It uses Debian pthread OpenBLAS and one thread, with a separate source builder. This does not establish the BLAS library's physical legacy-CPU compatibility.
+
+Run python scripts/check_numpy_native.py --candidate-target candidate-openblas --output numpy-openblas-report.json for paired native measurements, and python scripts/check_numpy_compat.py --candidate-target candidate-openblas for the controlled qemu64 numerical probe. Defaults still evaluate the reference-BLAS candidate. CI evaluates both candidates on native amd64/arm64, audits each exact candidate image, and probes both under qemu64. Reports identify the selected target and exact image IDs. Production requirements and all adoption requirements above remain unchanged.

@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 import subprocess
 from unittest.mock import Mock
+import json
+import sys
 
 import pytest
 
@@ -52,3 +54,21 @@ def test_failed_probe_is_removed(monkeypatch, outcome):
     name = command[command.index('--name') + 1]
     assert name.startswith('ew-numpy-native-')
     assert run.call_args_list[1].args[0] == ['docker', 'rm', '-f', name]
+
+
+@pytest.mark.parametrize('target', ['candidate', 'candidate-openblas'])
+def test_selected_variant_is_built_measured_and_identified(monkeypatch,tmp_path,target):
+    output=tmp_path/'report.json'
+    monkeypatch.setattr(sys,'argv',['check_numpy_native.py','--candidate-target',target,'--output',str(output)])
+    run=Mock(return_value=Mock(stdout='sha256:tested-image\n'))
+    monkeypatch.setattr(native.subprocess,'run',run)
+    probe=Mock(side_effect=[{'status':'passed'},result('2.3.5',2),{'status':'passed'},result('2.4.6',1)])
+    monkeypatch.setattr(native,'run_probe',probe)
+    native.main()
+    report=json.loads(output.read_text())
+    assert report['candidate_target']==target
+    assert report['candidate_over_capped_ratio']=={'solve':.5}
+    builds=[call.args[0] for call in run.call_args_list if call.args[0][1]=='build']
+    assert [cmd[cmd.index('--target')+1] for cmd in builds]==['capped',target]
+    assert probe.call_args_list[-1].args==('ew-numpy-native-'+target,'/benchmark.py')
+    assert report['results'][target]['image_id']=='sha256:tested-image'

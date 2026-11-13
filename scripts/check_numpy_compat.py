@@ -3,6 +3,7 @@
 Requires Docker on amd64; builds evaluation images only and never starts EW.
 """
 from pathlib import Path
+import argparse
 import subprocess
 import uuid
 
@@ -22,8 +23,11 @@ def run_image(target, python_only=False, timeout=180):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--candidate-target', choices=('candidate', 'candidate-openblas'), default='candidate')
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    for target in ('candidate', 'upstream', 'capped'):
+    for target in (args.candidate_target, 'upstream', 'capped'):
         subprocess.run(['docker', 'build', '--pull', '--target', target,
                         '-f', str(root / 'tests/numpy_compat/Dockerfile'),
                         '-t', f'ew-numpy-compat-{target}', str(root)], check=True)
@@ -52,7 +56,7 @@ def main():
     if capped.returncode:
         raise RuntimeError('Existing capped version failed compatibility smoke: ' + capped.stderr)
     print(capped.stdout, end='', flush=True)
-    candidate = run_image('candidate')
+    candidate = run_image(args.candidate_target)
     print(candidate.stdout, end='', flush=True)
     if candidate.returncode:
         raise RuntimeError('Candidate failed compatibility smoke: ' + candidate.stderr)
