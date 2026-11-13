@@ -37,6 +37,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_balance
 import battery_learning  # Planen lär sig batteriets verkliga verkningsgrad, kapacitet, effekt och solprognosens fel
@@ -625,6 +626,61 @@ spa_solar_boost_grace_counter = 0
 spa_should_heat_now = False
 
 last_sent_ev_limit = {}  # {car_id: int|None} - ersätter de tidigare hårdkodade _nissan/_tesla-varianterna
+
+_ev_heating_model_cache = {"at": None, "model": None}
+
+
+def _ev_heating_model(now):
+    """Värmemodellen för laddplanen (ev_planning.heating_adjustment i house_config.yaml, standard AV -> None).
+    k (kW per grad under balanstemperaturen) lärs ur senaste `window_days` dygnens last och utetemperatur, eller anges
+    för hand (kw_per_degree: <tal>). Räknas om var 6:e timme; vid fel eller för litet underlag behålls senaste modell.
+    Lasten räknas som i learning.get_base_load_profile (nätimport minus loggad billaddning). Se ev_heating.py."""
+    opts = (house_cfg.get("ev_planning") or {}).get("heating_adjustment") or {}
+    if not opts.get("enabled"):
+        return None
+    cache = _ev_heating_model_cache
+    if cache["at"] is not None and (now - cache["at"]) < timedelta(hours=6):
+        return cache["model"]
+    model = cache["model"]
+    try:
+        import pandas as pd
+        balance = float(opts.get("balance_temp_c", 10.0))
+        days = int(opts.get("window_days", 30))
+        with logger.get_db() as conn:
+            loads = pd.read_sql(f"""
+                SELECT timestamp AT TIME ZONE 'Europe/Stockholm' AS ts,
+                       GREATEST(GREATEST(net_power, 0) / 1000.0 - COALESCE(ev_power_kw, 0) - COALESCE(ev_carport_power_kw, 0), 0) AS other_kw
+                FROM sensor_log
+                WHERE timestamp >= NOW() - INTERVAL '{days} days' AND net_power > 0
+            """, conn)
+            temps = pd.read_sql(f"""
+                SELECT timestamp AT TIME ZONE 'Europe/Stockholm' AS ts, outdoor_temp AS temp
+                FROM sensor_log
+                WHERE timestamp >= NOW() - INTERVAL '{days} days' AND outdoor_temp IS NOT NULL
+            """, conn)
+            if len(temps) < 100:     # ingen utegivare i loggen: använd väderprognosens egna timvärden bakåt i tiden
+                temps = pd.read_sql(f"""
+                    SELECT timestamp AT TIME ZONE 'Europe/Stockholm' AS ts, temp
+                    FROM weather_forecast
+                    WHERE timestamp >= NOW() - INTERVAL '{days} days' AND timestamp < NOW() AND temp IS NOT NULL
+                """, conn)
+        df = ev_heating.hourly_frame(loads, temps)
+        manual = opts.get("kw_per_degree", "auto")
+        if isinstance(manual, (int, float)) and not isinstance(manual, bool):
+            fitted = ev_heating.model_from_slope(df, balance, float(manual))
+        else:
+            fitted = ev_heating.fit_heating_model(df, balance)
+        if fitted:
+            fitted["cap_kw"] = float(opts.get("max_base_kw", 10.0))
+            model = fitted
+            print(f"🌡️ EV-plan: värmemodell k={fitted['k_kw_per_degree']:.3f} kW/°C under {balance:g} °C "
+                  f"(referens {fitted['hd_ref']:.1f} gradtimmar/h, {fitted['n']} timmar).")
+        else:
+            print("ℹ️ EV-plan: värmemodellen saknar underlag (för få timmar eller för jämn temperatur) - ingen justering.")
+    except Exception as _he:
+        print(f"⚠️ EV-planens värmemodell hoppade över: {_he}")
+    cache.update(at=now, model=model)
+    return model
 last_ev_full_notified = _dd(lambda: False)
 raw_ev_schedule = settings.get_ev_schedule(car_ids)
 ev_schedule = {}
@@ -1327,6 +1383,7 @@ while True:
                     car_data_for_plan[f"{_c}_ready_soc"] = homeassistant._get_numeric_state(_rents["ready_soc"]) if _rents.get("ready_soc") else None
                 car_data_for_plan.update({
                     "car_ids": list(car_ids), "car_specs": CAR_SPECS,     # bilarna ur installationen (laddplanen har inga bilnamn)
+                    "heating_model": _ev_heating_model(now),
                 })
                 ev_charge_plan = decisions.calculate_ev_charge_plan(now, ev_schedule, car_data_for_plan, cfg)
                 try:

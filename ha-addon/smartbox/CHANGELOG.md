@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.71 (2026-11-13)
+- **Laddplanen räknar med kyla** (av natanoj, valfritt och avstängt som standard): när det blir kallare drar värmen
+  mer, så säkringen räcker till mindre ström åt bilen och laddningen sprids över fler timmar. Hur mycket mer huset
+  drar per grad lärs ur historiken (eller anges). Slås på med `ev_planning.heating_adjustment.enabled: true`, se
+  `config/house_config.example.yaml`. I projektets hus lär den sig ungefär 0,13-0,16 kW per grad under 10 °C.
+
 ## 1.2.70 (2026-11-13)
 - **Säger till när en nyare version finns**: appens sidhuvud visar "✓ senaste" bara när det är bekräftat, annars en
   knapp "Ny version X" med hur man uppdaterar. Webben visar en banderoll överst på Översikt, och motorn skickar en
