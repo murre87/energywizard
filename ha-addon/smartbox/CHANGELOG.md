@@ -1,5 +1,13 @@
 # Ändringar
 
+## 1.2.77 (2026-11-13)
+- **Thermia: varmvattnets startvärde hålls inom pumpens intervall** (30–55 °C enligt installatörsmenyn
+  SERVICE → HOT WATER). Bortaläge och effekttak bad om start 5 °C, vilket pumpen inte tar emot.
+- **Kontrollen av start/stopp görs nästa kvart** i stället för direkt efter skrivningen. Husdata-gatewayen visar
+  ett nyskrivet värde först efter ungefär en halv minut, så den direkta kontrollen kunde varna i onödan.
+- Thermias stoppregister är nu belagt i manualen som legionellakörningens stopptemperatur (TOPH. STOP, 60 °C från
+  fabrik, 50–65 °C). EnergyWizard rör det inte (sedan 1.2.76).
+
 ## 1.2.76 (2026-11-13)
 - **Thermia via Husdata: bara varmvattnets startvärde styrs.** Kompressorns varmvattenladdning stoppar vid
   pressostaten, inte vid stoppregistret (Thermias manual). Stoppregistret styr troligen elpatronens toppvärmning,
