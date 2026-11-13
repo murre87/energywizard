@@ -38,6 +38,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import charge_now    # #394: "Ladda nu till X %" som avslutas av sig själv
 import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätningen
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
@@ -2026,6 +2027,25 @@ while True:
                 # Bilarna ur installationen: vilka som finns och deras laddboxars faser/maxström (gpm har inga bilnamn)
                 'car_ids': list(car_ids), 'car_specs': CAR_SPECS, 'has_spa': HAS_SPA,
             }
+            for _c in car_ids:      # #394: "Ladda nu till X %" - avsluta vid målet, urdragen kabel eller efter 24 h
+                try:
+                    _cn_end, _cn_why = charge_now.should_end(all_overrides, _c, car_soc.get(_c),
+                                                             bool(ev_connection_state[_c]['connected']), time.time())
+                    if _cn_end:
+                        _cn_t = charge_now.target(all_overrides, _c)
+                        for _k, _v in charge_now.clear_keys(_c).items():
+                            logger.set_override(_k, _v)
+                            all_overrides[_k] = _v
+                        _cn_name = (CAR_SPECS.get(_c) or {}).get("name") or _c
+                        _cn_txt = {"target": f"🔌 {_cn_name} har nått {_cn_t} % - Ladda nu är klart och planen tar över.",
+                                   "unplugged": f"🔌 {_cn_name}: kabeln drogs ur - Ladda nu avslutades.",
+                                   "timeout": f"🔌 {_cn_name}: Ladda nu avslutades efter 24 timmar - planen tar över."}.get(_cn_why)
+                        if _cn_txt:
+                            print(_cn_txt)
+                            if _cn_why == "target":
+                                notifier.send_emil("🔌 Ladda nu klart", _cn_txt.split(" ", 1)[1])
+                except Exception as _cne:
+                    print(f"⚠️ Ladda nu-kontrollen ({_c}): {_cne}")
             for _c in car_ids:      # per bil: <bil>_soc, _connected, _phases ... (samma nycklar gpm alltid läst)
                 gpm_state.update({
                     f'{_c}_soc': car_soc.get(_c),

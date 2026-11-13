@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.83 (2026-11-13)
+- **"Ladda nu till X %"** (#394): "Ladda nu" frågar efter mål (40, 60, 80, 100 % eller "Tills jag stoppar").
+  Med ett mål slutar laddningen av sig själv när bilen når målet, när kabeln dras ur eller efter 24 timmar, och
+  sedan tar planen över, med en avisering när målet nåtts. Förut laddade bilen tills man själv valde Auto, även på
+  dyra timmar. Bilkortet visar "Laddar till 80 %". Säkringsskyddet gäller hela tiden.
+
 ## 1.2.82 (2026-11-13)
 - **Husbatteriets laddning från nätet håller sig inom säkringen** (#399). Förut laddade batteriet med full effekt
   (vid minuspris och planerad laddning) oavsett vad huset drog, och säkringsskyddet grep in först när säkringen

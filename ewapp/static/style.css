@@ -365,4 +365,6 @@ html:not([data-classic]) .pnrow2:first-child { border-top:0; padding-top:2px; }
 html:not([data-classic]) .pnrow2 .pnk { color:var(--mut); }
 html:not([data-classic]) .greet .gprice { font-size:.85rem; color:var(--txt); }
 html:not([data-classic]) .ljquick .night { border-color:var(--line); color:var(--txt); background:var(--card); }
-
+/* #394: Ladda nu - välj mål */
+.cn-tg { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-top:12px; }
+.cn-tg .mini { width:100%; min-height:44px; }

@@ -103,7 +103,7 @@ function planList(c) {
 }
 function hero(c) {
   const si = statusInfo(c), color = c.soc == null ? "var(--mut)" : c.soc < 20 ? "var(--bad)" : c.soc < 40 ? "var(--warn)" : "var(--acc)";
-  const chips = [`<span class="chip ${c.home ? "ok" : ""}">${c.home ? "Hemma" : "Borta" + (c.away && c.away.car_km_from_home != null ? ` · ${c.away.car_km_from_home} km hemifrån` : "")}</span>`, c.home ? `<span class="chip ${c.plugged ? "ok" : "warn"}">${c.plugged ? "Kabel i" : "Ingen kabel"}</span>` : "", staleChip(c), c.soc_stale ? `<span class="chip warn" title="Bilen svarar inte just nu – visar senast kända värden">Senast kända värde</span>` : "", heatChip(c), c.mode === "manual" ? `<span class="chip warn">Manuellt ${c.amps} A${c.phases ? " · " + c.phases + "-fas" : ""}</span>` : "", ...(c.facts || []).slice(0, 2).map((f) => `<span class="chip">${esc(f)}</span>`)].join("");
+  const chips = [`<span class="chip ${c.home ? "ok" : ""}">${c.home ? "Hemma" : "Borta" + (c.away && c.away.car_km_from_home != null ? ` · ${c.away.car_km_from_home} km hemifrån` : "")}</span>`, c.home ? `<span class="chip ${c.plugged ? "ok" : "warn"}">${c.plugged ? "Kabel i" : "Ingen kabel"}</span>` : "", staleChip(c), c.soc_stale ? `<span class="chip warn" title="Bilen svarar inte just nu – visar senast kända värden">Senast kända värde</span>` : "", heatChip(c), c.mode === "manual" ? `<span class="chip warn">${c.charge_now_target ? `Laddar till ${c.charge_now_target} % · ` : "Manuellt "}${c.amps} A${c.phases ? " · " + c.phases + "-fas" : ""}</span>` : "", ...(c.facts || []).slice(0, 2).map((f) => `<span class="chip">${esc(f)}</span>`)].join("");
   return `<section class="card hero${c.climate_on ? " heating" : ""}"><div class="carname">${esc(c.name)} ${ER() === "family" ? "" : `<button class="link" data-a="cardata" data-c="${c.key}">Alla data</button>`}</div><div class="ring">${ring(c.soc, color)}<div class="pct" data-a="refreshsoc" data-c="${c.key}" title="Tryck för att uppdatera"><b>${c.soc == null ? "–" : c.soc}<small style="font-size:.45em">%</small></b><span>batteri</span></div></div>
   <div class="chips">${chips}</div><div class="stat">${planLink(c, si.t)}${c.away && c.away.km ? ` <span class="note">· ${c.away.km} km kvar</span>` : ""}</div>${c.home && c.plugged ? `<div class="note sunline${c.solar && c.solar.active ? " on" : ""}">${esc(solarText(c))}</div>` : ""}${c.home ? actions(c, true) : ""}
   ${c.guest ? `<div class="chips"><button class="chip ok" data-a="guest" data-c="${c.key}">Gästbil: ${c.guest.kwh} kWh${c.guest.until ? " · klar " + hhmm(c.guest.until) : " · laddar direkt"}</button></div>` : ""}
@@ -580,10 +580,21 @@ async function hardReload() {
   location.reload();
 }
 let doneShortcut = false, grAt = 0;
+// #394: "Ladda nu" frågar efter mål - laddningen avslutas av sig själv vid målet, urdragen kabel eller efter 24 h
+function chargeNowSheet(key) {
+  const c = S.cars.find((x) => x.key === key); if (!c) return;
+  const soc = c.soc, tg = [40, 60, 80, 100].filter((t) => soc == null || t > soc);
+  sheet(`<h3>Ladda ${esc(c.name)} nu?</h3><div class="note">${soc == null ? "Laddnivån är okänd just nu." : `Bilen har ${soc} %.`} Laddar direkt, oavsett schema. Med ett mål slutar laddningen av sig själv och planen tar över.</div>
+    ${soc == null ? "" : `<div class="cn-tg">${tg.map((t) => `<button class="mini" data-x="t${t}">Till ${t} %</button>`).join("")}</div>`}
+    <button class="${soc == null ? "big" : "mini"}" data-x="ok" style="width:100%;margin-top:8px">Tills jag stoppar</button><button class="mini" data-x="no" style="width:100%;margin-top:8px">Avbryt</button>`);
+  $("#sheet").onclick = (e) => { const b = e.target.closest("[data-x]"); if (!b) { if (e.target.id === "sheet") closeSheet(); return; } closeSheet();
+    if (b.dataset.x === "ok") act(key, "start"); else if (b.dataset.x[0] === "t") act(key, "start", { target_soc: +b.dataset.x.slice(1) }); };
+}
+
 function runShortcut() {                              // genvägar från ikonens långtryck: ./?do=goodnight, windows_on, windows_off, <bil>_start
   const q = new URLSearchParams(location.search).get("do"); if (!q) return; history.replaceState(null, "", location.pathname);
   if (["windows_on", "windows_off", "goodnight"].includes(q) && can("lights")) { api("lights", { action: q }).then((r) => toast(r.msg)).catch((e) => toast(e.message)); return; }
-  const m = /^(.+)_start$/.exec(q), _sc = m && S && S.cars.find((c) => c.key === m[1]); if (m && _sc && can("start")) { const nm = _sc.name; sheet(`<h3>Ladda ${nm} nu?</h3><div class="note">Startar laddning direkt, oavsett schema.</div><button class="big" data-x="ok">Ja, ladda</button><button class="mini" data-x="no">Avbryt</button>`); $("#sheet").onclick = (e) => { const b = e.target.closest("[data-x]"); if (!b) { if (e.target.id === "sheet") closeSheet(); return; } closeSheet(); if (b.dataset.x === "ok") act(m[1], "start"); }; }
+  const m = /^(.+)_start$/.exec(q); if (m && S && S.cars.some((c) => c.key === m[1]) && can("start")) chargeNowSheet(m[1]);
 }
 async function loadGreeting() { if (Date.now() - grAt < 120000) return; grAt = Date.now(); try { GR = await api("greeting?lang=" + I18N.lang + (ROLE === "owner" && VIEWAS ? "&as=" + VIEWAS : "")); render(); } catch {} }
 async function loadClock() {           // planklockan på Hem och Plan - högst en gång i minuten
@@ -848,7 +859,8 @@ document.addEventListener("click", async (e) => {
   if (a === "greet" && GR) return sheet(`<h3>${esc(GR.hello)}</h3><div class="note">${esc(GR.weather)}</div><div style="font-size:1.1rem;font-weight:600">${esc(GR.line)}</div>`);
   if (a === "schcar") { schCar = v; return render(); }
   if (a === "sch") { const d = +b.dataset.d, x = SCH[schCar][d], f = b.dataset.f; buzz(8); if (f === "enabled") x.enabled = !x.enabled; else if (f === "soc+") x.soc = Math.min(100, x.soc + 5); else if (f === "soc-") x.soc = Math.max(20, x.soc - 5); render(); return schedSave(schCar, d); }
-  if (["start", "stop", "auto", "heat_on", "heat_off"].includes(a)) return act(c, a);
+  if (a === "start") return chargeNowSheet(c);
+  if (["stop", "auto", "heat_on", "heat_off"].includes(a)) return act(c, a);
 });
 document.addEventListener("change", (e) => { const t = e.target.closest('[data-a="schtime"]'); if (t && !can("schtime")) { toast("Gästläge – du kan bara titta"); render(); return; } if (t) { const d = +t.dataset.d; SCH[schCar][d].time = t.value || "07:00"; schedSave(schCar, d); } });
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; if (typeof render === "function" && S) render(); });

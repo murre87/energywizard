@@ -511,6 +511,7 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
     elif tracker not in ("unknown", "unavailable") and soc is not None and not soc_stale:
         _car_mem_save(key, soc, home)
     amps, phases = intval(ov.get(f"{key}_force_amps")), intval(ov.get(f"{key}_force_phases"))
+    charge_now_target = intval(ov.get(f"{key}_charge_now_target")) if amps > 0 else 0       # #394
     hold = ov.get(f"{key}_hold") == "on"
     mode = ("manual" if amps > 0 else ("hold" if hold else "auto")) if (home and plugged) else ("hold" if hold else "auto")
     charging = status == "charging" or power_kw > 0.3
@@ -542,7 +543,7 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
                     "dest_home": None if d_dest is None else d_dest < 1.5, "dest_km_from_home": None if d_dest is None else round(d_dest), "car_km_from_home": None if d_car is None else round(d_car)}
         except Exception:
             away = None
-    return {"key": key, "name": c["name"], "soc": None if soc is None else round(soc), "soc_stale": soc_stale, "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
+    return {"key": key, "name": c["name"], "charge_now_target": charge_now_target or None, "soc": None if soc is None else round(soc), "soc_stale": soc_stale, "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
             "mode": mode, "amps": amps, "phases": phases, "eta": eta, "away": away, "online": (val(st, c["online"]) or "off") == "on", "default_phases": c["phases"],
             # Klimatet är igång när man kör - det är inte "förvärmning". Bara när bilen står hemma och inte är i körläge.
             "driving": driving(st, c),
@@ -730,14 +731,33 @@ def car_command(car: str, kind: str, body: dict | None = None) -> dict | None:
         phases = intval(body.get("phases")) if intval(body.get("phases")) in (1, 3) else 0
         if c.get("fixed_phases"):                      # laddboxen/bilen klarar bara 1-fas
             phases = 1
+        # #394: "Ladda nu till X %" avslutas av sig själv (motorn, charge_now.py). Utan mål: tills man stoppar.
+        target = intval(body.get("target_soc")) if kind == "start" else 0
+        if target:
+            if not 1 <= target <= 100:
+                raise HTTPException(400, "Målet ska vara 1–100 %")
+            soc = num(st, c["soc"]) if c.get("soc") else None
+            if soc is None:                             # sovande bil: senast kända värde, som appen visar
+                _car_mem_load()
+                soc = (_CAR_MEM.get(car) or {}).get("soc")
+            if soc is None:
+                raise HTTPException(409, "Bilens laddnivå är okänd – välj Tills jag stoppar")
+            if soc >= target:
+                raise HTTPException(409, f"Bilen har redan {round(soc)} %")
         set_override(f"{car}_hold", "off")
         set_override(f"{car}_force_amps", str(amps))
         set_override(f"{car}_force_phases", str(phases))
+        set_override(f"{car}_charge_now_target", str(target) if target else "")
+        set_override(f"{car}_charge_now_until", str(int(time.time() + 24 * 3600)) if target else "")
         drv = CHARGER_DRV.get(car)
         ok = drv.set_limit_a(amps) if drv else False
         if drv and status in ("awaiting_start", "paused", "off", "ready_to_charge", "completed"):
             drv.turn_on()
-        return {"ok": bool(ok), "msg": (f"Startar laddning, {amps} A" + (f" ({phases}-fas)" if phases else "") + " – det kan ta en halv minut innan bilen börjar") if ok else "Laddaren svarade inte – försök igen"}
+        until = f" till {target} %, sedan tar planen över" if target else ""
+        return {"ok": bool(ok), "msg": (f"Startar laddning, {amps} A" + (f" ({phases}-fas)" if phases else "") + until + " – det kan ta en halv minut innan bilen börjar") if ok else "Laddaren svarade inte – försök igen"}
+    if kind in ("stop", "auto"):
+        set_override(f"{car}_charge_now_target", "")
+        set_override(f"{car}_charge_now_until", "")
     if kind == "stop":
         set_override(f"{car}_force_amps", "0")
         set_override(f"{car}_force_phases", "0")
