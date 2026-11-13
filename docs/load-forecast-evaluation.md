@@ -55,3 +55,9 @@ criterion, not permission to enable anything. `adoption_ready` is always false:
 paired planner-cost/constraint evaluation on recorded inputs, real household data,
 and a reviewed opt-in rollout/reversion decision are still required. A lower MAE
 alone does not establish economic improvement.
+
+## Paired planner cash-flow counterfactual
+
+Optionally pass --planner-snapshot PATH to the same CLI. It validates the snapshot identity and exact planner replay, then freezes both full-horizon forecasts using only quarters completed before that snapshot origin. Both runs share the captured initial SOC, prices, PV, EV and planner settings; simulated realized load comes from the aligned reconstructed measurements. Future actuals never feed any forecast in that horizon.
+
+Only snapshots made exactly at the first quarter boundary are accepted, because the simulator models whole quarters. Export-disabled, non-block EV policies and balancing snapshots are rejected rather than simulated with different constraints. At least 672 completed training quarters and all realized horizon quarters are required. The report includes actions, simulated SOC bounds, ending SOC and energy cash costs in the snapshot price units. It excludes wear/switching charges and terminal energy valuation: a cash delta with different ending SOC is not savings. It does not qualify fuse/comfort behavior or hardware, and adoption_ready remains false. The existing MAE test split and this single planner origin are separate evaluations. No recorded household dataset is bundled; synthetic tests prove invariants, not economic improvement.
