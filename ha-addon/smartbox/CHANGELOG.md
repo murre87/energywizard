@@ -5,6 +5,8 @@
   berättar vad som ändrats och hur man byter tillbaka (Inställningar → Appen → Stil → Klassisk), med knapparna
   "Behåll det nya" och "Byt till klassisk". Nya användare och den som redan valt stil ser den inte. På svenska,
   engelska och tjeckiska.
+- Varmvattnets tillbakaläsning (1.2.74) läser start och stopp i en läsning och försöker en gång till om
+  Husdata-gatewayen släpper anslutningen.
 
 ## 1.2.74 (2026-11-13)
 - **Varmvattenspärren vid dyrt elpris fäster nu** (Thermia via Husdata): när elen är dyr sänks bara

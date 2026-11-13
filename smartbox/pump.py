@@ -278,11 +278,12 @@ def read_water_setpoints():
     import shadow
     if shadow.active():                       # skuggläge: inget skrivs, alltså inget att kontrollera
         return None
-    stop = _read_holding(13)
-    start = _read_holding(20)
-    if not stop or not start:
-        return None
-    return _to_signed(stop[0]) / 10.0, _to_signed(start[0]) / 10.0
+    for attempt in range(2):                  # gatewayen släpper ibland anslutningen direkt efter en skrivning
+        regs = _read_holding(13, count=8)     # 13 = stopp, 20 = start, i en läsning
+        if regs and len(regs) >= 8:
+            return _to_signed(regs[0]) / 10.0, _to_signed(regs[7]) / 10.0
+        time.sleep(1)
+    return None
 
 def set_water_stop_temp(target_temp):
     """Sätter maxtemperatur för Varmvatten (Holding 13)."""
