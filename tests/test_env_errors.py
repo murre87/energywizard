@@ -38,7 +38,9 @@ def test_ingen_rapport_men_besked(monkeypatch):
     import time
     time.sleep(0.3)
     assert noted == ["PoolTimeout"]
-    assert len(sent) == 1 and sent[0][2] == "TypeError"
+    kinds = sorted(a[2] for a in sent)
+    assert kinds == ["DatabaseUnavailable", "TypeError"]       # databasen nere = ett samlat fel, inte 28
+    assert [a[1] for a in sent if a[2] == "DatabaseUnavailable"] == ["database"]
 
 
 def test_samlaren_listar_samma_typer():
@@ -52,3 +54,13 @@ def test_husets_logg_visar_varning():
     assert ew_journal.level_of("❌ get_settings: couldn't get a connection after 30.00 sec") == "varning"
     assert ew_journal.level_of("❌ Fel vid loggning till databas: DiskFull") == "varning"
     assert ew_journal.level_of("❌ något annat") == "fel"
+
+
+def test_full_disk_doljer_databasfelet():
+    import time
+    env_errors._disk_full_at["at"] = 0.0
+    assert env_errors.should_report_db("PoolTimeout") is True
+    assert env_errors.should_report_db("DiskFull") is False
+    assert env_errors.should_report_db("PoolTimeout") is False       # disken full nyligen: miljön, ingen rapport
+    env_errors._disk_full_at["at"] = time.time() - 90000
+    assert env_errors.should_report_db("OperationalError") is True

@@ -390,9 +390,12 @@ def install_error_hook(cfg: dict) -> None:
                 if (exc is not None and env_errors.is_env(exc.__name__, sys.exc_info()[1])) or \
                         any(t in line for t in ("No space left on device", "53100", "DiskFull", "PoolTimeout",
                                                 "couldn't get a connection")):
-                    env_errors.note("DiskFull" if ("53100" in line or "No space" in line or "DiskFull" in line
-                                                    or (exc is not None and exc.__name__ == "DiskFull")) else
-                                    (exc.__name__ if exc else "PoolTimeout"))
+                    kind_env = ("DiskFull" if ("53100" in line or "No space" in line or "DiskFull" in line
+                                               or (exc is not None and exc.__name__ == "DiskFull")) else
+                                (exc.__name__ if exc else "PoolTimeout"))
+                    env_errors.note(kind_env)
+                    if env_errors.should_report_db(kind_env):        # databasen nere, disken inte full: ett samlat fel
+                        threading.Thread(target=report_error, args=(_hook_cfg, *env_errors.DB_GROUP), daemon=True).start()
                     return
             except Exception:
                 pass

@@ -481,6 +481,7 @@ def log_status(
             try:
                 import env_errors
                 env_errors.note("DiskFull")       # användaren får veta (högst var sjätte timme)
+                env_errors.should_report_db("DiskFull")   # markera: databasfel närmaste dygnet beror på disken
             except Exception:
                 pass
         else:

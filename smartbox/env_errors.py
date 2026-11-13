@@ -13,6 +13,17 @@ TYPES = {"DiskFull", "PoolTimeout", "OperationalError", "TooManyConnections", "A
 SQLSTATES = {"53100", "53200", "53300", "57P01", "57P03", "08001", "08006"}
 NOTIFY_EVERY_S = 6 * 3600
 _last = {"at": 0.0}
+_disk_full_at = {"at": 0.0}
+DB_GROUP = ("database", "DatabaseUnavailable")      # ett samlat felärende när databasen svarar inte (disken inte full)
+
+
+def should_report_db(error_type: str) -> bool:
+    """Full disk: aldrig rapport. Databasen nere utan full disk (senaste dygnet): rapporteras som ETT samlat fel, för
+    lazgeo hittade en riktig poolbugg (PR #363) - en sådan ska inte försvinna ur sikte (Emil 2026-11-13)."""
+    if error_type == "DiskFull":
+        _disk_full_at["at"] = time.time()
+        return False
+    return time.time() - _disk_full_at["at"] > 86400
 
 
 def is_env(error_type: str | None, exc=None) -> bool:

@@ -1,5 +1,10 @@
 # Ändringar
 
+## 1.2.69 (2026-11-13)
+- **"Databasen svarar inte" blir ett samlat fel** när disken inte är full: `PoolTimeout` och liknande rapporteras som
+  ett enda fel (`database: DatabaseUnavailable`) i stället för ett per modul, så att en riktig bugg (som poolfelet i
+  PR #363) inte försvinner ur sikte. Full disk rapporteras fortfarande inte; användaren får en avisering som förut.
+
 ## 1.2.68 (2026-11-13)
 - **Kompressorn via myUplink** (#184): den direkta myUplink-drivrutinen tolkar NIBE:s kompressorstatus (koderna
   20/40/60/100 och text som "Kör") som HA-vägen. Förut räknades varje kod över 0, även "stoppad", som att pumpen gick.
