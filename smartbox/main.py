@@ -38,6 +38,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_balance
@@ -307,7 +308,7 @@ indoor_temp          = None  # FIX: för-initieras så pumpen offline vid uppsta
 
 last_sent_temp           = None
 last_sent_water          = None
-last_sent_water_target   = None
+water_sp = water_setpoints.WaterSetpoints()
 last_sent_spa_target     = None
 last_sent_spa_eco        = None
 last_sent_operating_mode = None
@@ -2514,12 +2515,8 @@ while True:
                     print(f"  {log_msg}")
 
                 if ov_smart_mode != "manual":
-                    water_target = gpm_actions["water_target_temp"]
-                    if last_sent_water_target != water_target:
-                        heat_pump_driver.set_water_stop_temp(water_target)
-                        time.sleep(2)
-                        heat_pump_driver.set_water_start_temp(water_target - 5)
-                        last_sent_water_target = water_target
+                    water_sp.apply(heat_pump_driver, gpm_actions["water_target_temp"],
+                                   cfg.get("water_target_normal", 50.0), sleep=time.sleep)
                         
                     ov_water = all_overrides.get("hotwater", "auto")
                     if ov_water == "on": print("🔧 Överstyrning: Varmvatten TILL")

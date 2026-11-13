@@ -2388,5 +2388,9 @@
   "Ny (standard)": "Nový (výchozí)",
   "Klassisk": "Klasický",
   "Radiatorer i Home Assistant": "Radiátory v Home Assistant",
-  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Nalezené radiátory se zobrazují pouze jako přehled zařízení. Ovládejte je v Home Assistant; samostatné plánování zón zatím není podporováno."
+  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Nalezené radiátory se zobrazují pouze jako přehled zařízení. Ovládejte je v Home Assistant; samostatné plánování zón zatím není podporováno.",
+  "Varmvatten: stopp # °C och start # °C fäster inte, pumpen visar stopp # °C och start # °C": "Teplá voda: stop # °C a start # °C se neuloží, čerpadlo ukazuje stop # °C a start # °C",
+  "Varmvatten: stopp # °C och start # °C fäste inte, pumpen visar stopp # °C och start # °C": "Teplá voda: stop # °C a start # °C se neuložily, čerpadlo ukazuje stop # °C a start # °C",
+  "Slutar försöka tills målet ändras": "Přestává to zkoušet, dokud se cíl nezmění",
+  "Försöker igen nästa kvart": "Zkusí to znovu za čtvrt hodiny"
 }

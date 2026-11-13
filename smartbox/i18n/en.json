@@ -2388,5 +2388,9 @@
  "Ny (standard)": "New (default)",
  "Klassisk": "Classic",
   "Radiatorer i Home Assistant": "Radiators in Home Assistant",
-  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Discovered radiators are shown as inventory only. Control them in Home Assistant; separate zone scheduling is not supported yet."
+  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Discovered radiators are shown as inventory only. Control them in Home Assistant; separate zone scheduling is not supported yet.",
+ "Varmvatten: stopp # °C och start # °C fäster inte, pumpen visar stopp # °C och start # °C": "Hot water: stop # °C and start # °C do not stick, the pump shows stop # °C and start # °C",
+ "Varmvatten: stopp # °C och start # °C fäste inte, pumpen visar stopp # °C och start # °C": "Hot water: stop # °C and start # °C did not stick, the pump shows stop # °C and start # °C",
+ "Slutar försöka tills målet ändras": "Stops trying until the target changes",
+ "Försöker igen nästa kvart": "Trying again next quarter-hour"
 }

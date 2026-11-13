@@ -25,6 +25,9 @@ class ThermiaHusdataHeatPumpDriver(HeatPumpDriver):
     def set_water_start_temp(self, target_c: float) -> bool:
         return bool(pump.set_water_start_temp(target_c))
 
+    def read_water_setpoints(self):
+        return pump.read_water_setpoints()
+
     def set_heating_start_temp(self, target_c: float) -> bool:
         return bool(pump.set_heating_start_temp(target_c))
 
