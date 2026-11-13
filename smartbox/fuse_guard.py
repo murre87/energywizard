@@ -123,10 +123,13 @@ class FuseThermalModel:
         ts = time.time() if ts is None else float(ts)
         return self._last_cut_ts is not None and (ts - self._last_cut_ts) < self.recovery_s
 
-    def ev_cap_a(self, fuse_a, ev_phase_a, margin_a=0.0, ts=None):
+    def ev_cap_a(self, fuse_a, ev_phase_a, margin_a=0.0, ts=None, pending_a=0.0):
         """Högsta tillåtna totala bilström (A per fas, samma enhet som laddargränserna) just nu.
 
         ev_phase_a = vad bilarna faktiskt drar per fas (summa av alla laddare).
+        pending_a = en annan lasts beviljade ökning som ännu inte syns i mätningen (husbatteriets
+        nätladdning, ramp_budget.py, #399). Den räknas mot det lediga utrymmet så att bil och batteri
+        inte båda får samma utrymme. Minskningar och strypningar påverkas inte.
         None = modellen har ingen färsk mätdata - anroparen använder sin gamla formel.
         En strypning registreras automatiskt (startar 20 s-spärren mot ny ökning)."""
         ts = time.time() if ts is None else float(ts)
@@ -152,17 +155,40 @@ class FuseThermalModel:
                     caps.append(e - (f - limit)); cut = True             # termisk överlast
                 else:
                     reading = inst if exporting else max(inst, f)
-                    room = 0.0 if recovering else max(0.0, limit - reading)
+                    room = 0.0 if recovering else max(0.0, limit - reading - max(0.0, float(pending_a or 0.0)))
                     caps.append(e + room)                                # håll, öka bara det som ryms
             else:
                 if not exporting and f > limit:
                     caps.append(0.0)                                     # fasen är redan varm: ingen start
                 else:
-                    caps.append(limit - (inst - e))                      # start: avläsningen som den är
+                    caps.append(limit - (inst - e) - max(0.0, float(pending_a or 0.0)))   # start: avläsningen som den är
         if cut:
             self.mark_cut(ts)
         cap = min(caps) if caps else 0.0
         return max(0, int(math.floor(cap)))
+
+
+    def battery_charge_cap_w(self, fuse_a, battery_w, phases=3, margin_a=0.0, reserved_a=0.0, volt=230.0, ts=None):
+        """Högsta laddeffekt (W) för husbatteriet just nu utan att säkringen överskrids (#399).
+
+        battery_w = batteriets uppmätta effekt (+ = laddar). Den laddning som redan pågår syns i mätningen
+        och räknas därför tillbaka. reserved_a = en annan lasts beviljade ökning som ännu inte syns (elbilen).
+        phases = växelriktarens faser (battery.phases). Enfasig: räknas på den värsta fasen. Exporterande
+        faser räknas utan värme, som för bilen. None = ingen färsk mätdata (anroparen behåller sitt tak)."""
+        ts = time.time() if ts is None else float(ts)
+        if not self.is_fresh(ts) or not self._last:
+            return None
+        phases = 1 if int(phases or 3) == 1 else 3
+        limit = self._limit(fuse_a, margin_a)
+        own_a = max(0.0, float(battery_w or 0.0)) / volt / phases     # pågående laddning per fas
+        rooms = []
+        for inst, f in zip(self._last, self.filtered_a()):
+            reading = inst if inst <= 0 else max(inst, f)
+            rooms.append(limit - reading + own_a - max(0.0, float(reserved_a or 0.0)))
+        room = min(rooms) if rooms else 0.0
+        if self.in_recovery(ts):
+            room = min(room, own_a)                    # nyss strypt: ingen ökning
+        return max(0.0, room) * volt * phases
 
 
 def fast_trip_limits(model, fuse_a, sent_limits, margin_a=0.0, min_charge_a=6, ts=None):

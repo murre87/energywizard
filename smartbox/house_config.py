@@ -254,6 +254,8 @@ def battery_settings(cfg: dict) -> dict:
     return {"control": control if bat.get("enabled") else "av", "reserve_soc": f("reserve_soc", 20.0),
             "priority_soc": f("priority_soc", 50.0), "max_soc": f("max_soc", 100.0, True),
             "max_power_w": f("max_power_w", 5000.0, True),
+            # Växelriktarens faser (1 eller 3): hur nätladdningen fördelas mot säkringen (#399)
+            "phases": 1 if str(bat.get("phases", 3)).strip() == "1" else 3,
             # Valfria tak för vad dygnsplanen får anta (#251). Tomt = max_power_w, sedan inlärd hållen effekt.
             "max_charge_w": f("max_charge_w", None, True), "max_discharge_w": f("max_discharge_w", None, True),
             "capacity_kwh": f("capacity_kwh", None, True),

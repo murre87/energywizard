@@ -31,9 +31,10 @@ Ren funktion; testas i tests/test_battery_control.py.
 
 from datetime import timedelta
 
+FUSE_CAP_STEP_W = 100         # #399: minsta minskning som skrivs när säkringstaket sänker laddningen
 POWER_DEADBAND_W = 200        # #194: mindre effektändringar inom samma läge skrivs inte
 MIN_CHANGE_INTERVAL = timedelta(minutes=5)     # lägesbyten sparsamt (flashminne), säkerhetsregler undantagna
-SAFETY_RULES = {"stale", "fuse", "peak", "soc_limit"}
+SAFETY_RULES = {"stale", "fuse", "fuse_cap", "peak", "soc_limit"}
 FUSE_MIN_W = 500
 FROZEN_AFTER_S = 600          # elmätaren visar exakt samma värde så här länge -> räknas som död
 
@@ -102,6 +103,15 @@ def decide(s, cfg, supported=frozenset({"auto"})):
 
     def out(intent, rule, reason, power=None):
         power, reason = no_export(intent, power, reason)
+        cap = s.get("fuse_charge_cap_w")
+        if intent == "charge" and cap is not None:
+            # #399: laddning från nätet får bara ta säkringens lediga utrymme (elbilens nya ökning avräknad)
+            if cap < FUSE_MIN_W:
+                intent, power, rule = "hold", None, "fuse_cap"
+                reason += " Säkringen har inte utrymme för batteriet just nu - det håller i stället."
+            elif power is None or power > cap:
+                power, rule = cap, "fuse_cap"
+                reason += f" Laddningen begränsas till {cap:.0f} W så att säkringen räcker."
         for cand in _FALLBACK[intent]:
             if cand == "auto" or cand in supported:
                 if cand != intent:
@@ -164,6 +174,11 @@ def should_apply(new, last, last_change_at, now, min_change_minutes=5.0):
         return True
     if new["intent"] == last.get("intent") and new.get("power_w") == last.get("power_w"):
         return False
+    # #399: säkringstaket - en minskning skrivs direkt, en ökning bara om den är tydlig (flashminnet)
+    if new["intent"] == last.get("intent") and new.get("rule") == "fuse_cap":
+        a, b = new.get("power_w"), last.get("power_w")
+        if a is not None and b is not None:
+            return a <= b - FUSE_CAP_STEP_W or a >= b + max(POWER_DEADBAND_W, abs(b) * 0.10)
     # #194: samma läge, liten effektändring -> skriv inte (effektbörvärden sparas ofta i växelriktarens flash)
     if new["intent"] == last.get("intent") and new.get("rule") not in SAFETY_RULES and last.get("rule") not in SAFETY_RULES:
         a, b = new.get("power_w"), last.get("power_w")

@@ -38,6 +38,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätningen
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
@@ -632,6 +633,21 @@ last_spa_boost_stop_time = None
 spa_solar_boost_grace_counter = 0
 spa_should_heat_now = False
 
+_ramp = ramp_budget.RampBudget()   # #399: bil och husbatteri delar säkringens utrymme vid ökningar
+
+
+def _battery_fuse_cap_w(battery_w):
+    """#399: husbatteriets högsta nätladdning mot säkringen (nät- och ev. lastsidan), elbilens nya ökning avräknad.
+    None = ingen färsk mätdata (batteriet styrs då som förut)."""
+    caps = []
+    if fuse_model.is_fresh():
+        caps.append(fuse_model.battery_charge_cap_w(_fuse_cfg["fuse_a"], battery_w, battery_cfg["phases"],
+                                                    _fuse_cfg["margin_a"], reserved_a=_ramp.pending_a("battery")))
+    if load_model is not None and load_model.is_fresh():
+        caps.append(load_model.battery_charge_cap_w(LOAD_FUSE_A, battery_w, battery_cfg["phases"],
+                                                    _fuse_cfg["margin_a"], reserved_a=_ramp.pending_a("battery")))
+    caps = [c for c in caps if c is not None]
+    return min(caps) if caps else None
 last_sent_ev_limit = {}  # {car_id: int|None} - ersätter de tidigare hårdkodade _nissan/_tesla-varianterna
 
 _ev_heating_model_cache = {"at": None, "model": None}
@@ -1879,7 +1895,8 @@ while True:
                 if _cd:
                     for _k, _key in enumerate(("current_l1", "current_l2", "current_l3")):
                         _ev_phase_a[_k] += float(_cd.get(_key) or 0)
-            ev_fuse_cap_a = fuse_model.ev_cap_a(_fuse_cfg["fuse_a"], _ev_phase_a, margin_a=_fuse_cfg["margin_a"])
+            ev_fuse_cap_a = fuse_model.ev_cap_a(_fuse_cfg["fuse_a"], _ev_phase_a, margin_a=_fuse_cfg["margin_a"],
+                                                pending_a=_ramp.pending_a("ev"))
             if ev_fuse_cap_a is None and (avg_hl1 is None or avg_hl2 is None or avg_hl3 is None):
                 # Elmätaren svarar inte: husets ström är okänd (räknades förut som 0 A = hela säkringen till bilen).
                 # Ladda vidare, men försiktigt - inspirerat av FTW:s regel för gammal mätardata, se fuse_guard.py.
@@ -1896,7 +1913,8 @@ while True:
             # mätpunkterna, så samma _ev_phase_a gäller; det lägsta av de två taken används.
             ev_load_cap_a = None
             if load_model is not None:
-                ev_load_cap_a = load_model.ev_cap_a(LOAD_FUSE_A, _ev_phase_a, margin_a=_fuse_cfg["margin_a"])
+                ev_load_cap_a = load_model.ev_cap_a(LOAD_FUSE_A, _ev_phase_a, margin_a=_fuse_cfg["margin_a"],
+                                                    pending_a=_ramp.pending_a("ev"))
                 if ev_load_cap_a is None:
                     # Lastmätaren svarar inte: samma försiktiga reserv som för nätmätaren, mot lastsidans säkring.
                     ev_load_cap_a = fuse_guard.stale_ev_cap_a(LOAD_FUSE_A, learning.predict_base_load(now, dynamic_base_load_profile),
@@ -2087,6 +2105,7 @@ while True:
                         "balance_target_soc": (_bplan or {}).get("balance_target_soc") if _balance["request"] else None,
                         "balance_hold_now": (_bplan or {}).get("balance_hold_now") if _balance["request"] else False,
                         "learned_note": _battery_note(_battery["model"], (_bplan or {}).get("live_charge_note")),
+                        "fuse_charge_cap_w": _battery_fuse_cap_w(battery_state.get("power_w")),
                     }, battery_cfg, battery_driver.supported_intents())
                     gpm_actions["log"].append(f"🔋 (BATTERI): {_bdec['reason']}")
                     battery_driver.set_balancing(_bdec.get("rule") == "balance")
@@ -2095,6 +2114,9 @@ while True:
                     if battery_control.should_apply(_bdec, _battery["last"], _battery["at"], now,
                                                     battery_cfg["min_change_minutes"]):
                         if battery_commands.apply(_battery_commands, battery_driver, _bdec["intent"], _bdec.get("power_w")):
+                            if _bdec["intent"] == "charge":     # #399: ökningen räknas mot bilens utrymme tills den syns
+                                _ramp.grant("battery", ((_bdec.get("power_w") or battery_cfg["max_power_w"])
+                                                        - max(0.0, float(battery_state.get("power_w") or 0.0))) / 230.0 / battery_cfg["phases"])
                             _battery.update(last=_bdec, at=now)
                             print(f"🔋 Batteri: {_bdec['intent']} - {_bdec['reason']}")
                     _battery["decision_rule"] = _bdec.get("rule")
@@ -2225,6 +2247,7 @@ while True:
                     if not ev_phase_switch_active[car_id]:
                         if ev_amps[car_id] != last_sent_ev_limit.get(car_id):
                             if charger_set_limit(charger_id, ev_amps[car_id], reason=ev_reason_stop.get(car_id)):
+                                _ramp.grant("ev", ev_amps[car_id] - (last_sent_ev_limit.get(car_id) or 0))   # #399
                                 last_sent_ev_limit[car_id] = ev_amps[car_id]
                         if ev_amps[car_id] > 0 and charger_data.get("status") in ["awaiting_start", "paused", "off"]:
                             charger_turn_on(charger_id)

@@ -2438,5 +2438,7 @@
  "hittas inte i Home Assistant": "not found in Home Assistant",
  "Prissensorn är vald automatiskt. Välj en annan om du vill och tryck Använd priskällan.": "The price sensor was chosen automatically. Choose another one if you like and press Use this price source.",
  "Prissensor vald automatiskt: {entity}, {kind}": "Price sensor chosen automatically: {entity}, {kind}",
- "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Could not look for price sensors in Home Assistant ({err}) - trying again later"
+ "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Could not look for price sensors in Home Assistant ({err}) - trying again later",
+ "Säkringen har inte utrymme för batteriet just nu - det håller i stället": "The main fuse has no room for the battery right now - it holds instead",
+ "Laddningen begränsas till # W så att säkringen räcker": "Charging is limited to # W so the main fuse is not exceeded"
 }

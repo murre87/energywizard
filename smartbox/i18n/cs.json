@@ -2438,5 +2438,7 @@
   "hittas inte i Home Assistant": "nenalezeno v Home Assistantu",
   "Prissensorn är vald automatiskt. Välj en annan om du vill och tryck Använd priskällan.": "Cenový senzor byl vybrán automaticky. Pokud chcete, vyberte jiný a stiskněte Použít tento zdroj cen.",
   "Prissensor vald automatiskt: {entity}, {kind}": "Cenový senzor vybrán automaticky: {entity}, {kind}",
-  "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Nepodařilo se hledat cenové senzory v Home Assistantu ({err}) - zkusí to znovu později"
+  "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Nepodařilo se hledat cenové senzory v Home Assistantu ({err}) - zkusí to znovu později",
+  "Säkringen har inte utrymme för batteriet just nu - det håller i stället": "Hlavní jistič teď nemá pro baterii prostor - místo toho drží",
+  "Laddningen begränsas till # W så att säkringen räcker": "Nabíjení je omezeno na # W, aby jistič vydržel"
 }

@@ -1,5 +1,14 @@
 # Ändringar
 
+## 1.2.82 (2026-11-13)
+- **Husbatteriets laddning från nätet håller sig inom säkringen** (#399). Förut laddade batteriet med full effekt
+  (vid minuspris och planerad laddning) oavsett vad huset drog, och säkringsskyddet grep in först när säkringen
+  redan var överbelastad. Nu får batteriet bara säkringens lediga utrymme. Ryms det inte håller det i stället.
+- **Elbilen och husbatteriet får inte samma utrymme samtidigt**: en ökning som just beviljats räknas mot den andra
+  lasten tills den syns i mätningen (högst 90 sekunder). Minskningar och strypningar fördröjs aldrig.
+- Ny inställning `battery.phases` (1 eller 3, standard 3): växelriktarens faser, för en enfasig räknas taket på den
+  värsta fasen.
+
 ## 1.2.81 (2026-11-13)
 - **Prissensorn väljs automatiskt** där Nord Pool inte täcker landet (t.ex. Australien och Tjeckien) och ingen
   sensor är vald: EnergyWizard letar upp prissensorn i Home Assistant själv. Landets egen källa går före (Amber i
