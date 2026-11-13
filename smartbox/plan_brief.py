@@ -273,15 +273,16 @@ def build_brief(now, prices, ev_rows, strategy_fn, cheap_hours_count=8, current_
     active = [i for i in items if i["active"]]
     upcoming = [i for i in items if not i["active"]]
     if active and upcoming:
-        headline = f"Just nu: {_t(active[0])}. Härnäst {upcoming[0]['when']}: {_t(upcoming[0])}."
+        parts = ["Just nu: ", _t(active[0]), ". Härnäst ", upcoming[0]['when'], ": ", _t(upcoming[0]), "."]
     elif active:
-        headline = f"Just nu: {_t(active[0])} ({active[0]['when']})."
+        parts = ["Just nu: ", _t(active[0]), " (", active[0]['when'], ")."]
     elif upcoming:
-        headline = f"Härnäst {upcoming[0]['when']}: {_t(upcoming[0])}."
+        parts = ["Härnäst ", upcoming[0]['when'], ": ", _t(upcoming[0]), "."]
     else:
-        headline = "Inget planerat än - priserna för imorgon kommer vid 13-tiden."
+        parts = ["Inget planerat än - priserna för imorgon kommer vid 13-tiden."]
     return {
-        "headline": headline,
+        "headline": "".join(parts),
+        "headline_parts": parts,  # Separate labels/times/titles for DOM translation.
         "items": items,
         "note": ("Värmepumpens perioder är grundläget enligt elpriset. Vid kyla flyttas gränsen uppåt, "
                  "och komfortgolv, varmvatten och effektvakten går alltid före."),
