@@ -2392,5 +2392,11 @@
  "Varmvatten: stopp # °C och start # °C fäster inte, pumpen visar stopp # °C och start # °C": "Hot water: stop # °C and start # °C do not stick, the pump shows stop # °C and start # °C",
  "Varmvatten: stopp # °C och start # °C fäste inte, pumpen visar stopp # °C och start # °C": "Hot water: stop # °C and start # °C did not stick, the pump shows stop # °C and start # °C",
  "Slutar försöka tills målet ändras": "Stops trying until the target changes",
- "Försöker igen nästa kvart": "Trying again next quarter-hour"
+ "Försöker igen nästa kvart": "Trying again next quarter-hour",
+ "Appen har fått ett nytt utseende": "The app has a new look",
+ "Lugnare och lättare att läsa: färg bara där den betyder något, priset just nu överst och inga emoji i flödet. Allt finns kvar på samma ställe.": "Calmer and easier to read: colour only where it means something, the current price at the top and no emoji in the flow. Everything is still in the same place.",
+ "Vill du hellre ha det gamla utseendet: Inställningar → Appen → Stil → Klassisk. Du kan byta när du vill.": "Prefer the old look? Settings → The app → Style → Classic. You can switch whenever you like.",
+ "Behåll det nya": "Keep the new look",
+ "Byt till klassisk": "Switch to classic",
+ "Klassisk stil – ändra under Inställningar → Appen → Stil": "Classic style – change it under Settings → The app → Style"
 }

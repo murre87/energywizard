@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.75 (2026-11-13)
+- **Ruta om det nya utseendet**: den som uppdaterat och får den nya stilen ser en gång en ruta i appen som
+  berättar vad som ändrats och hur man byter tillbaka (Inställningar → Appen → Stil → Klassisk), med knapparna
+  "Behåll det nya" och "Byt till klassisk". Nya användare och den som redan valt stil ser den inte. På svenska,
+  engelska och tjeckiska.
+
 ## 1.2.74 (2026-11-13)
 - **Varmvattenspärren vid dyrt elpris fäster nu** (Thermia via Husdata): när elen är dyr sänks bara
   varmvattnets startvärde (så ingen dyr laddning startar förrän tanken är kall). Stoppvärdet ligger kvar på
