@@ -2328,5 +2328,21 @@
  "Skickad": "Sent",
  "Skickade aviseringar": "Sent notifications",
  "Varning: Effekttak hotat!": "Warning: power ceiling threatened!",
- "batteriet (laddar billigt, laddar ur dyrt).": "the battery (charges cheap, discharges dear)."
+ "batteriet (laddar billigt, laddar ur dyrt).": "the battery (charges cheap, discharges dear).",
+ "Balansering": "Balancing",
+ "Batteriet balanseras": "Battery balancing",
+ "Batteriet har nått laddtaket - laddningen pausas.": "The battery has reached its charge limit - charging is paused.",
+ "Planen: balansering efter uppmätt skillnad mellan batterimodulerna.": "Plan: balancing following a measured difference between battery modules.",
+ "Balansering kräver batteristyrning, dygnsplan och stöd för laddning och hålläge.": "Balancing requires battery control, a daily plan and support for charging and holding.",
+ "Balansering väntar på färska laddnivåer från minst två batterimoduler.": "Balancing is waiting for fresh state-of-charge readings from at least two battery modules.",
+ "Skillnad mellan batterimodulerna upptäckt - inväntar bekräftelse.": "A difference between battery modules was detected - awaiting confirmation.",
+ "Balansering behövs - planeras efter elpris och solprognos.": "Balancing is needed - scheduling using electricity prices and the solar forecast.",
+ "Balansering pågår: batteriet laddas eller hålls vid målnivån. Vanlig batteriplanering återupptas efter balanseringen.": "Balancing in progress: the battery is charging or holding at its target. Normal battery scheduling resumes after balancing.",
+ "Balanseringen är pausad av husets övriga skydd eller laddbehov och planeras om.": "Balancing is paused by other household safeguards or charging needs and will be rescheduled.",
+ "Balansering skjuts upp - ingen genomförbar period i den kända planen.": "Balancing is deferred - no feasible period is available in the known plan.",
+ "Balansering avvaktar efter föregående försök eller fulladdning.": "Balancing is waiting after a previous attempt or full charge.",
+ "Batterimodulerna har hållit målnivån under hela balanseringstiden.": "The battery modules maintained their target throughout the balancing hold period.",
+ "Ingen bekräftad skillnad som kräver balansering.": "No confirmed difference requiring balancing.",
+ "Balanseringen blev inte klar inom 36 timmar. Vanlig batteriplanering återupptas; kontrollera batteriets app.": "Balancing did not finish within 36 hours. Normal battery scheduling resumes; check the battery's app.",
+ "Balansering är pausad eftersom underhållsstatus inte kunde sparas. Vanlig batteriplanering fortsätter.": "Balancing is paused because maintenance status could not be saved. Normal battery scheduling continues."
 }

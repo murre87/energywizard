@@ -136,6 +136,8 @@ local ESO_CAPACITY_KWH = {}
 --     the per-driver caps in config.yaml.
 local DISCHARGE_FLOOR_SOC = 0.15
 local CHARGE_CEIL_SOC     = 0.95
+-- EnergyWizard local addition, 2026-11-13 (#343): expose source-dated
+-- module SOC and accept explicit, scheduled maintenance charge context.
 -- PV-curtail release power (watts). When ComputePVCurtail releases this
 -- driver (curtail_disable action), the dispatcher historically wanted us
 -- to send `pplim arg=0`. Ferroamp's extapi treats that as "limit PV to
@@ -664,6 +666,7 @@ function driver_poll()
         local n_eso = 0
         local n_discharge_capable, n_charge_capable = 0, 0
         local eso_pbat = {}  -- per-ESO ubat*ibat (+=discharge, -=charge) for the active detector
+        local module_socs = {}
 
         -- Fallback weight for ESOs not listed in ESO_CAPACITY_KWH: the
         -- mean of the configured weights. Picking the mean (not 0, not 1)
@@ -692,6 +695,10 @@ function driver_poll()
             local soc = tonumber(extract_val(d, "soc"))
             if soc then
                 if soc > 1 then soc = soc / 100 end
+                module_socs[tostring(id)] = {
+                    soc_pct = soc * 100,
+                    sample_at = (host.unix_ms() - (now - eso_ts_by_id[id])) / 1000,
+                }
                 soc_sum = soc_sum + soc; soc_n = soc_n + 1
                 local cap = ESO_CAPACITY_KWH[tostring(id)] or default_cap
                 if cap then
@@ -783,6 +790,7 @@ function driver_poll()
         host.emit_metric("eso_active_discharge", last_eso_active_discharge or 0)
 
         if battery then
+            battery.modules = module_socs
             if v_n   > 0 then battery.v = v_sum / v_n end
             if a_n   > 0 then battery.a = a_sum end           -- sum, not avg: parallel currents add
 
@@ -964,6 +972,9 @@ function driver_command(action, power_w, cmd)
             local capable
             if power_w > 0 then capable = last_eso_charge_capable
             else                 capable = last_eso_discharge_capable end
+            -- Only scheduled maintenance may pass the normal 95% dispatch
+            -- margin. Power scaling/clamps and the hardware BMS remain intact.
+            if power_w > 0 and cmd and cmd.balance == true then capable = last_eso_count end
             if capable == 0 then
                 -- Every unit floored/ceilinged for this direction — publish
                 -- idle rather than command something nothing can honour.

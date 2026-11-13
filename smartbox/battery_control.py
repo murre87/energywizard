@@ -33,7 +33,7 @@ from datetime import timedelta
 
 POWER_DEADBAND_W = 200        # #194: mindre effektändringar inom samma läge skrivs inte
 MIN_CHANGE_INTERVAL = timedelta(minutes=5)     # lägesbyten sparsamt (flashminne), säkerhetsregler undantagna
-SAFETY_RULES = {"stale", "fuse", "peak"}
+SAFETY_RULES = {"stale", "fuse", "peak", "soc_limit"}
 FUSE_MIN_W = 500
 FROZEN_AFTER_S = 600          # elmätaren visar exakt samma värde så här länge -> räknas som död
 
@@ -130,6 +130,10 @@ def decide(s, cfg, supported=frozenset({"auto"})):
     if s.get("ev_solar_active") and soc >= prio:
         return out("idle", "ev_solar", f"Elbilen solladdar och batteriet har {soc:.0f} % (över {prio:.0f} %) - solöverskottet går till bilen.")
     planned = s.get("planned_action")
+    if s.get("balance_hold_now") and s.get("balance_target_soc") and soc < s["balance_target_soc"] - 0.5:
+        planned = "charge"  # Top up an already scheduled dwell, never start a request early.
+    if planned == "charge" and soc >= (s.get("balance_target_soc") or max_soc):
+        return out("hold", "soc_limit", "Batteriet har nått laddtaket - laddningen pausas.")
     # The reserve protects against discharge, but must allow planned charging to recover (#229).
     if soc <= reserve and planned != "charge":
         return out("hold", "reserve", f"Batteriet är på reservnivån ({soc:.0f} % ≤ {reserve:.0f} %) - sparas till strömavbrott.")
@@ -142,6 +146,8 @@ def decide(s, cfg, supported=frozenset({"auto"})):
         saving = s.get("plan_saving_kr")
         extra = f" Planen sparar ≈ {saving:.0f} {symbol} mot ren självförbrukning." if saving and saving >= 1 else ""
         note = f" {s['learned_note']}" if s.get("learned_note") else ""
+        if s.get("balance_target_soc"):
+            return out(planned, "balance", "Planen: balansering efter uppmätt skillnad mellan batterimodulerna.", pmax_plan)
         return out(planned, "plan", f"{REASON.get(planned, 'Planen')}{detail}.{extra}{note}", pmax_plan)
     remaining = s.get("prices_rest_of_day") or []
     p33, p67 = _percentile(remaining, 33), _percentile(remaining, 67)

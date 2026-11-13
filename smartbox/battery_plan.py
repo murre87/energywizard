@@ -166,7 +166,8 @@ def simulate(slots, soc0, actions, capacity, reserve, max_kwh, pc, pd, eff, cycl
 def optimize(slots, soc0_kwh, capacity_kwh, reserve_kwh, max_kwh, charge_kw, discharge_kw,
              eff=0.9, allowed=ACTIONS, step_kwh=None, switch_cost=0.10, cycle_cost=0.0,
              terminal_pct=25, allow_export=True, charge_wear_cost_sek_per_kwh=0.0,
-             discharge_wear_cost_sek_per_kwh=0.0, reversal_cost_sek=0.0, ev_mode="block"):
+             discharge_wear_cost_sek_per_kwh=0.0, reversal_cost_sek=0.0, ev_mode="block",
+             balance_target_kwh=0.0, balance_hold_slots=0, balance_deadline_slots=0):
     """ev_mode: vad batteriet får göra medan elbilen laddar - "block" (ladda inte ur alls, som förut),
     "offload" (Martins förslag 2026-11-07: täck bara husets egen förbrukning, aldrig bilen) eller "free" (även bilen).
     slots: [{'t', 'buy', 'sell', 'load_kw', 'solar_kw', 'ev_kw'}] (kvartar, i tidsordning).
@@ -191,6 +192,20 @@ def optimize(slots, soc0_kwh, capacity_kwh, reserve_kwh, max_kwh, charge_kw, dis
     track_direction = reversal_cost_sek > 0
     direction_states = 3 if track_direction else 1
     P = A * direction_states
+    # Optional maintenance automaton: pending, consecutive full quarters, done.
+    # It is a requirement, not an arbitrage reward. The ordinary recurrence is
+    # unchanged when disabled. A complete quarter must START and END at target.
+    balancing = balance_target_kwh > 0
+    if balancing and (not math.isfinite(balance_target_kwh) or
+                      not reserve_kwh < balance_target_kwh <= capacity_kwh or
+                      not isinstance(balance_hold_slots, int) or not 1 <= balance_hold_slots <= 16):
+        raise ValueError("Invalid battery balancing target or hold duration")
+    Q = balance_hold_slots + 1 if balancing else 1
+    done = Q - 1
+    deadline = min(len(slots), balance_deadline_slots or len(slots))
+    if balancing and (not isinstance(deadline, int) or deadline < 1):
+        raise ValueError("Invalid balancing deadline")
+    P *= Q
     eff_c = eff_d = math.sqrt(eff)
     step = step_kwh or max(0.05, capacity_kwh / 100.0)
     lo, hi = max(0.0, reserve_kwh), min(capacity_kwh, max_kwh)
@@ -205,9 +220,10 @@ def optimize(slots, soc0_kwh, capacity_kwh, reserve_kwh, max_kwh, charge_kw, dis
     INF = float("inf")
     # State: energy index, previous mode and last nonzero physical direction.
     term = [-(i * step) * terminal_value for i in range(n_states)]
-    future = [[term[i]] * P for i in range(n_states)]
+    future = [[term[i] if p % Q == done else INF for p in range(P)] for i in range(n_states)]
     choice = []
-    for s in reversed(slots):
+    for slot_index in range(len(slots) - 1, -1, -1):
+        s = slots[slot_index]
         net = s["load_kw"] + s.get("ev_kw", 0.0) - s.get("solar_kw", 0.0)
         ev_on = s.get("ev_kw", 0.0) > 0.1
         # utfall per (energinivå, avsikt) är oberoende av förra avsikten - räkna en gång
@@ -227,7 +243,8 @@ def optimize(slots, soc0_kwh, capacity_kwh, reserve_kwh, max_kwh, charge_kw, dis
                             row.append(None)
                             continue
                         b = 0.0
-                new, b = _step(soc, b, min(lo, soc), hi if soc <= hi else soc, eff_c, eff_d)
+                upper = max(hi, balance_target_kwh) if balancing else hi
+                new, b = _step(soc, b, min(lo, soc), upper if soc <= upper else soc, eff_c, eff_d)
                 wear = cycle_cost * max(0.0, -b) * DT_H
                 if charge_wear_cost_sek_per_kwh:
                     wear += max(0.0, new - soc) * charge_wear_cost_sek_per_kwh
@@ -235,51 +252,87 @@ def optimize(slots, soc0_kwh, capacity_kwh, reserve_kwh, max_kwh, charge_kw, dis
                     wear += max(0.0, soc - new) * discharge_wear_cost_sek_per_kwh
                 row.append((idx(new), b, net + b, _cost(net + b, s["buy"], s["sell"]) + wear, wear))
             trans.append(row)
+        normal_trans = trans
+        if balancing:
+            # Once finished, use the ordinary clipped transitions, including
+            # partial charging up to the daily ceiling (rather than dropping
+            # a charge action simply because maintenance allowed a higher SOC).
+            normal_trans = []
+            for i, row in enumerate(trans):
+                soc, normal_row = i * step, []
+                for t in row:
+                    if t is None:
+                        normal_row.append(None)
+                        continue
+                    new, b = _step(soc, t[1], min(lo, soc), hi if soc <= hi else soc, eff_c, eff_d)
+                    wear = (cycle_cost * max(0.0, -b) * DT_H + max(0.0, new - soc) * charge_wear_cost_sek_per_kwh
+                            + max(0.0, soc - new) * discharge_wear_cost_sek_per_kwh)
+                    normal_row.append((idx(new), b, net + b, _cost(net + b, s["buy"], s["sell"]) + wear, wear))
+                normal_trans.append(normal_row)
         cur = [[INF] * P for _ in range(n_states)]
         ch = [[None] * P for _ in range(n_states)]
         for i in range(n_states):
             for prev in range(P):
+                mode_prev, phase = divmod(prev, Q)
+                if balancing and slot_index >= deadline and phase != done:
+                    continue
                 best, arg = INF, None
                 for k in range(A):
-                    t = trans[i][k]
+                    t = (normal_trans if phase == done else trans)[i][k]
                     if t is None:
                         continue
+                    next_phase = phase
+                    if balancing:
+                        at_target = i * step >= balance_target_kwh - 1e-9 and t[0] * step >= balance_target_kwh - 1e-9 and t[1] >= -1e-9
+                        next_phase = done if phase == done else min(done, phase + 1) if at_target else 0
                     if track_direction:
                         direction = 1 if t[1] > 1e-9 else 2 if t[1] < -1e-9 else 0
-                        last_direction = prev % 3
+                        last_direction = mode_prev % 3
                         reversal = bool(direction and last_direction and direction != last_direction)
                         nxt_prev = k * 3 + (direction or last_direction)
-                        c = t[3] + future[t[0]][nxt_prev] + (switch_cost if k != prev // 3 else 0.0) + (reversal_cost_sek if reversal else 0.0)
+                        c = t[3] + future[t[0]][nxt_prev * Q + next_phase] + (switch_cost if k != mode_prev // 3 else 0.0) + (reversal_cost_sek if reversal else 0.0)
                     else:
-                        c = t[3] + future[t[0]][k] + (switch_cost if k != prev else 0.0)
+                        c = t[3] + future[t[0]][k * Q + next_phase] + (switch_cost if k != mode_prev else 0.0)
                     if c < best - 1e-12:
                         best, arg = c, k
                 cur[i][prev], ch[i][prev] = best, arg
         future = cur
-        choice.append((ch, trans))
+        choice.append((ch, trans, normal_trans))
     choice.reverse()
 
-    rows, i, prev = [], idx(soc0_kwh), acts.index("auto") * direction_states
+    rows, i, prev = [], idx(soc0_kwh), acts.index("auto") * direction_states * Q
+    if balancing and not math.isfinite(future[i][prev]):
+        return {"rows": [], "cost": 0.0, "baseline_cost": 0.0, "saving_kr": 0.0, "balance_feasible": False}
     last_direction = 0
     total = wear_total = reversal_total = 0.0
-    for s, (ch, trans) in zip(slots, choice):
+    for s, (ch, trans, normal_trans) in zip(slots, choice):
         k = ch[i][prev]
-        nxt, b, grid, c, wear = trans[i][k]
+        phase = prev % Q
+        nxt, b, grid, c, wear = (normal_trans if phase == done else trans)[i][k]
         direction = 1 if b > 1e-9 else 2 if b < -1e-9 else 0
         reversal = bool(direction and last_direction and direction != last_direction)
         wear_total += wear
         reversal_total += reversal_cost_sek if reversal else 0.0
         total += c
         a = acts[k]
+        maintenance = balancing and phase != done
+        next_phase = (min(done, phase + 1) if i * step >= balance_target_kwh - 1e-9 and nxt * step >= balance_target_kwh - 1e-9 and b >= -1e-9 else 0) if maintenance else phase
         # Ladda med fullt batteri / ladda ur vid reservnivån gör i praktiken ingenting - visa och
         # skicka det som "håll", så planen inte ser ut att ladda i timmar.
         if a in ("charge", "discharge") and abs(b) < 0.05 and "hold" in acts:
             a = "hold"
+        holding = maintenance and i * step >= balance_target_kwh - 1e-9 and nxt * step >= balance_target_kwh - 1e-9 and b >= -1e-9
+        if holding and abs(b) < 0.05 and "hold" in acts:
+            a = "hold"  # Do not release to self-consumption during the dwell.
         rows.append({"t": s["t"], "action": a, "soc_kwh": nxt * step, "battery_kw": round(b, 3),
                      "grid_kw": round(grid, 3), "cost": c, "buy": s["buy"],
                      "wear_cost_sek": wear, "direction_reversal": reversal})
+        if balancing:
+            rows[-1]["balance"] = maintenance and (b > 0 or i * step >= balance_target_kwh - 1e-9)
+            rows[-1]["balance_ceiling"] = maintenance
+            rows[-1]["balance_hold"] = holding
         last_direction = direction or last_direction
-        i, prev = nxt, (k * 3 + last_direction if track_direction else k)
+        i, prev = nxt, (k * 3 + last_direction if track_direction else k) * Q + next_phase
     base_cost, base_rows = simulate(slots, soc0_kwh, ["auto"] * len(slots), capacity_kwh, lo, hi, charge_kw, discharge_kw, eff, cycle_cost,
                                     charge_wear_cost_sek_per_kwh, discharge_wear_cost_sek_per_kwh)
     # Rättvis jämförelse: värdera energin kvar vid slutet lika i båda.
@@ -408,8 +461,14 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
     load_bias = float(settings.get("load_bias") or 1.0)        # plan mot utfall (battery_learning.outcome_bias)
     solar_bias = float(settings.get("solar_bias") or 1.0)
     end = max(quarters) + timedelta(minutes=15)
+    balance_requested = bool((settings.get("balance_request") or {}).get("request"))
+    quarter_prices = any(ts.minute != 0 for ts in quarters)
     while t < end:
         p = quarters.get(t, quarters.get(t.replace(minute=0), last_p))
+        if balance_requested:
+            # Maintenance may not cross unknown prices using the ordinary
+            # plan's historical forward-fill fallback.
+            p = quarters.get(t if quarter_prices else t.replace(minute=0))
         if p is None:
             break
         last_p = p
@@ -435,7 +494,20 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
                   charge_wear_cost_sek_per_kwh=settings.get("charge_wear_cost_sek_per_kwh", 0.0),
                   discharge_wear_cost_sek_per_kwh=settings.get("discharge_wear_cost_sek_per_kwh", 0.0),
                   reversal_cost_sek=settings.get("reversal_cost_sek", 0.0))
+    balance = settings.get("balance_request") or {}
+    if balance.get("request"):
+        params.update(balance_target_kwh=balance["target_soc"] / 100.0 * cap,
+                      balance_hold_slots=balance["hold_slots"],
+                      balance_deadline_slots=balance["deadline_slots"])
     r = optimize(slots, **params)
+    deferred = r.get("balance_feasible") is False
+    if deferred:
+        # Insufficient horizon/power: keep the ordinary safe plan, never force
+        # an immediate charge or pretend maintenance has completed.
+        for key in ("balance_target_kwh", "balance_hold_slots", "balance_deadline_slots"):
+            params.pop(key, None)
+        r = optimize(slots, **params)
+    r["balance_deferred"] = deferred
     import plan_snapshot
     r["plan_id"] = plan_snapshot.capture(slots, params, r, now)
     r["style"], r["allow_export"] = style, allow_export
@@ -444,6 +516,7 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
             c.execute(text("CREATE TABLE IF NOT EXISTS battery_plan_slots (t_slot TIMESTAMPTZ PRIMARY KEY, action TEXT, "
                            "soc_pct NUMERIC, battery_kw NUMERIC, spot NUMERIC, saving_kr NUMERIC, updated_at TIMESTAMPTZ DEFAULT now())"))
             c.execute(text("ALTER TABLE battery_plan_slots ADD COLUMN IF NOT EXISTS grid_kw NUMERIC"))   # - = säljer (exportfärg)
+            c.execute(text("ALTER TABLE battery_plan_slots ADD COLUMN IF NOT EXISTS balance BOOLEAN NOT NULL DEFAULT false"))
             c.execute(text("DELETE FROM battery_plan_slots"))
             # Plan mot utfall: den FÖRSTA prognosen per kvart sparas (ungefär ett dygn i förväg) och jämförs sedan
             # med det uppmätta i battery_learning.learn_from_db.
@@ -453,14 +526,18 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
                            "ON CONFLICT (t_slot) DO NOTHING"),
                       [{"t": t_, "l": round(l_, 4), "s": round(s_, 4)} for t_, l_, s_ in forecast])
             c.execute(text("DELETE FROM battery_plan_forecast WHERE t_slot < now() - interval '30 days'"))
-            c.execute(text("INSERT INTO battery_plan_slots (t_slot, action, soc_pct, battery_kw, spot, saving_kr, grid_kw) "
-                           "VALUES (:t, :a, :s, :b, :p, :sv, :g)"),
+            c.execute(text("INSERT INTO battery_plan_slots (t_slot, action, soc_pct, battery_kw, spot, saving_kr, grid_kw, balance) "
+                           "VALUES (:t, :a, :s, :b, :p, :sv, :g, :balance)"),
                       [{"t": row["t"], "a": row["action"], "s": round(100.0 * row["soc_kwh"] / cap, 1), "b": row["battery_kw"],
                         "g": row.get("grid_kw"),
+                        "balance": row.get("balance", False),
                         "p": sl["spot"], "sv": r["saving_kr"]} for row, sl in zip(r["rows"], slots)])
     except Exception as e:
         print(f"⚠️ Batteriplanen kunde inte sparas: {e}")
     r["action_now"] = r["rows"][0]["action"] if r["rows"] else None
+    r["balance_now"] = bool(r["rows"] and r["rows"][0].get("balance"))
+    r["balance_target_soc"] = balance.get("target_soc") if r["balance_now"] else None
+    r["balance_hold_now"] = bool(r["rows"] and r["rows"][0].get("balance_hold"))
     sim_kw = r["rows"][0]["battery_kw"] if r["rows"] else None
     r["power_now_w"] = command_power_w(r["action_now"], sim_kw, command_kw, schedule_kw)
     if schedule_kw + 0.05 < command_kw:

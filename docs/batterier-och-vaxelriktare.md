@@ -67,3 +67,8 @@ men Sungrow är nu först i kön för `FTW_CONTROL_VERIFIED`.
    Sungrow, Sonnen, Victron och SMA har styrvägar i FTW – de är först i kön.
 3. **Deye/Sunsynk och Sigenergy via HA**: kräver att man skriver växelriktarens TOU-program eller Remote EMS-register.
    Görs när en testare finns (fel här kan låsa batteriet i fel läge).
+
+## Behovsstyrd balansering
+
+Se [behovsstyrd batteribalansering](battery-balancing.md) för opt-in-planering
+utifrån modulernas laddnivåskillnad, stöd per telemetriväg och visning i EW.

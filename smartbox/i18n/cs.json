@@ -2328,5 +2328,21 @@
  "Sensor har tystnat": "Senzor neodpovídá",
  "Sensor tillbaka": "Senzor je zpět",
  "Onormal Baslast Upptäckt!": "Zjištěna neobvyklá základní spotřeba!",
- "Varning: Effekttak hotat!": "Varování: hrozí překročení limitu příkonu!"
+ "Varning: Effekttak hotat!": "Varování: hrozí překročení limitu příkonu!",
+ "Balansering": "Vyvažování",
+ "Batteriet balanseras": "Vyvažování baterie",
+ "Batteriet har nått laddtaket - laddningen pausas.": "Baterie dosáhla limitu nabití - nabíjení je pozastaveno.",
+ "Planen: balansering efter uppmätt skillnad mellan batterimodulerna.": "Plán: vyvažování na základě naměřeného rozdílu mezi moduly baterie.",
+ "Balansering kräver batteristyrning, dygnsplan och stöd för laddning och hålläge.": "Vyvažování vyžaduje řízení baterie, denní plán a podporu nabíjení a udržování nabití.",
+ "Balansering väntar på färska laddnivåer från minst två batterimoduler.": "Vyvažování čeká na aktuální údaje o nabití alespoň dvou modulů baterie.",
+ "Skillnad mellan batterimodulerna upptäckt - inväntar bekräftelse.": "Byl zjištěn rozdíl mezi moduly baterie - čeká se na potvrzení.",
+ "Balansering behövs - planeras efter elpris och solprognos.": "Je potřeba vyvažování - plánuje se podle cen elektřiny a předpovědi solární výroby.",
+ "Balansering pågår: batteriet laddas eller hålls vid målnivån. Vanlig batteriplanering återupptas efter balanseringen.": "Probíhá vyvažování: baterie se nabíjí nebo udržuje cílové nabití. Běžné plánování baterie bude po vyvážení obnoveno.",
+ "Balanseringen är pausad av husets övriga skydd eller laddbehov och planeras om.": "Vyvažování je pozastaveno kvůli jiným ochranám domu nebo potřebám nabíjení a bude přeplánováno.",
+ "Balansering skjuts upp - ingen genomförbar period i den kända planen.": "Vyvažování je odloženo - ve známém plánu není vhodný časový úsek.",
+ "Balansering avvaktar efter föregående försök eller fulladdning.": "Vyvažování čeká po předchozím pokusu nebo úplném nabití.",
+ "Batterimodulerna har hållit målnivån under hela balanseringstiden.": "Moduly baterie udržely cílové nabití po celou dobu vyvažování.",
+ "Ingen bekräftad skillnad som kräver balansering.": "Nebyl potvrzen rozdíl vyžadující vyvažování.",
+ "Balanseringen blev inte klar inom 36 timmar. Vanlig batteriplanering återupptas; kontrollera batteriets app.": "Vyvažování nebylo dokončeno do 36 hodin. Běžné plánování baterie pokračuje; zkontrolujte aplikaci baterie.",
+ "Balansering är pausad eftersom underhållsstatus inte kunde sparas. Vanlig batteriplanering fortsätter.": "Vyvažování je pozastaveno, protože se nepodařilo uložit stav údržby. Běžné plánování baterie pokračuje."
 }

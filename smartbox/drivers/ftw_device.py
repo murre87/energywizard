@@ -83,9 +83,12 @@ class FtwDevice:
     def fresh(self, max_age=120):
         return self.ok_at is not None and time.time() - self.ok_at < max_age
 
-    def command(self, action, power_w=0):
+    def command(self, action, power_w=0, balance=False):
         with self._cmd_lock:
-            return self.drv.command(action, power_w, {"source": "energywizard", "duration_ms": 120000})
+            context = {"source": "energywizard", "duration_ms": 120000}
+            if balance:
+                context["balance"] = True
+            return self.drv.command(action, power_w, context)
 
     def default_mode(self):
         with self._cmd_lock:
@@ -156,6 +159,7 @@ class FtwBatteryDriver(BatteryDriver):
         self._dev = device(ftw or {}, allow_write=self._control)
         self._pmax = float(max_power_w or 5000)
         self._last = None
+        self._balance = False
 
     def read_state(self) -> dict:
         b = self._dev.emits.get("battery") or {}
@@ -166,7 +170,11 @@ class FtwBatteryDriver(BatteryDriver):
             soc = soc * 100.0                                # FTW skickar <= 1 % som andel
         cap = b.get("capacity_wh")
         return {"soc_pct": soc, "power_w": b.get("w", b.get("W")), "mode": None,
+                "modules": b.get("modules") or {},
                 "capacity_kwh": self.capacity_kwh or (cap / 1000.0 if isinstance(cap, (int, float)) and cap > 0 else None)}
+
+    def set_balancing(self, active):
+        self._balance = bool(active)
 
     def supports_control(self) -> bool:
         return self._control
@@ -184,7 +192,7 @@ class FtwBatteryDriver(BatteryDriver):
         if intent == "auto":
             ok = self._dev.default_mode()
         elif intent == "charge":
-            ok = self._dev.command("battery", p)
+            ok = self._dev.command("battery", p, balance=True) if self._balance else self._dev.command("battery", p)
         elif intent == "discharge":
             ok = self._dev.command("battery", -p)
         elif intent in ("idle", "hold"):
