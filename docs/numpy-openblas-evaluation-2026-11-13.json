@@ -310,5 +310,140 @@
     "output": "qemu: uncaught target signal 4 (Illegal instruction) - core dumped\n",
     "image_id": "sha256:67f40e4162cb75246f2867101991324f6494bad89412116e994222eed2d3fed8"
   },
-  "conclusion": "Rejected for adoption: native timings approach capped stack, but controlled qemu64 smoke fails with SIGILL. Exact failing instruction/library not isolated; no root cause inferred. Production cap retained."
+  "conclusion": "Not approved for adoption: original qemu64 inverse failure is now isolated to a femms/Opteron dispatch interaction. Additional Intel-v1 and AMD-with-3DNow emulated profiles pass all strict controls; original qemu64 rejection and production cap remain. Physical hardware/full application-image qualification outstanding.",
+  "dispatch_investigation": {
+    "recorded_at": "2026-11-13T12:27:40.741Z",
+    "qemu_version": "10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "isolation": [
+      {
+        "probe": "python",
+        "returncode": 0,
+        "stdout": "python passed\n",
+        "stderr": ""
+      },
+      {
+        "probe": "numpy",
+        "returncode": 0,
+        "stdout": "before numpy\nnumpy passed\n",
+        "stderr": ""
+      },
+      {
+        "probe": "numpy_solve",
+        "returncode": 0,
+        "stdout": "before solve\n[2. 3.]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "openblas_load",
+        "returncode": 0,
+        "stdout": "before OpenBLAS load\nOpenBLAS loaded\n",
+        "stderr": ""
+      }
+    ],
+    "consumers": [
+      {
+        "probe": "pandas",
+        "returncode": 0,
+        "stdout": "before pandas\n2.0\n",
+        "stderr": ""
+      },
+      {
+        "probe": "scipy",
+        "returncode": 0,
+        "stdout": "before scipy\nscipy imported\n[2. 3.]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "sklearn",
+        "returncode": 0,
+        "stdout": "before sklearn\nsklearn imported\n[21.]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "numpy_inverse",
+        "timeout": true,
+        "stdout": "b'before inverse\\n'",
+        "stderr": "b'qemu: uncaught target signal 4 (Illegal instruction) - core dumped\\n'"
+      }
+    ],
+    "dispatch": [
+      {
+        "probe": "core",
+        "returncode": 0,
+        "stdout": "b'Opteron'\n",
+        "stderr": ""
+      },
+      {
+        "probe": "inverse_prescott",
+        "returncode": 0,
+        "stdout": "before inverse\n[[ 0.4 -0.2]\n [-0.2  0.6]]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "inverse_generic",
+        "returncode": 0,
+        "stdout": "before inverse\n[[ 0.4 -0.2]\n [-0.2  0.6]]\n",
+        "stderr": ""
+      }
+    ],
+    "trace": {
+      "sha256": "4848f02a05cc6b6cc055688ac743dab85e16e292ff0d18468681db2a05fa582e",
+      "tail": [
+        "",
+        "----------------",
+        "IN: ",
+        "0x7b324a195c00:  f3 0f 1e fa              endbr64  ",
+        "0x7b324a195c04:  41 55                    pushq    %r13",
+        "0x7b324a195c06:  41 54                    pushq    %r12",
+        "0x7b324a195c08:  0f 0e                    femms"
+      ]
+    },
+    "strict_results": [
+      {
+        "target": "candidate-openblas",
+        "status": "compatible_smoke",
+        "cpu_model": "qemu64,vendor=GenuineIntel",
+        "scope": "Selected emulated CPU only; not physical hardware qualification",
+        "output": "{\"numpy\": \"2.4.6\", \"pandas\": \"3.1.1\", \"status\": \"passed\", \"blas_libraries\": [{\"internal_api\": \"openblas\", \"version\": \"0.3.29\", \"architecture\": \"Prescott\", \"num_threads\": 1}, {\"internal_api\": \"openblas\", \"version\": \"0.3.30\", \"architecture\": \"Katmai\", \"num_threads\": 1}]}\n{\"stage\": \"imports\"}\n{\"stage\": \"numpy_solve\"}\n{\"stage\": \"scipy_solve\"}\n{\"stage\": \"numpy_inverse\"}\n{\"stage\": \"numpy_fft\"}\n{\"stage\": \"pandas\"}\n{\"stage\": \"sklearn_prediction\"}\n",
+        "image_id": "sha256:141088bf07c3d7f67bd161f667d3769db6c249412bfdf399f47aa4800d573f73",
+        "controls": {
+          "python_startup": "passed",
+          "capped_smoke": "passed",
+          "upstream_cpu_rejection": "reproduced"
+        }
+      },
+      {
+        "target": "candidate-openblas",
+        "status": "compatible_smoke",
+        "cpu_model": "qemu64,+3dnow,+3dnowext",
+        "scope": "Selected emulated CPU only; not physical hardware qualification",
+        "output": "{\"numpy\": \"2.4.6\", \"pandas\": \"3.1.1\", \"status\": \"passed\", \"blas_libraries\": [{\"internal_api\": \"openblas\", \"version\": \"0.3.30\", \"architecture\": \"Katmai\", \"num_threads\": 1}, {\"internal_api\": \"openblas\", \"version\": \"0.3.29\", \"architecture\": \"Opteron\", \"num_threads\": 1}]}\n{\"stage\": \"imports\"}\n{\"stage\": \"numpy_solve\"}\n{\"stage\": \"scipy_solve\"}\n{\"stage\": \"numpy_inverse\"}\n{\"stage\": \"numpy_fft\"}\n{\"stage\": \"pandas\"}\n{\"stage\": \"sklearn_prediction\"}\n",
+        "image_id": "sha256:141088bf07c3d7f67bd161f667d3769db6c249412bfdf399f47aa4800d573f73",
+        "controls": {
+          "python_startup": "passed",
+          "capped_smoke": "passed",
+          "upstream_cpu_rejection": "reproduced"
+        }
+      }
+    ],
+    "sources": [
+      "https://github.com/qemu/qemu/blob/v10.0.0/target/i386/cpu.c#L2381",
+      "https://github.com/OpenMathLib/OpenBLAS/blob/v0.3.29/driver/others/dynamic.c#L806"
+    ],
+    "conclusion": "Original qemu64 inverse fault isolated to femms in the automatically selected Opteron path. Both additional emulated profiles pass full smoke and all controls without a core-type override. Original qemu64 rejection retained; no physical CPU or production adoption qualification.",
+    "qemu64_result": {
+      "target": "candidate-openblas",
+      "status": "rejected_cpu",
+      "cpu_model": "qemu64",
+      "scope": "Selected emulated CPU only; not physical hardware qualification",
+      "output": "{\"stage\": \"imports\"}\n{\"stage\": \"numpy_solve\"}\n{\"stage\": \"scipy_solve\"}\n{\"stage\": \"numpy_inverse\"}\nqemu: uncaught target signal 4 (Illegal instruction) - core dumped\n",
+      "image_id": "sha256:38a95192d4fd01bd76b140f5f154f41c581a6a61f6df78cef1a6365bd7232c3e",
+      "controls": {
+        "python_startup": "passed",
+        "capped_smoke": "passed",
+        "upstream_cpu_rejection": "reproduced"
+      }
+    }
+  },
+  "initial_conclusion": "Rejected for adoption: native timings approach capped stack, but controlled qemu64 smoke fails with SIGILL. Exact failing instruction/library not isolated; no root cause inferred. Production cap retained."
 }

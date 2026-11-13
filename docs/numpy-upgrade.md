@@ -125,3 +125,41 @@ Run python scripts/check_numpy_native.py --candidate-target candidate-openblas -
 Local amd64 evaluation on 2026-11-13: OpenBLAS/capped ratios were 1.05 matrix multiply, 1.07 solve, 1.07 FFT, 0.97 pandas and 1.02 sklearn. The controlled qemu64 probe passed Python startup and the capped stack, reproduced upstream wheel rejection, and rejected this OpenBLAS candidate with SIGILL. The exact failing instruction/library was not isolated. This candidate is therefore rejected for adoption; native performance alone is insufficient. Machine-readable image identities and measurements are in numpy-openblas-evaluation-2026-11-13.json.
 
 CI records a known CPU rejection only when explicitly requested for the OpenBLAS experiment, after the existing controls succeed. The artifact status is rejected_cpu, never a compatibility pass. Numerical errors, infrastructure failures, unclassified timeouts, and default strict-mode rejections still fail the job. This permits collecting negative experimental evidence without weakening the reference candidate's compatibility gate.
+
+### Follow-up: isolate the qemu64 dispatch failure
+
+The earlier rejection is retained, but its cause is now narrower than a general
+NumPy baseline failure. Isolated Python/import/solve/pandas/scikit-learn probes
+passed. NumPy inverse failed; the QEMU instruction trace ended at `femms` while
+OpenBLAS reported its automatically selected Opteron kernel. Forcing Prescott
+passed the isolated inverse. This is diagnostic evidence, not a runtime override.
+
+QEMU's [qemu64 definition](https://github.com/qemu/qemu/blob/v10.0.0/target/i386/cpu.c#L2381)
+reports AMD family 15 without 3DNow feature bits. OpenBLAS 0.3.29's
+[family-based dispatch](https://github.com/OpenMathLib/OpenBLAS/blob/v0.3.29/driver/others/dynamic.c#L806)
+selects an Opteron path. Together with the trace and controlled changes below,
+this identifies a dispatch/model interaction; it does not prove failures on all
+physical older CPUs or that other failure paths are absent.
+
+The script now accepts three fixed `--cpu-model` choices:
+
+| Choice | QEMU CPU string | Local OpenBLAS result |
+|---|---|---|
+| `qemu64` (unchanged default) | `qemu64` | Original CPU rejection retained |
+| `intel-v1` | `qemu64,vendor=GenuineIntel` | Full numerical smoke passes; Prescott selected |
+| `amd-3dnow` | `qemu64,+3dnow,+3dnowext` | Full numerical smoke passes; Opteron selected |
+
+For both additional models Python startup and capped numerical controls passed,
+and the upstream NumPy 2.4.6 wheel still failed the required CPU control. Neither
+run sets `OPENBLAS_CORETYPE`. These are emulated profiles, not a comprehensive
+CPU matrix. The default rejection is not removed or reclassified as a pass.
+CI runs the two additional profiles strictly: no rejection exemption is allowed.
+Use `--output PATH` to retain a successful strict result, including the exact
+image, CPU string and control outcomes. Smoke logs identify the current numerical
+stage and successful results report BLAS kernel/version metadata.
+
+The existing JSON evidence retains the original native timings/rejection and now
+includes the isolated probes, trace tail and additional controlled results. Each
+trial identifies its own image; diagnostic-only smoke changes can produce a new
+image ID. Production requirements and the physical/application/security adoption
+gates remain unchanged. The OpenBLAS candidate is still not approved for adoption.

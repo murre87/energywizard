@@ -26,11 +26,16 @@ jobs:
         run: python3 scripts/check_numpy_compat.py
       - if: matrix.target == 'candidate-openblas'
         run: python3 scripts/check_numpy_compat.py --candidate-target candidate-openblas --record-experimental-rejection numpy-legacy-openblas.json
+      - if: matrix.target == 'candidate-openblas'
+        name: Strict Intel-v1 and AMD-with-3DNow controls
+        run: |
+          python3 scripts/check_numpy_compat.py --candidate-target candidate-openblas --cpu-model intel-v1 --output numpy-legacy-intel-v1.json
+          python3 scripts/check_numpy_compat.py --candidate-target candidate-openblas --cpu-model amd-3dnow --output numpy-legacy-amd-3dnow.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && matrix.target == 'candidate-openblas'
         with:
           name: numpy-legacy-openblas
-          path: numpy-legacy-openblas.json
+          path: numpy-legacy-*.json
           retention-days: 14
           if-no-files-found: error
   native-stack:
