@@ -23,6 +23,9 @@ _started = False
 
 def level_of(msg: str) -> str:
     m = (msg or "").lstrip()
+    # Full disk / databasen nere: användarens miljö, en varning, inte ett fel i EnergyWizard (env_errors.py)
+    if any(t in m for t in ("PoolTimeout", "DiskFull", "No space left on device", "couldn't get a connection", "53100")):
+        return "varning"
     if m.startswith(("❌", "Traceback", "🚨")) or "Traceback (most recent call last)" in m:
         return "fel"
     if m.startswith(("⚠️", "⚠")):

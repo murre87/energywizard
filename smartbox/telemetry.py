@@ -382,6 +382,20 @@ def install_error_hook(cfg: dict) -> None:
             if mod == "telemetry":
                 return
             exc = sys.exc_info()[0]
+            # Full disk / databasen nere är användarens miljö, inte ett programfel: ingen rapport, bara ett besked
+            # till användaren (env_errors.py, Emil 2026-11-13)
+            try:
+                import env_errors
+                line = str(args[0])
+                if (exc is not None and env_errors.is_env(exc.__name__, sys.exc_info()[1])) or \
+                        any(t in line for t in ("No space left on device", "53100", "DiskFull", "PoolTimeout",
+                                                "couldn't get a connection")):
+                    env_errors.note("DiskFull" if ("53100" in line or "No space" in line or "DiskFull" in line
+                                                    or (exc is not None and exc.__name__ == "DiskFull")) else
+                                    (exc.__name__ if exc else "PoolTimeout"))
+                    return
+            except Exception:
+                pass
             where = f"{mod}.{f.f_code.co_name}"[:60]
             if exc is not None and exc.__name__ in ("TypeError", "KeyError", "AttributeError", "ValueError", "IndexError", "ZeroDivisionError"):
                 loc = code_location(sys.exc_info()[2])          # programfel: var i koden (inte för nätverksfel)

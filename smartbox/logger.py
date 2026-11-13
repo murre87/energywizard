@@ -478,6 +478,11 @@ def log_status(
         # DiskFull är värdproblem, inte programfel (#250) — ⚠️ så Admin inte räknar det rött.
         if e.__class__.__name__ == "DiskFull" or getattr(e, "sqlstate", None) == "53100":
             print(f"⚠️ Disken full – hoppar över 1-minutsloggen ({e.__class__.__name__}).")
+            try:
+                import env_errors
+                env_errors.note("DiskFull")       # användaren får veta (högst var sjätte timme)
+            except Exception:
+                pass
         else:
             print(f"❌ Fel vid loggning till databas: {e}")
 

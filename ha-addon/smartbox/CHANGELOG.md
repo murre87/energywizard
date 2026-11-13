@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.67 (2026-11-13)
+- **Full disk och databasen nere räknas inte längre som fel i EnergyWizard**: de beror på datorn den körs på. De
+  rapporteras inte, syns inte som fel på Installationer och blir inga ärenden, och husets logg visar dem som
+  varningar. I stället får användaren en avisering (högst var sjätte timme): "Disken är full" eller "Databasen svarar
+  inte", med vad man kan göra.
+
 ## 1.2.66 (2026-11-13)
 - **Felrapporterna får loggen med** (#227): när ett fel rapporteras följer husets logg de senaste två timmarna med
   (högst 400 rader), utöver felraderna och de senaste besluten, så att felet går att förstå utan att fråga.

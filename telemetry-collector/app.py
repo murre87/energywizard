@@ -7,6 +7,10 @@ husidentifierare, drivrutinkategorier, feltyper, version, tidsstämpel. Inget UI
 än - bara lagring + /api/recent för att själv fråga ut det senaste.
 """
 import log_scrub  # noqa: E402  (samma sanering som motorn, smartbox/log_scrub.py)
+# Fel i användarens miljö (full disk, databasen nere): inga felgrupper, inga ärenden, inte rött på Installationer.
+# Samma lista som smartbox/env_errors.py (Emil 2026-11-13).
+ENV_ERROR_TYPES = {"DiskFull", "PoolTimeout", "OperationalError", "TooManyConnections", "AdminShutdown",
+                   "CannotConnectNow", "ConnectionTimeout", "InsufficientResources", "OutOfMemory"}
 import os
 import smtplib
 import sqlite3
@@ -250,6 +254,8 @@ async def stats(request: Request, me: str = ""):
         # (smartbox/telemetry.py ERROR_REPEAT), så det som inte setts på 75 minuter har upphört
         recent = (datetime.now(timezone.utc) - timedelta(minutes=75)).isoformat()
         for h, ver, mod, et in c.execute("SELECT DISTINCT house, version, module, error_type FROM errors WHERE received_at >= ?", (recent,)):
+            if et in ENV_ERROR_TYPES:                      # användarens miljö, inte ett fel hos oss
+                continue
             errs.setdefault(h, []).append((ver, f"{mod}: {et}"))
     latest, last_seen = {}, {}
     for house, version, drivers, at in rows:
@@ -264,7 +270,7 @@ async def stats(request: Request, me: str = ""):
         egroups = {}
         recent48 = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
         for h, ver, mod, et, rec in c.execute("SELECT house, version, module, error_type, received_at FROM errors WHERE received_at >= ?", (recent48,)):
-            if not _is_real_house(h):
+            if not _is_real_house(h) or et in ENV_ERROR_TYPES:
                 continue
             g = egroups.setdefault(f"{mod}: {et}", {"key": f"{mod}: {et}", "houses": set(), "versions": set(), "last": rec, "reports": 0})
             g["houses"].add(h); g["versions"].add(ver or "okänd"); g["reports"] += 1; g["last"] = max(g["last"], rec)
@@ -329,7 +335,7 @@ async def error_groups(request: Request, days: int = 14):
     with _db() as c:
         for rec, house, version, module, et in c.execute(
                 "SELECT received_at, house, version, module, error_type FROM errors WHERE received_at >= ? ORDER BY id", (since,)):
-            if not _is_real_house(house):
+            if not _is_real_house(house) or et in ENV_ERROR_TYPES:
                 continue
             g = groups.setdefault(f"{module}: {et}", {"module": module, "error_type": et, "houses": set(), "versions": set(),
                                                       "first": rec, "last": rec, "count": 0, "support": ""})
