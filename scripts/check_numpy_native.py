@@ -47,10 +47,12 @@ def compare(capped, candidate):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('numpy-native-report.json'))
+    parser.add_argument('--candidate-target', choices=('candidate', 'candidate-openblas'), default='candidate')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     rows = {}
-    for target, image in IMAGES.items():
+    images = {'capped': IMAGES['capped'], args.candidate_target: 'ew-numpy-native-' + args.candidate_target}
+    for target, image in images.items():
         subprocess.run(['docker', 'build', '--pull', '--target', target,
                         '-f', str(root / 'tests/numpy_compat/Dockerfile'),
                         '-t', image, str(root)], check=True)
@@ -63,7 +65,8 @@ def main():
             capture_output=True, text=True, check=True).stdout.strip()
     report = {'recorded_at': datetime.now(timezone.utc).isoformat(),
               'scope': 'Native evaluation; 2 CPUs/2 GiB; not physical legacy hardware or production qualification',
-              'results': rows, 'candidate_over_capped_ratio': compare(rows['capped'], rows['candidate'])}
+              'candidate_target': args.candidate_target,
+              'results': rows, 'candidate_over_capped_ratio': compare(rows['capped'], rows[args.candidate_target])}
     args.output.write_text(json.dumps(report, indent=2), encoding='utf-8')
     print(json.dumps(report, indent=2))
 

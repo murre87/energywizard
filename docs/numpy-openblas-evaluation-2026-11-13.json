@@ -1,0 +1,449 @@
+{
+  "recorded_at": "2026-11-13T12:02:12.783801+00:00",
+  "native": {
+    "recorded_at": "2026-11-13T12:02:12.783801+00:00",
+    "scope": "Native evaluation; 2 CPUs/2 GiB; not physical legacy hardware or production qualification",
+    "candidate_target": "candidate-openblas",
+    "results": {
+      "capped": {
+        "architecture": "x86_64",
+        "python": "3.11.18",
+        "versions": {
+          "numpy": "2.3.5",
+          "pandas": "3.1.1",
+          "scipy": "1.17.1",
+          "scikit-learn": "1.8.0"
+        },
+        "numpy_config": {
+          "Compilers": {
+            "c": {
+              "name": "gcc",
+              "linker": "ld.bfd",
+              "version": "14.2.1",
+              "commands": "cc"
+            },
+            "cython": {
+              "name": "cython",
+              "linker": "cython",
+              "version": "3.2.1",
+              "commands": "cython"
+            },
+            "c++": {
+              "name": "gcc",
+              "linker": "ld.bfd",
+              "version": "14.2.1",
+              "commands": "c++"
+            }
+          },
+          "Machine Information": {
+            "host": {
+              "cpu": "x86_64",
+              "family": "x86_64",
+              "endian": "little",
+              "system": "linux"
+            },
+            "build": {
+              "cpu": "x86_64",
+              "family": "x86_64",
+              "endian": "little",
+              "system": "linux"
+            }
+          },
+          "Build Dependencies": {
+            "blas": {
+              "name": "scipy-openblas",
+              "found": true,
+              "version": "0.3.30",
+              "detection method": "pkgconfig",
+              "include directory": "/opt/_internal/cpython-3.11.14/lib/python3.11/site-packages/scipy_openblas64/include",
+              "lib directory": "/opt/_internal/cpython-3.11.14/lib/python3.11/site-packages/scipy_openblas64/lib",
+              "openblas configuration": "OpenBLAS 0.3.30  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+              "pc file directory": "/project/.openblas"
+            },
+            "lapack": {
+              "name": "scipy-openblas",
+              "found": true,
+              "version": "0.3.30",
+              "detection method": "pkgconfig",
+              "include directory": "/opt/_internal/cpython-3.11.14/lib/python3.11/site-packages/scipy_openblas64/include",
+              "lib directory": "/opt/_internal/cpython-3.11.14/lib/python3.11/site-packages/scipy_openblas64/lib",
+              "openblas configuration": "OpenBLAS 0.3.30  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+              "pc file directory": "/project/.openblas"
+            }
+          },
+          "Python Information": {
+            "path": "/tmp/build-env-szi1b15j/bin/python",
+            "version": "3.11"
+          },
+          "SIMD Extensions": {
+            "baseline": [
+              "SSE",
+              "SSE2",
+              "SSE3"
+            ],
+            "found": [
+              "SSSE3",
+              "SSE41",
+              "POPCNT",
+              "SSE42",
+              "AVX",
+              "F16C",
+              "FMA3",
+              "AVX2"
+            ],
+            "not found": [
+              "AVX512F",
+              "AVX512CD",
+              "AVX512_KNL",
+              "AVX512_KNM",
+              "AVX512_SKX",
+              "AVX512_CLX",
+              "AVX512_CNL",
+              "AVX512_ICL",
+              "AVX512_SPR"
+            ]
+          }
+        },
+        "timings": {
+          "matrix_multiply_256": {
+            "median_seconds": 0.00029794529982609677,
+            "samples_seconds": [
+              0.0002933301992015913,
+              0.00029794529982609677,
+              0.00031972750002751127,
+              0.00030078900017542763,
+              0.00029484429978765547
+            ]
+          },
+          "linear_solve_80": {
+            "median_seconds": 0.00001527010026620701,
+            "samples_seconds": [
+              0.000017707400547806174,
+              0.00001637399982428178,
+              0.00001527010026620701,
+              0.000015137098671402782,
+              0.00001510559959569946
+            ]
+          },
+          "fft_8192": {
+            "median_seconds": 0.000040005600021686404,
+            "samples_seconds": [
+              0.00004207210004096851,
+              0.000040005600021686404,
+              0.00004004630027338862,
+              0.00003984880022471771,
+              0.00003983689966844395
+            ]
+          },
+          "pandas_groupby_2000": {
+            "median_seconds": 0.00011783639929490164,
+            "samples_seconds": [
+              0.00016113470046548174,
+              0.00011783639929490164,
+              0.00010998249927069992,
+              0.0003074013002333231,
+              0.0001040845992974937
+            ]
+          },
+          "sklearn_fit_512x8": {
+            "median_seconds": 0.00015721980016678572,
+            "samples_seconds": [
+              0.00017982959980145097,
+              0.00015815020014997572,
+              0.00015721980016678572,
+              0.0001464656990719959,
+              0.00014384359965333716
+            ]
+          }
+        },
+        "image_id": "sha256:350898912ab356ff56ad382c75261caba0e614e6be6ebea5f4259ba97837ba8d"
+      },
+      "candidate-openblas": {
+        "architecture": "x86_64",
+        "python": "3.11.18",
+        "versions": {
+          "numpy": "2.4.6",
+          "pandas": "3.1.1",
+          "scipy": "1.17.1",
+          "scikit-learn": "1.8.0"
+        },
+        "numpy_config": {
+          "Compilers": {
+            "c": {
+              "name": "gcc",
+              "linker": "ld.bfd",
+              "version": "14.2.0",
+              "commands": "cc"
+            },
+            "cython": {
+              "name": "cython",
+              "linker": "cython",
+              "version": "3.3.1",
+              "commands": "cython"
+            },
+            "c++": {
+              "name": "gcc",
+              "linker": "ld.bfd",
+              "version": "14.2.0",
+              "commands": "c++"
+            }
+          },
+          "Machine Information": {
+            "host": {
+              "cpu": "x86_64",
+              "family": "x86_64",
+              "endian": "little",
+              "system": "linux"
+            },
+            "build": {
+              "cpu": "x86_64",
+              "family": "x86_64",
+              "endian": "little",
+              "system": "linux"
+            }
+          },
+          "Build Dependencies": {
+            "blas": {
+              "name": "openblas",
+              "found": true,
+              "version": "0.3.29",
+              "detection method": "pkgconfig",
+              "include directory": "/usr/include/x86_64-linux-gnu/openblas-pthread/",
+              "lib directory": "/usr/lib/x86_64-linux-gnu/openblas-pthread/",
+              "openblas configuration": "USE_64BITINT=0 DYNAMIC_ARCH=1 DYNAMIC_OLDER=1 NO_CBLAS= NO_LAPACK= NO_LAPACKE=1 NO_AFFINITY=1 USE_OPENMP=0 GENERIC MAX_THREADS=128",
+              "pc file directory": "/usr/lib/x86_64-linux-gnu/pkgconfig"
+            },
+            "lapack": {
+              "name": "openblas",
+              "found": true,
+              "version": "0.3.29",
+              "detection method": "pkgconfig",
+              "include directory": "/usr/include/x86_64-linux-gnu/openblas-pthread/",
+              "lib directory": "/usr/lib/x86_64-linux-gnu/openblas-pthread/",
+              "openblas configuration": "USE_64BITINT=0 DYNAMIC_ARCH=1 DYNAMIC_OLDER=1 NO_CBLAS= NO_LAPACK= NO_LAPACKE=1 NO_AFFINITY=1 USE_OPENMP=0 GENERIC MAX_THREADS=128",
+              "pc file directory": "/usr/lib/x86_64-linux-gnu/pkgconfig"
+            }
+          },
+          "Python Information": {
+            "path": "/usr/local/bin/python",
+            "version": "3.11"
+          },
+          "SIMD Extensions": {
+            "found": [
+              "X86_V2",
+              "X86_V3"
+            ],
+            "not found": [
+              "X86_V4",
+              "AVX512_ICL",
+              "AVX512_SPR"
+            ]
+          }
+        },
+        "timings": {
+          "matrix_multiply_256": {
+            "median_seconds": 0.0003135467006359249,
+            "samples_seconds": [
+              0.0003120836001471616,
+              0.00030997740104794503,
+              0.0003135467006359249,
+              0.0005300022996379994,
+              0.0003159476007567719
+            ]
+          },
+          "linear_solve_80": {
+            "median_seconds": 0.00001634259970160201,
+            "samples_seconds": [
+              0.000018843098951037972,
+              0.000016404699999839066,
+              0.00001634259970160201,
+              0.000016276900714728983,
+              0.000016244698781520128
+            ]
+          },
+          "fft_8192": {
+            "median_seconds": 0.00004262400034349412,
+            "samples_seconds": [
+              0.0000433608001912944,
+              0.00004296810075175017,
+              0.00004262400034349412,
+              0.00004182770062470809,
+              0.000041563500417396426
+            ]
+          },
+          "pandas_groupby_2000": {
+            "median_seconds": 0.00011390100116841495,
+            "samples_seconds": [
+              0.00015964369958965108,
+              0.00012065869959769771,
+              0.00011390100116841495,
+              0.0001071585007593967,
+              0.00010606550058582798
+            ]
+          },
+          "sklearn_fit_512x8": {
+            "median_seconds": 0.00015970169915817677,
+            "samples_seconds": [
+              0.000178076300653629,
+              0.00015970169915817677,
+              0.00015710320003563537,
+              0.0001630419006687589,
+              0.0001506929998868145
+            ]
+          }
+        },
+        "image_id": "sha256:67f40e4162cb75246f2867101991324f6494bad89412116e994222eed2d3fed8"
+      }
+    },
+    "candidate_over_capped_ratio": {
+      "matrix_multiply_256": 1.0523633056770296,
+      "linear_solve_80": 1.0702352582299974,
+      "fft_8192": 1.0654508448914233,
+      "pandas_groupby_2000": 0.9666028650736533,
+      "sklearn_fit_512x8": 1.0157861731713063
+    }
+  },
+  "legacy": {
+    "target": "candidate-openblas",
+    "status": "rejected_cpu",
+    "scope": "qemu64 only; not physical hardware qualification",
+    "output": "qemu: uncaught target signal 4 (Illegal instruction) - core dumped\n",
+    "image_id": "sha256:67f40e4162cb75246f2867101991324f6494bad89412116e994222eed2d3fed8"
+  },
+  "conclusion": "Not approved for adoption: original qemu64 inverse failure is now isolated to a femms/Opteron dispatch interaction. Additional Intel-v1 and AMD-with-3DNow emulated profiles pass all strict controls; original qemu64 rejection and production cap remain. Physical hardware/full application-image qualification outstanding.",
+  "dispatch_investigation": {
+    "recorded_at": "2026-11-13T12:27:40.741Z",
+    "qemu_version": "10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "isolation": [
+      {
+        "probe": "python",
+        "returncode": 0,
+        "stdout": "python passed\n",
+        "stderr": ""
+      },
+      {
+        "probe": "numpy",
+        "returncode": 0,
+        "stdout": "before numpy\nnumpy passed\n",
+        "stderr": ""
+      },
+      {
+        "probe": "numpy_solve",
+        "returncode": 0,
+        "stdout": "before solve\n[2. 3.]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "openblas_load",
+        "returncode": 0,
+        "stdout": "before OpenBLAS load\nOpenBLAS loaded\n",
+        "stderr": ""
+      }
+    ],
+    "consumers": [
+      {
+        "probe": "pandas",
+        "returncode": 0,
+        "stdout": "before pandas\n2.0\n",
+        "stderr": ""
+      },
+      {
+        "probe": "scipy",
+        "returncode": 0,
+        "stdout": "before scipy\nscipy imported\n[2. 3.]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "sklearn",
+        "returncode": 0,
+        "stdout": "before sklearn\nsklearn imported\n[21.]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "numpy_inverse",
+        "timeout": true,
+        "stdout": "b'before inverse\\n'",
+        "stderr": "b'qemu: uncaught target signal 4 (Illegal instruction) - core dumped\\n'"
+      }
+    ],
+    "dispatch": [
+      {
+        "probe": "core",
+        "returncode": 0,
+        "stdout": "b'Opteron'\n",
+        "stderr": ""
+      },
+      {
+        "probe": "inverse_prescott",
+        "returncode": 0,
+        "stdout": "before inverse\n[[ 0.4 -0.2]\n [-0.2  0.6]]\n",
+        "stderr": ""
+      },
+      {
+        "probe": "inverse_generic",
+        "returncode": 0,
+        "stdout": "before inverse\n[[ 0.4 -0.2]\n [-0.2  0.6]]\n",
+        "stderr": ""
+      }
+    ],
+    "trace": {
+      "sha256": "4848f02a05cc6b6cc055688ac743dab85e16e292ff0d18468681db2a05fa582e",
+      "tail": [
+        "",
+        "----------------",
+        "IN: ",
+        "0x7b324a195c00:  f3 0f 1e fa              endbr64  ",
+        "0x7b324a195c04:  41 55                    pushq    %r13",
+        "0x7b324a195c06:  41 54                    pushq    %r12",
+        "0x7b324a195c08:  0f 0e                    femms"
+      ]
+    },
+    "strict_results": [
+      {
+        "target": "candidate-openblas",
+        "status": "compatible_smoke",
+        "cpu_model": "qemu64,vendor=GenuineIntel",
+        "scope": "Selected emulated CPU only; not physical hardware qualification",
+        "output": "{\"numpy\": \"2.4.6\", \"pandas\": \"3.1.1\", \"status\": \"passed\", \"blas_libraries\": [{\"internal_api\": \"openblas\", \"version\": \"0.3.29\", \"architecture\": \"Prescott\", \"num_threads\": 1}, {\"internal_api\": \"openblas\", \"version\": \"0.3.30\", \"architecture\": \"Katmai\", \"num_threads\": 1}]}\n{\"stage\": \"imports\"}\n{\"stage\": \"numpy_solve\"}\n{\"stage\": \"scipy_solve\"}\n{\"stage\": \"numpy_inverse\"}\n{\"stage\": \"numpy_fft\"}\n{\"stage\": \"pandas\"}\n{\"stage\": \"sklearn_prediction\"}\n",
+        "image_id": "sha256:141088bf07c3d7f67bd161f667d3769db6c249412bfdf399f47aa4800d573f73",
+        "controls": {
+          "python_startup": "passed",
+          "capped_smoke": "passed",
+          "upstream_cpu_rejection": "reproduced"
+        }
+      },
+      {
+        "target": "candidate-openblas",
+        "status": "compatible_smoke",
+        "cpu_model": "qemu64,+3dnow,+3dnowext",
+        "scope": "Selected emulated CPU only; not physical hardware qualification",
+        "output": "{\"numpy\": \"2.4.6\", \"pandas\": \"3.1.1\", \"status\": \"passed\", \"blas_libraries\": [{\"internal_api\": \"openblas\", \"version\": \"0.3.30\", \"architecture\": \"Katmai\", \"num_threads\": 1}, {\"internal_api\": \"openblas\", \"version\": \"0.3.29\", \"architecture\": \"Opteron\", \"num_threads\": 1}]}\n{\"stage\": \"imports\"}\n{\"stage\": \"numpy_solve\"}\n{\"stage\": \"scipy_solve\"}\n{\"stage\": \"numpy_inverse\"}\n{\"stage\": \"numpy_fft\"}\n{\"stage\": \"pandas\"}\n{\"stage\": \"sklearn_prediction\"}\n",
+        "image_id": "sha256:141088bf07c3d7f67bd161f667d3769db6c249412bfdf399f47aa4800d573f73",
+        "controls": {
+          "python_startup": "passed",
+          "capped_smoke": "passed",
+          "upstream_cpu_rejection": "reproduced"
+        }
+      }
+    ],
+    "sources": [
+      "https://github.com/qemu/qemu/blob/v10.0.0/target/i386/cpu.c#L2381",
+      "https://github.com/OpenMathLib/OpenBLAS/blob/v0.3.29/driver/others/dynamic.c#L806"
+    ],
+    "conclusion": "Original qemu64 inverse fault isolated to femms in the automatically selected Opteron path. Both additional emulated profiles pass full smoke and all controls without a core-type override. Original qemu64 rejection retained; no physical CPU or production adoption qualification.",
+    "qemu64_result": {
+      "target": "candidate-openblas",
+      "status": "rejected_cpu",
+      "cpu_model": "qemu64",
+      "scope": "Selected emulated CPU only; not physical hardware qualification",
+      "output": "{\"stage\": \"imports\"}\n{\"stage\": \"numpy_solve\"}\n{\"stage\": \"scipy_solve\"}\n{\"stage\": \"numpy_inverse\"}\nqemu: uncaught target signal 4 (Illegal instruction) - core dumped\n",
+      "image_id": "sha256:38a95192d4fd01bd76b140f5f154f41c581a6a61f6df78cef1a6365bd7232c3e",
+      "controls": {
+        "python_startup": "passed",
+        "capped_smoke": "passed",
+        "upstream_cpu_rejection": "reproduced"
+      }
+    }
+  },
+  "initial_conclusion": "Rejected for adoption: native timings approach capped stack, but controlled qemu64 smoke fails with SIGILL. Exact failing instruction/library not isolated; no root cause inferred. Production cap retained."
+}

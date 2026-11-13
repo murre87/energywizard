@@ -3,35 +3,84 @@
 Requires Docker on amd64; builds evaluation images only and never starts EW.
 """
 from pathlib import Path
+import argparse
+import json
 import subprocess
 import uuid
 
+CPU_MODELS = {
+    'qemu64': 'qemu64',
+    'intel-v1': 'qemu64,vendor=GenuineIntel',
+    'amd-3dnow': 'qemu64,+3dnow,+3dnowext',
+}
 
-def run_image(target, python_only=False, timeout=180):
+
+def run_image(target, python_only=False, timeout=180, cpu_model='qemu64'):
+    cpu = CPU_MODELS[cpu_model]
     name = 'ew-numpy-probe-' + uuid.uuid4().hex[:12]
     try:
         command = ['docker', 'run', '--rm', '--name', name, '--ulimit', 'core=0',
                    '--network', 'none', f'ew-numpy-compat-{target}']
-        if python_only:
-            command += ['qemu-x86_64', '-cpu', 'qemu64', '/usr/local/bin/python',
-                        '-c', "print('Emulated Python startup passed')"]
+        command += ['qemu-x86_64', '-cpu', cpu, '/usr/local/bin/python']
+        command += (['-c', "print('Emulated Python startup passed')"] if python_only else ['/smoke.py'])
         return subprocess.run(command,
                               capture_output=True, text=True, timeout=timeout)
     finally:
         subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
 
 
+def cpu_failure(error):
+    if isinstance(error,bytes):error=error.decode(errors='replace')
+    return 'X86_V2' in error.upper() or 'QEMU: UNCAUGHT TARGET SIGNAL 4 (ILLEGAL INSTRUCTION)' in error.upper()
+
+
+def candidate_result(target,record=None,cpu_model='qemu64',output=None):
+    """An explicitly requested experimental rejection is evidence, never a pass."""
+    try:
+        candidate=run_image(target,timeout=20 if record else 180,cpu_model=cpu_model)
+        error=candidate.stdout+candidate.stderr
+        compatible=candidate.returncode==0
+    except subprocess.TimeoutExpired as timeout:
+        error=timeout.stderr or b''
+        compatible=False
+    if isinstance(error,bytes):error=error.decode(errors='replace')
+    if not compatible and not (record and cpu_failure(error)):
+        raise RuntimeError('Candidate failed compatibility smoke: '+error)
+    result={'target':target,'status':'compatible_smoke' if compatible else 'rejected_cpu',
+            'cpu_model':CPU_MODELS[cpu_model],
+            'scope':'Selected emulated CPU only; not physical hardware qualification','output':error}
+    result['image_id']=subprocess.run(['docker','image','inspect','--format','{{.Id}}',
+        'ew-numpy-compat-'+target],capture_output=True,text=True,check=True).stdout.strip()
+    path=output or record
+    if path:path.write_text(json.dumps(result,indent=2),encoding='utf-8')
+    print(json.dumps(result),flush=True)
+    return result
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--candidate-target', choices=('candidate', 'candidate-openblas'), default='candidate')
+    parser.add_argument('--cpu-model',choices=CPU_MODELS,default='qemu64')
+    parser.add_argument('--output',type=Path,help='Record a successful strict evaluation result')
+    parser.add_argument('--record-experimental-rejection',type=Path,
+                        help='OpenBLAS experiment only: record a reproduced CPU rejection, never other failures')
+    args = parser.parse_args()
+    if args.record_experimental_rejection and args.candidate_target!='candidate-openblas':
+        parser.error('Rejection recording is restricted to the OpenBLAS experiment')
+    if args.record_experimental_rejection and args.cpu_model!='qemu64':
+        parser.error('Experimental rejection recording is restricted to the original qemu64 model')
+    if args.record_experimental_rejection and args.output:
+        parser.error('Choose one output path')
     root = Path(__file__).resolve().parents[1]
-    for target in ('candidate', 'upstream', 'capped'):
+    for target in (args.candidate_target, 'upstream', 'capped'):
         subprocess.run(['docker', 'build', '--pull', '--target', target,
                         '-f', str(root / 'tests/numpy_compat/Dockerfile'),
                         '-t', f'ew-numpy-compat-{target}', str(root)], check=True)
-    python = run_image('upstream', python_only=True)
+    python = run_image('upstream', python_only=True,cpu_model=args.cpu_model)
     if python.returncode:
         raise RuntimeError('Python itself failed under the CPU model: ' + python.stderr)
     try:
-        control = run_image('upstream', timeout=20)
+        control = run_image('upstream', timeout=20,cpu_model=args.cpu_model)
         if control.returncode == 0:
             raise RuntimeError('Upstream wheel unexpectedly passed; CPU model is not a useful control')
         error = control.stdout + control.stderr
@@ -42,20 +91,18 @@ def main():
         error = timeout.stderr or b''
         if isinstance(error, bytes):
             error = error.decode(errors='replace')
-    cpu_failure = ('X86_V2' in error.upper()
-                   or 'QEMU: UNCAUGHT TARGET SIGNAL 4 (ILLEGAL INSTRUCTION)' in error.upper())
-    if not cpu_failure:
+    if not cpu_failure(error):
         raise RuntimeError('Upstream control did not reproduce the expected CPU baseline failure: '
                            + error)
-    print('Upstream wheel rejects the qemu64 CPU as expected', flush=True)
-    capped = run_image('capped')
+    print('Upstream wheel rejects the selected CPU as expected', flush=True)
+    capped = run_image('capped',cpu_model=args.cpu_model)
     if capped.returncode:
         raise RuntimeError('Existing capped version failed compatibility smoke: ' + capped.stderr)
     print(capped.stdout, end='', flush=True)
-    candidate = run_image('candidate')
-    print(candidate.stdout, end='', flush=True)
-    if candidate.returncode:
-        raise RuntimeError('Candidate failed compatibility smoke: ' + candidate.stderr)
+    result=candidate_result(args.candidate_target,args.record_experimental_rejection,args.cpu_model,args.output)
+    result['controls']={'python_startup':'passed','capped_smoke':'passed','upstream_cpu_rejection':'reproduced'}
+    path=args.output or args.record_experimental_rejection
+    if path:path.write_text(json.dumps(result,indent=2),encoding='utf-8')
 
 
 if __name__ == '__main__':
