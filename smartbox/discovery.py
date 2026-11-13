@@ -32,6 +32,20 @@ from house_config import (
 # The official HA integration reports "Škoda Auto"; accept both spellings without a tracker (#225).
 CAR_MAKERS = re.compile(r"tesla|nissan|volvo|polestar|kia|hyundai|volkswagen|vw|[sš]koda|audi|bmw|mini|mercedes|renault|peugeot|citro|opel|toyota|lexus|ford|byd|porsche|cupra|seat|fiat|jaguar|zeekr|xpeng|nio|honda|mazda|subaru|smart", re.I)
 PHONE_MAKERS = re.compile(r"^(samsung|apple|google|oneplus|xiaomi|huawei|oppo|motorola|sony|nokia|nothing|fairphone|realme|vivo|honor)\b", re.I)
+# #393: bilmärke bara som helt ord i början av tillverkaren. Ur modellnamnet räknas inte "mini" och "smart"
+# (gav "YUKA mini 600" = robotgräsklippare, "Smart Smoke Detector" och "Smart-UPS" som elbil).
+# Slut på märket: inte följt av en gemen bokstav ("Kia_offline", "VolvoCars" räknas, "Kiaxx" inte).
+CAR_MAKER_START = re.compile(r"^(" + CAR_MAKERS.pattern + r")(?-i:(?![a-zåäö]))", re.I)
+CAR_MODEL_START = re.compile(r"^(" + CAR_MAKERS.pattern.replace("|mini", "").replace("|smart", "") + r")(?-i:(?![a-zåäö]))", re.I)
+# Har batteri-% och ofta positionsspårare, men är aldrig elbil eller husbatteri (telemetri 2026-11-13, #393)
+NOT_CAR_OR_HOME_BATTERY = re.compile(
+    r"^_tz|\b(aqara|lumi|mammotion|husqvarna|automower|worx|landroid|segway|navimow|ecovacs|roborock|dreame|irobot|"
+    r"roomba|apc|eaton|cyberpower|lenovo|teclast|pritom|tractive|tuya|ikea|sonoff|shelly|philips|signify|netatmo|"
+    r"verisure|ajax|ring|nest|garmin|fitbit|withings|airthings|ecowitt|frient|zbeacon|athom|smartthings)\b", re.I)
+# Givare som bara en bil har (räckvidd, mätarställning, laddkabel/laddlucka, laddgräns). En positionsspårare
+# ensam räcker inte: telefoner och plattor med HA-appen, hundhalsband och gräsklippare har också en.
+CAR_EVIDENCE = re.compile(r"range|räckvidd|odometer|mätarställning|plugged|plug\b|laddkabel|laddlucka|charge ?port|"
+                          r"charge ?limit|charging ?(rate|power|current)|laddgräns|laddström|tire|däck|fuel|bränsle", re.I)
 SOLAR = re.compile(r"solar|sol(el|ar)?\b|pv\b|photovolt|inverter|växelriktare|produktion|production|yield", re.I)
 INVERTER_MAKERS = re.compile(r"solaredge|huawei|fronius|sma\b|growatt|enphase|goodwe|solis|sungrow|deye|victron|ferroamp|solax|kostal|apsystems", re.I)
 HEATPUMP = re.compile(r"husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic", re.I)
@@ -699,12 +713,15 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         if not battery:
             continue
         maker = ents[0].get("m") or ""
-        if _has(maker, PHONE_MAKERS):
+        model = ents[0].get("mo") or ""
+        if _has(maker, PHONE_MAKERS) or _has(maker, NOT_CAR_OR_HOME_BATTERY) or _has(model, NOT_CAR_OR_HOME_BATTERY):
             continue
         tracker = next((x for x in ents if x["e"].startswith("device_tracker.")), None)
         stationary = tracker is None and any(_has(f"{x.get('n') or ''} {x.get('dn') or ''} {x.get('mo') or ''}", STATIONARY_BATTERY)
                                              for x in ents)
-        is_car = not stationary and ((tracker is not None) or _has(maker, CAR_MAKERS) or _has(ents[0].get("mo"), CAR_MAKERS))
+        car_brand = _has(maker, CAR_MAKER_START) or _has(model, CAR_MODEL_START)
+        car_sensors = any(_has(x.get("n"), CAR_EVIDENCE) for x in ents)
+        is_car = not stationary and (car_brand or (tracker is not None and car_sensors))
         if not is_car:
             continue
         plugged = next((x for x in ents if x["e"].startswith("binary_sensor.") and (x.get("dc") == "plug" or _has(x.get("n"), re.compile(r"plugged|ansluten", re.I)))), None)
@@ -976,7 +993,13 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         maker = head.get("m") or ""
         _has_bat_power = any(x["e"].startswith("sensor.") and x.get("dc") == "power" and _has(x.get("n"), re.compile(r"battery|batteri", re.I))
                              for x in ents)
-        if _has(maker, PHONE_MAKERS) and not _has_bat_power:   # Huawei gör både telefoner och LUNA-batterier
+        # Huawei gör både telefoner och LUNA-batterier. Androids HA-app har också en "Battery Power"-givare (#393:
+        # Pixel och Samsung valdes som husbatteri), så det krävs tecken på ett riktigt husbatteri.
+        if _has(maker, PHONE_MAKERS) and not (_has_bat_power and (_has(_candidate(head), BATTERY_MAKERS)
+                                                                  or _has(_candidate(head), INVERTER_MAKERS)
+                                                                  or _has(_candidate(head), re.compile(r"luna|sun2000|inverter|växelriktare", re.I)))):
+            continue
+        if _has(maker, NOT_CAR_OR_HOME_BATTERY) or _has(head.get("mo"), NOT_CAR_OR_HOME_BATTERY):
             continue
         is_known_brand = _has(_candidate(head), BATTERY_MAKERS)
         soc_e = next((x for x in ents if x["e"].startswith("sensor.") and x.get("u") == "%"
