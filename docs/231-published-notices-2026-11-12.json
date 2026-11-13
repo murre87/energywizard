@@ -1,0 +1,89 @@
+{
+  "checked_at_utc": "2026-11-12T21:56:54.907Z",
+  "repository_base": "bca59e3",
+  "issue": 231,
+  "method": "Resolve latest once, pull by immutable index digest for linux/amd64, create a stopped network-none container, copy notice files and compare SHA256 after normalizing CRLF to LF. No application process started.",
+  "limitations": [
+    "Only linux/amd64 filesystems inspected; ARM64 files not checked.",
+    "No legal determination or reporter/upstream acceptance.",
+    "No live installation, runtime or device qualification."
+  ],
+  "images": [
+    {
+      "image": "ghcr.io/murre87/energywizard@sha256:254ffde6ebe80658abe78cdecd19410db200c1aa44d1d122c585a21301395878",
+      "platform": "linux/amd64",
+      "files": [
+        {
+          "path": "/smartbox/LICENSE",
+          "sha256_lf_normalized": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+        },
+        {
+          "path": "/LICENSE",
+          "sha256_lf_normalized": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+        },
+        {
+          "path": "/smartbox/ftw_drivers/UPSTREAM-LICENSE",
+          "sha256_lf_normalized": "2a8c39fcbd5e4e4d2e2b068cc1d6aec1a3347b3fea53f46db5280b5e28ae36e6"
+        },
+        {
+          "path": "/smartbox/ftw_drivers/UPSTREAM-NOTICE",
+          "sha256_lf_normalized": "2a1335b2fea7f70fbe0d581c999b1b7bab077b529a15d2b617af57198c541bd2"
+        },
+        {
+          "path": "/smartbox/ftw_drivers/UPSTREAM-LICENSING.md",
+          "sha256_lf_normalized": "13f4457be52a273f9ea0ada493deef7a04b1f87bf1ebcacb2434aec31cd1997e"
+        },
+        {
+          "path": "/smartbox/ftw_drivers/UPSTREAM-THIRD_PARTY_NOTICES.md",
+          "sha256_lf_normalized": "dccac8508f13395e5468569dae85eb56786e10c81fee9eb3e10950e50ddd327b"
+        }
+      ]
+    },
+    {
+      "image": "ghcr.io/murre87/energywizard-smartbox@sha256:cf4168d7a7753c00dc85cd06ec37928fedd5bdfd83d65eda7d58218e753d9fe5",
+      "platform": "linux/amd64",
+      "files": [
+        {
+          "path": "/app/LICENSE",
+          "sha256_lf_normalized": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+        },
+        {
+          "path": "/app/ftw_drivers/UPSTREAM-LICENSE",
+          "sha256_lf_normalized": "2a8c39fcbd5e4e4d2e2b068cc1d6aec1a3347b3fea53f46db5280b5e28ae36e6"
+        },
+        {
+          "path": "/app/ftw_drivers/UPSTREAM-NOTICE",
+          "sha256_lf_normalized": "2a1335b2fea7f70fbe0d581c999b1b7bab077b529a15d2b617af57198c541bd2"
+        },
+        {
+          "path": "/app/ftw_drivers/UPSTREAM-LICENSING.md",
+          "sha256_lf_normalized": "13f4457be52a273f9ea0ada493deef7a04b1f87bf1ebcacb2434aec31cd1997e"
+        },
+        {
+          "path": "/app/ftw_drivers/UPSTREAM-THIRD_PARTY_NOTICES.md",
+          "sha256_lf_normalized": "dccac8508f13395e5468569dae85eb56786e10c81fee9eb3e10950e50ddd327b"
+        }
+      ]
+    },
+    {
+      "image": "ghcr.io/murre87/energywizard-ewapp@sha256:cf8a962a63ad0170dead75aebb8082d085003a6e72fba8d948e6ee12f0a10880",
+      "platform": "linux/amd64",
+      "files": [
+        {
+          "path": "/ew/LICENSE",
+          "sha256_lf_normalized": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+        }
+      ]
+    },
+    {
+      "image": "ghcr.io/murre87/energywizard-webdashboard@sha256:f98349a0d96ff6e94bb43401f40e905534070fe974524aa44b5ac9bfe9bcdec6",
+      "platform": "linux/amd64",
+      "files": [
+        {
+          "path": "/wd/LICENSE",
+          "sha256_lf_normalized": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+        }
+      ]
+    }
+  ]
+}

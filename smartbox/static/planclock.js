@@ -15,11 +15,11 @@
                 cheap: "#3fb68b", mid: "#7c8aa0", dear: "#e0675e", sun: "#facc15" };
   const T = {
     sv: { next12: "Hela planen · totalpris", now: "Nu", today: "Idag", tomorrow: "Imorgon", until: "till", discharge: "Laddar ur", export: "Laddar ur · säljer", charge: "Laddar", hold: "Sparas",
-          idle: "Vilar", auto: "Självförbrukning", charges: "laddar", sun: "Sol", nothing: "Inget planerat",
+          idle: "Vilar", auto: "Självförbrukning", balance: "Balansering", charges: "laddar", sun: "Sol", nothing: "Inget planerat",
           heat: { CHEAP: "Värmer på huset", EXPENSIVE: "Värmen sänkt" }, drag: "Dra visaren för att se planen",
           legend: ["Laddar ur", "Laddar", "Bil", "Solprognos"], legExport: "Laddar ur · säljer", cheap: "Billigt", dear: "Dyrt" },
     en: { next12: "Whole plan · total price", now: "Now", today: "Today", tomorrow: "Tomorrow", until: "until", discharge: "Discharging", export: "Discharging · selling", charge: "Charging", hold: "Holding",
-          idle: "Idle", auto: "Self-consumption", charges: "charges", sun: "Sun", nothing: "Nothing planned",
+          idle: "Idle", auto: "Self-consumption", balance: "Balancing", charges: "charges", sun: "Sun", nothing: "Nothing planned",
           heat: { CHEAP: "Pre-heating", EXPENSIVE: "Heat lowered" }, drag: "Drag the hand to explore the plan",
           legend: ["Discharging", "Charging", "Car", "Sun forecast"], legExport: "Discharging · selling", cheap: "Cheap", dear: "Expensive" },
   };
@@ -174,9 +174,10 @@
       mid.price.textContent = fmtPrice(s.price);
       const acts = [];
       if (s.bat && T.sv[s.bat] !== undefined) {
-        let j = i; while (j + 1 < slots.length && slots[j + 1].bat === s.bat) j++;      // passets slut: "laddar ur till 09:45"
+        let j = i; while (j + 1 < slots.length && slots[j + 1].bat === s.bat && !!slots[j + 1].bat_balance === !!s.bat_balance) j++;      // passets slut
         const end = new Date(new Date(slots[j].t).getTime() + 15 * 60e3);
         let t = (L[s.bat] || s.bat) + ` ${L.until} ${end.toTimeString().slice(0, 5)}`;
+        if (s.bat_balance) t = L.balance + " · " + t;
         if (s.bat_kw != null && (s.bat === "charge" || s.bat === "discharge" || s.bat === "export")) t += ` · ${Math.abs(s.bat_kw).toFixed(1)} kW`;
         if (s.soc != null) t += ` · ${s.soc} %`;
         acts.push(`<span style="color:${s.bat === "discharge" ? COL.discharge : s.bat === "export" ? COL.export : s.bat === "charge" ? COL.charge : "inherit"}">${esc(t)}</span>`);

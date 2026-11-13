@@ -1,7 +1,10 @@
 import os
 import time
+_READ_TRANSPORT_ERRORS = (OSError,)
 try:                                # finns i motorns bild men inte i mobilappens (som bara läser installationen)
     from pymodbus.client import ModbusTcpClient
+    from pymodbus.exceptions import ConnectionException, ModbusIOException
+    _READ_TRANSPORT_ERRORS += (ConnectionException, ModbusIOException)
 except ImportError:                 # pragma: no cover
     ModbusTcpClient = None
  
@@ -26,27 +29,35 @@ DEVICE_ID = 1
 
 _active_ip_index = 0
 
+def _connect_client(ip):
+    client = ModbusTcpClient(ip, port=PORT, timeout=TIMEOUT)
+    connected = False
+    try:
+        connected = client.connect()
+        return client if connected else None
+    finally:
+        if not connected:
+            client.close()
+
 def _get_client():
     """Försöker ansluta till Husdata. Byter automatiskt IP om den primära är nere."""
     global _active_ip_index
     if not PUMP_IPS:
         return None
     _active_ip_index = min(_active_ip_index, len(PUMP_IPS) - 1)
-    client = ModbusTcpClient(PUMP_IPS[_active_ip_index], port=PORT, timeout=TIMEOUT)
-    if client.connect():
+    client = _connect_client(PUMP_IPS[_active_ip_index])
+    if client:
         return client
-    client.close()
     
     # Om den aktiva IP:n misslyckades, testa de andra
     for i, ip in enumerate(PUMP_IPS):
         if i == _active_ip_index:
             continue
-        client = ModbusTcpClient(ip, port=PORT, timeout=TIMEOUT)
-        if client.connect():
+        client = _connect_client(ip)
+        if client:
             _active_ip_index = i
             print(f"🔄 Husdata: Bytte aktiv IP-adress till {ip}")
             return client
-        client.close()
     return None
 
 def _to_signed(val):
@@ -162,6 +173,7 @@ def read_sensors():
             "compressor_running":   reg[25],        # 25: Compressor
             "pump_heat_running":    reg[29],        # 29: Pump Radiator
             "pump_radiator_running":reg[29],
+            "hotwater_valve":       reg[30],        # 30: Switch valve 1 (1A07): 0 = husvärme, 1 = varmvatten
 
             # Larm & Historik
             "alarm_active":         reg[32],        # 32: Alarm
@@ -175,7 +187,7 @@ def read_sensors():
             "accumulated_consumption_kwh": reg[39] / 10.0, # 39: Accumulated consumption
         }
 
-    except (ConnectionError, ConnectionResetError, TimeoutError, OSError) as e:
+    except _READ_TRANSPORT_ERRORS as e:
         # Tillfälliga nätverksfel — ⚠️ så Admin räknar dem gråa (#299).
         print(f"⚠️ Husdata: Nätverksfel vid läsning (Modbus): {e}")
         return None
@@ -232,6 +244,47 @@ def set_room_temp(target_temp):
     Register 15 (0203) är Room temp setpoint.
     """
     return _write_holding(15, target_temp)
+
+def _read_holding(reg_addr, count=1):
+    """Läser holding-register (råvärden) eller None."""
+    client = _get_client()
+    if not client:
+        return None
+    try:
+        try:
+            res = client.read_holding_registers(address=reg_addr, count=count, device_id=DEVICE_ID)
+        except TypeError:
+            try:
+                res = client.read_holding_registers(address=reg_addr, count=count, slave=DEVICE_ID)
+            except TypeError:
+                try:
+                    res = client.read_holding_registers(address=reg_addr, count=count, unit=DEVICE_ID)
+                except TypeError:
+                    res = client.read_holding_registers(address=reg_addr, count=count)
+        if res is None or res.isError():
+            return None
+        return list(res.registers)
+    except Exception:
+        return None
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+def read_water_setpoints():
+    """(stopp, start) för varmvattnet i °C som pumpen faktiskt har, eller None."""
+    if not PUMP_IPS:
+        return None
+    import shadow
+    if shadow.active():                       # skuggläge: inget skrivs, alltså inget att kontrollera
+        return None
+    for attempt in range(2):                  # gatewayen släpper ibland anslutningen direkt efter en skrivning
+        regs = _read_holding(13, count=8)     # 13 = stopp, 20 = start, i en läsning
+        if regs and len(regs) >= 8:
+            return _to_signed(regs[0]) / 10.0, _to_signed(regs[7]) / 10.0
+        time.sleep(1)
+    return None
 
 def set_water_stop_temp(target_temp):
     """Sätter maxtemperatur för Varmvatten (Holding 13)."""

@@ -171,6 +171,20 @@ spa:
 #     charge: "..."
 #     discharge: "..."
 
+# --- Laddplanering i kyla (valfri, standard av) ---
+# Värme är en last som växer när det blir kallare. Det som blir kvar åt bilen i varje 15-minutersruta är
+# (effekttak - husets last), så i kyla räcker effekten kortare och fler rutor behövs - energin är densamma.
+# Med den här modellen läggs  k x (graddagar(prognostemperatur) - graddagar_referens)  på den inlärda baslasten,
+# där graddagar(T) = max(0, balance_temp_c - T) och referensen är medlet över perioden profilen bygger på.
+# k (kW per grad under balance_temp_c) lärs ur loggen (kw_per_degree: auto) eller anges (ett tal).
+# ev_planning:
+#   heating_adjustment:
+#     enabled: true
+#     balance_temp_c: 10        # under denna utetemperatur börjar värmelasten växa
+#     kw_per_degree: auto       # auto = lär ur historiken, eller t.ex. 0.15
+#     max_base_kw: 10           # tak för den justerade baslasten
+#     window_days: 30           # historik som skattningen bygger på
+
 # --- Elmätare (rekommenderas) ---
 # Behövs för effektvakten, säkringsskyddet och solladdningen. Utan den här sektionen letar
 # EnergyWizard upp en Tibber Pulse automatiskt. Välj EN av formerna:

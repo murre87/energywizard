@@ -4,7 +4,7 @@ const $ = (s) => document.querySelector(s), app = $("#app");
 const LS = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let FL = null;                     // "Just nu"-flödet på Hem (api/flow, samma som webbens Översikt)
 let PC = null, PCAt = 0, PCNEW = false, PCEL = null, PCH = null;   // planklockan (planclock.js) - samma DOM-nod mellan omritningar så att visaren inte hoppar
-let LJ = null, VIEWAS = LS.get("ew_viewas", ""), GR = null, ME = "", ROLE = "owner", EN = null, S = null, H = null, page = LS.get("ew_page", "bil"), busy = false, timer = null, installEvt = null, SCH = null, schCar = "", HIST = null, SET = null, PL = null, SV = null, HX = null, JR = null, jBack = 1, EC = null, ecAt = 0, TL = null, TLAt = 0;
+let LJ = null, VIEWAS = LS.get("ew_viewas", ""), GR = null, ME = "", ROLE = "owner", EN = null, S = null, H = null, page = LS.get("ew_page", "bil"), busy = false, timer = null, installEvt = null, SCH = null, CLIM = null, schCar = "", HIST = null, SET = null, PL = null, SV = null, HX = null, JR = null, jBack = 1, EC = null, ecAt = 0, TL = null, TLAt = 0;
 let svPeriod = LS.get("ew_sv_period", "week"), hxPeriod = LS.get("ew_hx_period", "today"), hxRange = LS.get("ew_hx_range", "24h");
 // gamla flikar (före fem-flik-layouten) pekas om så ingen hamnar på en tom sida
 page = ({ ljus: "hem", energi: "hem", schema: "plan", grafer: "historik" })[page] || page;
@@ -41,14 +41,14 @@ function showLogin(msg) {
   $("#lf").onsubmit = async (e) => { e.preventDefault(); try { await api("login", { user: $("#un").value, password: $("#pw").value }); start(); } catch (er) { showLogin(er.message); } };
 }
 const ER = () => (ROLE === "owner" && VIEWAS) ? VIEWAS : ROLE;                    // effektiv roll: ägaren kan förhandsgranska Elins vy och gästläget
-const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
-              guest: ["theme", "ser", "tab", "health", "settings", "swap", "schcar", "cardata", "rooms", "greet", "log", "report", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"] };
+const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "clim", "climclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
+              guest: ["theme", "ser", "tab", "health", "settings", "swap", "schcar", "cardata", "rooms", "greet", "log", "report", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"] };
 const can = (a) => ER() === "owner" || (ROLE === "owner" && a === "viewas") || (CAN[ER()] || []).includes(a);   // ägaren kan alltid byta tillbaka från förhandsvisningen
 const TABS = { owner: ["hem", "bil", "hus", "plan", "historik"], family: ["hem", "bil", "plan"], guest: ["hem", "bil", "hus", "plan", "historik"] };
 const TABNAME = { hem: "Hem", bil: "Bil", hus: "Hus", plan: "Plan", historik: "Historik" };
 const primary = () => LS.get("ew_primary", "");
 function chooseCar() {
-  app.innerHTML = `<div class="card" style="text-align:center;display:grid;gap:14px;margin-top:10dvh"><h2 style="margin:0">Vilken bil kör du mest?</h2><div class="note">Den visas stor överst. Du kan byta senare.</div>${((S && S.cars) || []).map((c, i) => `<button class="big" data-p="${esc(c.key)}"${i % 2 ? ' style="background:linear-gradient(135deg,#a5b4fc,#38bdf8)"' : ""}>${esc(c.name)}</button>`).join("")}</div>`;
+  app.innerHTML = `<div class="card" style="text-align:center;display:grid;gap:14px;margin-top:10dvh"><h2 style="margin:0">Vilken bil kör du mest?</h2><div class="note">Den visas stor överst. Du kan byta senare.</div>${((S && S.cars) || []).map((c, i) => `<button class="big" data-p="${esc(c.key)}">${esc(c.name)}</button>`).join("")}</div>`;
   app.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { LS.set("ew_primary", b.dataset.p); start(); });
 }
 // ---- Bil -------------------------------------------------------------------------------------------------------------------------
@@ -198,8 +198,13 @@ function svLine() {                                       // besparingen på en 
 function planNow() {                                   // vad görs nu och varför (per enhet, ur motorns beslut) + nästa steg i planen
   const now = (EN && EN.now) || [], nxt = PL ? (PL.items || []).find((i) => !i.active) : null;
   if (!now.length && !nxt) return PL ? `<section class="card plannow" data-a="nowsheet"><div class="note">${esc(PL.headline)}</div></section>` : "";
-  const rows = now.slice(0, 3).map((i) => `<div class="pnrow"><span class="pnl">${esc(i.icon)}</span><span><b>${esc(i.label)}</b><span class="note"> ${esc(i.text)}</span></span></div>`).join("");
-  const later = nxt ? `<div class="pnrow"><span class="pnl pnl-t">Sen</span><span><b>${esc(nxt.title.replace(/^[^\p{L}\p{N}]+/u, ""))}</b><span class="note"> ${esc(nxt.when)}</span></span></div>` : "";
+  // unslop 2026-11: etikett till vänster, hela meningen till höger (ingen emoji, inget "…")
+  const rows = CL()
+    ? now.slice(0, 3).map((i) => `<div class="pnrow"><span class="pnl">${esc(i.icon)}</span><span><b>${esc(i.label)}</b><span class="note"> ${esc(i.text)}</span></span></div>`).join("")
+    : now.slice(0, 3).map((i) => `<div class="pnrow2"><span class="pnk">${esc(i.label)}</span><span>${esc(i.text)}</span></div>`).join("");
+  const later = !nxt ? "" : CL()
+    ? `<div class="pnrow"><span class="pnl pnl-t">Sen</span><span><b>${esc(nxt.title.replace(/^[^\p{L}\p{N}]+/u, ""))}</b><span class="note"> ${esc(nxt.when)}</span></span></div>`
+    : `<div class="pnrow2"><span class="pnk">Sen</span><span>${esc(nxt.title.replace(/^[^\p{L}\p{N}]+/u, ""))} <span class="note">${esc(nxt.when)}</span></span></div>`;
   return `<section class="card plannow" data-a="nowsheet">${rows}${later}</section>`;
 }
 async function roomsSheet() {                            // "alla rum": de valda innegivarna, live (api/rooms)
@@ -283,13 +288,15 @@ const FL_TAB = { sol: ["solarsheet"], nat: ["insights"], batteri: ["insights"], 
 function flowCard() {                    // delad med webbens Översikt (smartbox/static/liveflow.js) - samma bild och regler
   if (!FL || !FL.ok || !FL.nodes || !window.EWLiveFlow) return "";
   const attrs = (n) => { const t = n.key.startsWith("ev_") ? ["tab", "bil"] : (FL_TAB[n.key] || ["tab", "hus"]); return `data-a="${t[0]}"${t[1] ? ` data-v="${t[1]}"` : ""}`; };
-  return `<section class="card flowcard"><div class="flh"><b>Just nu</b><span class="note">${esc(FL.ts || "")}</span></div>${EWLiveFlow.svg(FL, { compact: true, attrs, hubAttrs: 'data-a="insights"' })}</section>`;
+  return `<section class="card flowcard"><div class="flh"><b>Just nu</b><span class="note">${esc(FL.ts || "")}</span></div>${EWLiveFlow.svg(FL, { compact: true, icons: CL(), attrs, hubAttrs: 'data-a="insights"' })}</section>`;
 }
 
 function pageHem() {
   if (!EN) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
   const s = EN.solar, g = EN.grid, net = g.net_w;
-  const alerts = (EN.alerts || []).map((a) => `<section class="card" style="border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}"><b>${a.level === "info" ? "ℹ️" : "⚠️"} ${esc(a.device)}: ${esc(a.title)}</b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`).join("");
+  const alerts = (EN.alerts || []).map((a) => CL()
+    ? `<section class="card" style="border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}"><b>${a.level === "info" ? "ℹ️" : "⚠️"} <span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`
+    : `<section class="card"><b><span class="alertdot ${a.level === "info" ? "info" : ""}"></span><span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`).join("");
   // Planklockan/Skyline ligger bara under Plan (Emil 2026-11-08: framsidan visar vad som händer just nu)
   return `<div class="page">${alerts}${flowCard()}${planNow()}${quickGrid(s, g, net, !!(FL && FL.ok))}${carsRow()}${ljusRow()}</div>`;
 }
@@ -346,9 +353,13 @@ function schemaInner() {
   const _cs = (S && S.cars) || []; if (!_cs.some((c) => c.key === schCar) && _cs.length) schCar = _cs[0].key;
   const s = SCH[schCar];
   if (!s) return `<div class="note" style="text-align:center">Inget laddschema för den här bilen.</div>`;
+  const hx = CLIM && CLIM[schCar];
+  const heat = hx && hx.has_climate ? `<section class="card" style="margin-top:12px"><h4>Kupévärme</h4>
+    <div class="note">Varje dag, varm till klockan när bilen är hemma eller inkopplad.</div>
+    <div class="card srow"><b>På</b><button class="sw ${hx.enabled ? "on" : ""}" data-a="clim" data-f="enabled" aria-label="Kupévärme på/av"></button><button class="tm" data-a="climclock" aria-label="Varm kl"><span>${hx.time}</span></button><div class="step"><button data-a="clim" data-f="t-">−</button><span>${hx.temp}°</span><button data-a="clim" data-f="t+">+</button></div></div></section>` : "";
   return `<div class="seg">${_cs.map((c) => `<button data-a="schcar" data-v="${esc(c.key)}" class="${schCar === c.key ? "on" : ""}">${esc(c.name)}</button>`).join("")}</div>
   <div class="note" style="text-align:center">Klar till vald tid och batterinivå. Av = laddar bara enligt pris/Auto.</div>
-  <div class="sched">${DAYS.map((d, i) => { const x = s[i]; return `<div class="card srow"><b>${d}</b><button class="sw ${x.enabled ? "on" : ""}" data-a="sch" data-d="${i}" data-f="enabled" aria-label="${d} på/av"></button><button class="tm" data-a="schclock" data-d="${i}" aria-label="${d} klar kl"><span>${x.time}</span></button><div class="step"><button data-a="sch" data-d="${i}" data-f="soc-">−</button><span>${x.soc}%</span><button data-a="sch" data-d="${i}" data-f="soc+">+</button></div></div>`; }).join("")}</div>`;
+  <div class="sched">${DAYS.map((d, i) => { const x = s[i]; return `<div class="card srow"><b>${d}</b><button class="sw ${x.enabled ? "on" : ""}" data-a="sch" data-d="${i}" data-f="enabled" aria-label="${d} på/av"></button><button class="tm" data-a="schclock" data-d="${i}" aria-label="${d} klar kl"><span>${x.time}</span></button><div class="step"><button data-a="sch" data-d="${i}" data-f="soc-">−</button><span>${x.soc}%</span><button data-a="sch" data-d="${i}" data-f="soc+">+</button></div></div>`; }).join("")}</div>${heat}`;
 }
 // ---- Grafer ----------------------------------------------------------------------------------------------------------------------
 const hiddenSer = (key) => String(LS.get("ew_hide_" + key, "")).split(",").filter((x) => x !== "").map(Number);
@@ -378,7 +389,56 @@ function powerSvg(sr) {                                   // nät/sol/hus/batter
   const X = (i) => (n <= 1 ? 0 : (i / (n - 1)) * W), Y = (v) => Hh / 2 - (v / mx) * (Hh / 2 - 4);
   const paths = ser.map(([s, c]) => { let d = ""; s.forEach((v, i) => { if (v != null) d += (d ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }); return `<path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`; }).join("");
   const lbl = (x) => sr.range === "24h" ? x.slice(11, 16) : `${x.slice(8, 10)}/${x.slice(5, 7)}`;
-  return `<div class="ch"><span>${f1(mx, 0)} kW in</span><span></span></div><svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Hh / 2}" y2="${Hh / 2}" stroke="var(--line)" vector-effect="non-scaling-stroke"/>${paths}</svg><div class="ch"><span>${lbl(sr.t[0])}</span><span>${f1(mx, 0)} kW ut</span><span>nu</span></div>`;
+  // #371: tryck på grafen -> stor, lättläst version (bigChartSheet)
+  return `<div data-a="bigchart" style="cursor:zoom-in"><div class="ch"><span>${f1(mx, 0)} kW in</span><span class="note" style="margin:0">Tryck för större</span></div><svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Hh / 2}" y2="${Hh / 2}" stroke="var(--line)" vector-effect="non-scaling-stroke"/>${paths}</svg><div class="ch"><span>${lbl(sr.t[0])}</span><span>${f1(mx, 0)} kW ut</span><span>nu</span></div></div>`;
+}
+// #371 (Emil 2026-11-13): grafen var svår att läsa. Stor vy med axlar, tider, teckenförklaring, periodval och
+// värden där man trycker eller drar med fingret.
+function bigPowerSvg(sr) {
+  if (!sr || !sr.t.length) return `<div class="note">Ingen data</div>`;
+  const ser = [["Nät", sr.grid_kw, HC.grid], ["Sol", sr.solar_kw.map((v) => (v == null ? null : -v)), HC.solar], ["Hus", sr.house_kw, HC.house]];
+  if (sr.battery_kw.some((v) => v != null)) ser.push(["Batteri", sr.battery_kw, HC.battery]);
+  const all = ser.flatMap(([, s]) => s).filter((v) => v != null), mx = Math.max(0.5, ...all.map(Math.abs));
+  const W = 1000, H = 460, L = 54, R = 12, T = 14, B = 34, pw = W - L - R, ph = H - T - B, n = sr.t.length;
+  const X = (i) => L + (n <= 1 ? 0 : (i / (n - 1)) * pw), Y = (v) => T + ph / 2 - (v / mx) * (ph / 2);
+  const grid = [mx, mx / 2, 0, -mx / 2, -mx].map((v) => `<line x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width="${v === 0 ? 1.6 : 0.8}" ${v === 0 ? "" : 'stroke-dasharray="4 6"'}/><text x="${L - 6}" y="${(Y(v) + 4).toFixed(1)}" font-size="15" fill="var(--mut)" text-anchor="end">${v > 0 ? "+" : ""}${f1(v, mx >= 5 ? 0 : 1)}</text>`).join("");
+  const lbl = (x) => sr.range === "24h" ? x.slice(11, 16) : sr.range === "1y" ? `${x.slice(5, 7)}/${x.slice(2, 4)}` : `${x.slice(8, 10)}/${x.slice(5, 7)}`;
+  const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1].map((f) => Math.round(f * (n - 1))).map((i) => `<text x="${X(i).toFixed(1)}" y="${H - 10}" font-size="15" fill="var(--mut)" text-anchor="${i === 0 ? "start" : i === n - 1 ? "end" : "middle"}">${esc(lbl(sr.t[i]))}</text>`).join("");
+  const paths = ser.map(([, s, c]) => { let d = ""; s.forEach((v, i) => { if (v != null) d += (d ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }); return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2.2" stroke-linejoin="round"/>`; }).join("");
+  const legend = ser.map(([nm, , c]) => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><span style="width:14px;height:4px;border-radius:2px;background:${c}"></span>${nm}</span>`).join("");
+  return `<div class="note" style="margin:0 0 6px">${legend}</div>
+    <div class="note" style="margin:0 0 4px">kW · uppåt = in i huset (köpt), nedåt = ut (sålt, solproduktion)</div>
+    <div id="bigwrap" style="position:relative;touch-action:none">
+      <svg id="bigsvg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}${ticks}${paths}<line id="bigcur" x1="0" x2="0" y1="${T}" y2="${T + ph}" stroke="var(--txt)" stroke-width="1.2" opacity="0"/></svg>
+      <div id="bigtip" class="card" style="position:absolute;top:6px;left:60px;padding:8px 10px;font-size:.85rem;pointer-events:none;display:none;min-width:150px"></div>
+    </div>
+    <div class="note" style="margin-top:6px">Tryck eller dra över grafen för att se värdena.</div>`;
+}
+function bigChartSheet() {
+  const draw = () => {
+    sheet(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">Effekt</h3><button class="mini" data-a="closesheet">Stäng</button></div>
+      <div class="seg" style="margin:8px 0">${[["24h", "24 h"], ["7d", "7 d"], ["30d", "30 d"], ["1y", "1 år"]].map(([k, l]) => `<button data-a="bigrange" data-v="${k}" class="${hxRange === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      ${bigPowerSvg(HX && HX.series)}`);
+    const p = $("#sheet .panel"); if (p) { p.style.maxWidth = "1100px"; p.style.width = "100%"; p.style.maxHeight = "94dvh"; }
+    const sr = HX && HX.series, svg = $("#bigsvg"), tip = $("#bigtip"), cur = $("#bigcur");
+    if (!sr || !svg) return;
+    const n = sr.t.length, L = 54, pw = 1000 - 54 - 12;
+    const kw = (v) => v == null ? "–" : `${f1(Math.abs(v), Math.abs(v) >= 10 ? 0 : 1)} kW`;
+    const show = (ev) => {
+      const r = svg.getBoundingClientRect(), x = ((ev.clientX - r.left) / r.width) * 1000;
+      const i = Math.max(0, Math.min(n - 1, Math.round(((x - L) / pw) * (n - 1))));
+      const cx = L + (n <= 1 ? 0 : (i / (n - 1)) * pw);
+      cur.setAttribute("x1", cx); cur.setAttribute("x2", cx); cur.setAttribute("opacity", ".6");
+      const g = sr.grid_kw[i], when = sr.t[i].slice(0, 16).replace("T", " ");
+      tip.innerHTML = `<b>${esc(when)}</b><br>Nät: ${kw(g)} ${g != null ? (g < 0 ? "säljer" : "köper") : ""}<br>Sol: ${kw(sr.solar_kw[i])}<br>Hus: ${kw(sr.house_kw[i])}${sr.battery_kw.some((v) => v != null) ? `<br>Batteri: ${kw(sr.battery_kw[i])} ${sr.battery_kw[i] != null ? (sr.battery_kw[i] < 0 ? "laddar ur" : "laddar") : ""}` : ""}`;
+      tip.style.display = "block";
+      const left = (cx / 1000) * r.width; tip.style.left = (left > r.width / 2 ? Math.max(0, left - 170) : left + 12) + "px";
+    };
+    svg.addEventListener("pointerdown", (e) => { svg.setPointerCapture(e.pointerId); show(e); });
+    svg.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "mouse") show(e); });
+  };
+  draw();
+  bigChartSheet.redraw = draw;
 }
 function dayWhen(iso) {
   if (!iso) return "";
@@ -451,6 +511,26 @@ function pageHistorik() {
   ${window.EWJournal && JR && JR.ok ? `<section class="card" id="journalcard">${EWJournal.html(JR, { compact: true, back: jBack })}</section>` : ""}</div>`;
 }
 // ---- ram, render, laddning ----------------------------------------------------------------------------------------------------------
+// Version i sidhuvudet: "✓ senaste" bara när det är bekräftat, annars en knapp om en nyare finns (update_check.py)
+let UPD = null, updAt = 0;
+function verBadge() {
+  const u = UPD && UPD.status, v = (u && u.running) || (S && S.version);
+  if (u && u.outdated && u.latest) return `<button class="ver" data-a="update" style="color:var(--warn);background:none;border:0;padding:0;font:inherit;cursor:pointer">⬆️ Ny version ${esc(u.latest)} · tryck här</button>`;
+  if (!v || v === "dev" || v === "local") return "";
+  return `<span class="ver">v${esc(v)}${u && u.latest && !u.outdated ? " ✓ senaste" : ""}</span>`;
+}
+function updateSheet() {
+  const u = (UPD && UPD.status) || {};
+  const how = u.kind === "addon" ? "Öppna Home Assistant → <b>Inställningar → Tillägg → EnergyWizard</b> och tryck <b>Uppdatera</b>." : "Hämta den nya bilden (<code>docker compose pull</code> och starta om) eller låt Watchtower göra det.";
+  sheet(`<h3>Ny version: ${esc(u.latest || "")}</h3><div class="note" style="margin-bottom:8px">Du kör ${esc(u.running || "en äldre version")}. Nya versioner har rättningar och förbättringar, och fel som redan är rättade försvinner först när du uppdaterat.</div><p>${how}</p><a class="mini" href="${esc(u.changelog || "")}" target="_blank" rel="noopener">Vad är nytt</a>`);
+}
+// unslop 2026-11: överst priset just nu och hur det ligger (i stället för en slumpad rad)
+function priceLine() {
+  const g = EN && EN.grid; if (!g || g.price == null) return "";
+  const lv = g.level || "", col = lv === "billigt" ? "var(--acc)" : lv === "dyrt" ? "var(--warn)" : "var(--txt)";
+  return `<span class="gl gprice"><strong style="color:${col};font-weight:500">${esc(lv ? lv[0].toUpperCase() + lv.slice(1) : "Elpris")} just nu</strong> · ${f1(g.price, 2)} kr/kWh</span>`;
+}
+const CL = () => LS.get("ew_style", "new") === "classic";   // Inställningar → Appen → Stil: Ny (standard) eller Klassisk (före unslop)
 function render() {
   if (page === "bil" && !primary() && S && S.cars.length) return chooseCar();
   const warn = S && S.health && S.health.length;
@@ -461,7 +541,7 @@ function render() {
   // Scrollar sidan (stor text, tscroll) ska omritningen var 5:e sekund inte kasta en tillbaka till toppen
   const _oldPg = document.querySelector(".page"), _keepScroll = _oldPg && _oldPg.dataset.p === page ? _oldPg.scrollTop : 0;
   const _oldDay = document.querySelector(".dayscroll"), _keepDay = _oldDay ? _oldDay.scrollLeft : null;
-  app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? GR.hello : "EnergyWizard")}</b>${GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : ""}${S && S.version && S.version !== "dev" && S.version !== "local" ? `<span class="ver" title="Du kör senaste versionen">v${esc(S.version)} ✓ senaste</span>` : ""}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
+  app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? (CL() ? GR.hello : GR.hello.replace(/!+$/, "")) : "EnergyWizard")}</b>${CL() ? (GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : "") : `${priceLine()}${GR ? `<span class="gl">${esc(GR.weather || "")}</span>` : ""}`}${verBadge()}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
   let tb = $("#tabs"); if (!tb) { tb = document.createElement("nav"); tb.id = "tabs"; tb.className = "tabs"; document.body.insertBefore(tb, $("#toast")); }
   tb.style.setProperty("--ntabs", tabs.length);
   tb.innerHTML = tabs.map(([k, l]) => `<button class="tab ${page === k ? "on" : ""}" data-a="tab" data-v="${k}">${ICON[k]}<span>${l}</span></button>`).join("");
@@ -518,8 +598,9 @@ async function load() {
     if (page === "hus") H = await api("home");
     if (page === "hem") { if (!S || Date.now() - (S._t || 0) > 30000) { S = await api("state").catch(() => S); if (S) S._t = Date.now(); }
       [EN, PL, SV, FL] = await Promise.all([api("energy"), api("plan").catch(() => PL), ER() === "owner" ? api("savings").catch(() => null) : null, api("flow").catch(() => FL)]); if (!LJ && can("lights")) LJ = await api("lights").catch(() => null); await loadClock(); }
+    if (Date.now() - updAt > 3600000) { updAt = Date.now(); api("update-status").then((d) => { UPD = d; render(); }).catch(() => {}); }
     if (page === "bil" && Date.now() - ecAt > 300000) { ecAt = Date.now(); api("ev-cost").then((d) => { EC = d; if (page === "bil") render(); }).catch(() => {}); }
-    if (page === "plan") { PL = await api("plan").catch(() => PL); if (!SCH) SCH = await api("schedule"); await loadClock(); }
+    if (page === "plan") { PL = await api("plan").catch(() => PL); if (!SCH) SCH = await api("schedule"); if (!CLIM) CLIM = await api("schedule/climate").catch(() => CLIM); await loadClock(); }
     if (page === "historik") {
       if (histView === "energi") { HX = await api("energyhistory?range=" + hxRange); JR = await api("control-journal?back=" + jBack).catch(() => JR); }
       else if (histView === "pris") { if (!TL || Date.now() - TLAt > 60000) { TL = await api("timeline").catch(() => TL); if (TL) TLAt = Date.now(); } }
@@ -661,7 +742,7 @@ async function settingsSheet() {
     logg: () => `<div class="seg">${[["", "Allt"], ["fel", "Fel"], ["varning", "Varningar"], ["notis", "Notiser"]].map(([v, t]) => `<button data-s="lg:${v}" class="${LGL === v ? "on" : ""}">${t}</button>`).join("")}</div>
       <div class="note">Allt EnergyWizard läst in, bestämt, skickat och fått för fel de senaste 6 timmarna. <a href="api/journal/download?days=2">Ladda ner 2 dygn</a> (att bifoga i en issue).</div>
       ${LG ? (LG.length ? LG.map((r) => `<div class="plrow" style="display:block;font-size:.8rem"><span class="note">${esc(new Date(r.ts).toLocaleTimeString("sv-SE"))} · ${esc(r.lvl)} · ${esc(r.src)}</span><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(r.msg)}</div></div>`).join("") : `<div class="note">Inget i loggen.</div>`) : `<div class="note">Laddar…</div>`}`,
-    appen: () => `<div class="seg">${((S && S.cars) || []).map((c) => `<button data-s="car:${esc(c.key)}" class="${primary() === c.key ? "on" : ""}">Huvudbil: ${esc(c.name)}</button>`).join("")}</div><div class="seg"><button data-s="glass" class="${LS.get("ew_glass", "1") !== "0" ? "on" : ""}">Glasdesign</button><button data-s="ambient" class="${LS.get("ew_ambient", "1") !== "0" ? "on" : ""}">Dygnsfärger</button></div><div class="seg"><button data-s="simple" class="${LS.get("ew_simple", "") === "1" ? "on" : ""}">Enkel vy (bara huvudbilen)</button>${standalone ? "" : `<button data-s="install">${installEvt ? "Installera appen" : "Lägg till på hemskärmen"}</button>`}</div><div class="seg"><button data-s="reload">Ladda om appen</button></div>
+    appen: () => `<div class="note" style="margin-top:2px">Stil</div><div class="seg"><button data-s="style:new" class="${CL() ? "" : "on"}">Ny (standard)</button><button data-s="style:classic" class="${CL() ? "on" : ""}">Klassisk</button></div><div class="seg">${((S && S.cars) || []).map((c) => `<button data-s="car:${esc(c.key)}" class="${primary() === c.key ? "on" : ""}">Huvudbil: ${esc(c.name)}</button>`).join("")}</div><div class="seg"><button data-s="glass" class="${LS.get("ew_glass", CL() ? "1" : "0") === "1" ? "on" : ""}">Glasdesign</button><button data-s="ambient" class="${LS.get("ew_ambient", CL() ? "1" : "0") === "1" ? "on" : ""}">Dygnsfärger</button></div><div class="seg"><button data-s="simple" class="${LS.get("ew_simple", "") === "1" ? "on" : ""}">Enkel vy (bara huvudbilen)</button>${standalone ? "" : `<button data-s="install">${installEvt ? "Installera appen" : "Lägg till på hemskärmen"}</button>`}</div><div class="seg"><button data-s="reload">Ladda om appen</button></div>
       <div class="note" style="margin-top:6px">Språk / Language</div><div class="seg" data-noi18n>${Object.entries(I18N.languages).map(([k, v]) => `<button data-s="lang:${k}" class="${I18N.lang === k ? "on" : ""}">${esc(v)}</button>`).join("")}</div>
       <div class="seg"><a class="mini" href="${I18N.TRANSLATE_URL}" target="_blank" rel="noopener">Hjälp till att översätta</a><a class="mini" href="${SPONSOR_URL}" target="_blank" rel="noopener">❤️ Sponsra EnergyWizard</a></div>
       ${ER() === "owner" ? `<div class="seg"><button data-s="sponsornotice" class="${SPONSOR && SPONSOR.enabled ? "on" : ""}">Påminn mig en gång i månaden</button></div>` : ""}`,
@@ -678,7 +759,8 @@ async function settingsSheet() {
     if (s.startsWith("np:")) { const k = s.slice(3), c = (NP || []).find((x) => x.key === k); if (!c) return; try { NP = (await api("notify-prefs", { on: { [k]: !c.on } })).categories; } catch (er) { toast(er.message); } settingsSheet(); return; }
     if (s.startsWith("lang:")) { const l = s.slice(5); if (ER() === "owner") { try { await api("setup/language", { language: l }); } catch {} } I18N.set(l); return; }
     if (s === "sponsornotice") { try { const r = await api("sponsor/notice", { enabled: !(SPONSOR && SPONSOR.enabled) }); SPONSOR = { ...(SPONSOR || {}), enabled: r.enabled }; } catch (er) { toast(er.message); } settingsSheet(); return; }
-    if (s === "glass" || s === "ambient") { LS.set("ew_" + s, LS.get("ew_" + s, "1") !== "0" ? "0" : "1"); applyLook(); }
+    if (s.startsWith("style:")) { LS.set("ew_style", s.slice(6)); applyLook(); render(); settingsSheet(); return; }
+    if (s === "glass" || s === "ambient") { LS.set("ew_" + s, LS.get("ew_" + s, CL() ? "1" : "0") === "1" ? "0" : "1"); applyLook(); }
     if (s.startsWith("car:")) LS.set("ew_primary", s.slice(4)); if (s === "simple") LS.set("ew_simple", LS.get("ew_simple", "") === "1" ? "" : "1");
     if (s === "install") { installApp(); return; }
     if (s === "reload") { hardReload(); return; }
@@ -697,6 +779,19 @@ function schClockSheet(d) {
     if (v === "ok") { SCH[schCar][d].time = `${pad2(h)}:${pad2(m)}`; closeSheet(); schedSave(schCar, d); } else { [h, m] = clockStep(v, h, m); draw(); } };
 }
 async function schedSave(car, day) { const x = SCH[car][day]; try { await api("schedule", { car, day, enabled: x.enabled, time: x.time, soc: x.soc }); toast("Sparat"); } catch (e) { toast(e.message); } }
+function climClockSheet() {
+  const x = CLIM && CLIM[schCar]; if (!x) return;
+  let [h, m] = String(x.time).split(":").map(Number);
+  const draw = () => sheet(`<h3>Kupévärme – varm kl</h3>${clockHTML(h, m)}<button class="big" data-v="ok">Klar</button>`);
+  draw();
+  $("#sheet").onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) { if (e.target.id === "sheet") closeSheet(); return; } const v = b.dataset.v;
+    if (v === "ok") { x.time = `${pad2(h)}:${pad2(m)}`; closeSheet(); render(); climSave(); } else { [h, m] = clockStep(v, h, m); draw(); } };
+}
+async function climSave() {
+  const x = CLIM && CLIM[schCar]; if (!x) return;
+  try { await api("schedule/climate", { car: schCar, enabled: x.enabled, time: x.time, temp: x.temp }); toast("Sparat"); }
+  catch (e) { toast(e.message); }
+}
 document.addEventListener("click", async (e) => {
   const jb = e.target.closest("[data-jback]");             // Höll vi planen? Idag/Igår (journal.js) - bara att titta, alla roller
   if (jb) { jBack = +jb.dataset.jback; JR = await api("control-journal?back=" + jBack).catch(() => JR); return render(); }
@@ -707,6 +802,7 @@ document.addEventListener("click", async (e) => {
   if (a === "planlist") return planSheet(c);
   if (a === "power") return powerSheet(c);
   if (a === "swap") { LS.set("ew_primary", c); return render(); }
+  if (a === "update") return updateSheet();
   if (a === "settings") { NL = null; return settingsSheet(); }
   if (a === "health") return healthSheet();
   if (a === "access") return accessSheet(c);
@@ -728,6 +824,8 @@ document.addEventListener("click", async (e) => {
   if (a === "theme") { cycleTheme(); return; }
   if (a === "ser") { const [ck, ix] = v.split(":"); const h = hiddenSer(ck), n = +ix; LS.set("ew_hide_" + ck, (h.includes(n) ? h.filter((x) => x !== n) : [...h, n]).join(",")); render(); return; }
   if (a === "schclock") { schClockSheet(+b.dataset.d); return; }
+  if (a === "climclock") { climClockSheet(); return; }
+  if (a === "clim") { const x = CLIM && CLIM[schCar]; if (!x) return; const f = b.dataset.f; buzz(8); if (f === "enabled") x.enabled = !x.enabled; else if (f === "t+") x.temp = Math.min(28, Math.round((Number(x.temp) + 1) * 10) / 10); else if (f === "t-") x.temp = Math.max(15, Math.round((Number(x.temp) - 1) * 10) / 10); render(); return climSave(); }
   if (a === "lights") { buzz(25); try { const r = await api("lights", { action: v }); toast(r.msg); LJ = await api("lights"); render(); } catch (er) { toast(er.message); } return; }
   if (a === "viewas") { VIEWAS = v; LS.set("ew_viewas", v); grAt = 0; closeSheet(); loadGreeting(); return; }
   if (a === "trip") return tripSheet(c);
@@ -741,6 +839,8 @@ document.addEventListener("click", async (e) => {
   if (a === "planall") { sheet(`<h3>Planen framåt</h3>${(PL.items || []).map((i) => `<div class="plrow"><div class="plw">${esc(i.when)}</div><div><b>${esc(i.title)}</b><div class="note">${esc(i.detail)}</div></div></div>`).join("")}<button class="mini" data-a="closesheet">Stäng</button>`); return; }
   if (a === "histview") { histView = v; LS.set("ew_hist_view", v); render(); return load(); }
   if (a === "hp") { hxPeriod = v; LS.set("ew_hx_period", v); return render(); }
+  if (a === "bigchart") return bigChartSheet();
+  if (a === "bigrange") { hxRange = v; LS.set("ew_hx_range", v); try { HX = await api("energyhistory?range=" + v); } catch (er) { toast(er.message); } if (bigChartSheet.redraw) bigChartSheet.redraw(); return; }
   if (a === "hr") { hxRange = v; LS.set("ew_hx_range", v); try { HX = await api("energyhistory?range=" + v); } catch (er) { toast(er.message); } return render(); }
   if (a === "peaks") { sheet(`<h3>Effekttoppar denna månad</h3>${EN && EN.peaks.length ? EN.peaks.map((p) => `<div style="display:flex;justify-content:space-between"><b>${f1(p.kw)} kW</b><span class="note">${p.t}</span></div>`).join("") : '<div class="note">Ingen data</div>'}<button class="mini" data-a="closesheet">Stäng</button>`); return; }
   if (a === "spaready") return spaReadySheet();
@@ -792,7 +892,9 @@ function scaleFix() {                       // Chrome i "Datoranpassad webbplats
 const todOf = (h) => (h >= 5 && h < 10 ? "morning" : h >= 10 && h < 16 ? "day" : h >= 16 && h < 21 ? "evening" : "night");
 function applyLook() {
   const de = document.documentElement, q = new URLSearchParams(location.search).get("look") || "", pv = q.split(",");
-  const glass = pv.includes("glass") || (q === "" && LS.get("ew_glass", "1") !== "0"), amb = pv.includes("ambient") || (q === "" && LS.get("ew_ambient", "1") !== "0");      // båda på som standard; "0" = avstängd av användaren
+  const dflt = CL() ? "1" : "0";        // klassisk stil: glas och dygnsfärger på som förut; ny stil: av tills man slår på dem
+  CL() ? de.setAttribute("data-classic", "1") : de.removeAttribute("data-classic");
+  const glass = pv.includes("glass") || (q === "" && LS.get("ew_glass", dflt) === "1"), amb = pv.includes("ambient") || (q === "" && LS.get("ew_ambient", dflt) === "1");      // båda på som standard; "0" = avstängd av användaren
   glass ? de.setAttribute("data-glass", "1") : de.removeAttribute("data-glass");
   if (amb) { de.setAttribute("data-ambient", "1"); de.setAttribute("data-tod", ["morning", "day", "evening", "night"].find((t) => pv.includes(t)) || todOf(new Date().getHours())); } else { de.removeAttribute("data-ambient"); de.removeAttribute("data-tod"); }
 }
@@ -827,8 +929,30 @@ window.addEventListener("beforeinstallprompt", () => { if (document.getElementBy
 // ---- sponsring: länk i inställningarna + en vänlig ruta en gång i månaden till ägaren (kan stängas av) ----------------------------
 const SPONSOR_URL = "https://github.com/sponsors/murre87";
 let SPONSOR = null;
+// Engångsruta om det nya utseendet (Emil 2026-11-13): den som använt appen före 1.2.73 får veta vad som ändrats och
+// hur man byter tillbaka. Nya användare har inte sett det gamla och får ingen ruta. Texterna översätts (i18n).
+function maybeStyleNotice() {
+  if (LS.get("ew_style_notice", "") === "1") return;
+  if (document.getElementById("lf")) { setTimeout(maybeStyleNotice, 4000); return; }      // vänta tills man loggat in
+  const before = LS.get("ew_installed", "") || LS.get("ew_page", "") || LS.get("ew_theme", "") || LS.get("ew_primary", "");
+  if (!before || LS.get("ew_style", "")) { LS.set("ew_style_notice", "1"); return; }      // ny användare, eller har redan valt stil
+  const o = document.createElement("div"); o.id = "stylenote";
+  o.innerHTML = `<div class="instbox" role="dialog" aria-modal="true" aria-labelledby="stylenote-h">
+    <h3 id="stylenote-h">Appen har fått ett nytt utseende</h3>
+    <p>Lugnare och lättare att läsa: färg bara där den betyder något, priset just nu överst och inga emoji i flödet. Allt finns kvar på samma ställe.</p>
+    <p class="note">Vill du hellre ha det gamla utseendet: Inställningar → Appen → Stil → Klassisk. Du kan byta när du vill.</p>
+    <button class="btn instgo" data-v="keep">Behåll det nya</button>
+    <button class="mini" data-v="classic" style="width:100%;margin-top:8px">Byt till klassisk</button></div>`;
+  document.body.appendChild(o);
+  o.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-v]"); if (!b) return;
+    if (b.dataset.v === "classic") { LS.set("ew_style", "classic"); applyLook(); render(); toast("Klassisk stil – ändra under Inställningar → Appen → Stil"); }
+    LS.set("ew_style_notice", "1"); o.remove();
+  });
+}
+setTimeout(maybeStyleNotice, 1500);
 async function maybeSponsor() {
-  if (document.getElementById("lf") || document.getElementById("instp")) { setTimeout(maybeSponsor, 5000); return; }
+  if (document.getElementById("lf") || document.getElementById("instp") || document.getElementById("stylenote")) { setTimeout(maybeSponsor, 5000); return; }
   try { const r = await fetch("api/sponsor?lang=" + I18N.lang); if (!r.ok) return; SPONSOR = await r.json(); } catch (e) { return; }
   if (!SPONSOR.show) return;
   const o = document.createElement("div"); o.id = "sponsp"; document.body.appendChild(o);

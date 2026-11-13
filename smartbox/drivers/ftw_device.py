@@ -27,6 +27,7 @@ Styrning: driver_command("battery", W) med + = ladda och - = ladda ur, driver_de
 läge. FTW:s egen vakthund släpper styrningen efter 60 s utan nytt kommando, så refresh() skickar om varje varv.
 """
 import os
+import re
 import threading
 import time
 
@@ -34,6 +35,7 @@ from drivers.battery import BatteryDriver
 from drivers.solar import SolarDriver
 
 FTW_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ftw_drivers")
+_ERROR_TOKEN = re.compile(r"[^\s:'\"]+")
 # Drivrutiner vars styrning provats på riktig hårdvara (FTW:s egen verifiering eller hos oss). Tomt tills vidare:
 # all FTW-styrning är avstängd om inte installationen uttryckligen säger control_unverified: true.
 FTW_CONTROL_VERIFIED: set = set()
@@ -74,25 +76,53 @@ class FtwDevice:
             except Exception as e:
                 self.error = f"{type(e).__name__}: {e}"
                 print(f"⚠️ FTW {self.name}: {self.error}")
-                try:                                     # syns i insamlaren (högst en gång i timmen per feltyp), aldrig feltexten
-                    import telemetry
-                    telemetry.report_error({}, f"ftw_{self.name}.poll", type(e).__name__)
-                except Exception:
-                    pass
+                note_poll_failure(self.name, self.host, e)
                 nxt = 15000
             time.sleep(max(1.0, min(60.0, nxt / 1000.0)))
 
     def fresh(self, max_age=120):
         return self.ok_at is not None and time.time() - self.ok_at < max_age
 
-    def command(self, action, power_w=0):
+    def command(self, action, power_w=0, balance=False):
         with self._cmd_lock:
-            return self.drv.command(action, power_w, {"source": "energywizard", "duration_ms": 120000})
+            context = {"source": "energywizard", "duration_ms": 120000}
+            if balance:
+                context["balance"] = True
+            return self.drv.command(action, power_w, context)
 
     def default_mode(self):
         with self._cmd_lock:
             f = self.drv.L.globals().driver_default_mode
             return bool(f()) if f is not None else False
+
+
+def poll_failure_note(name, host, exc) -> str:
+    """Sanerad rad till supportutdraget. Lua-texten behövs för att se felet (#297); värd och sökväg följer inte med."""
+    import support_bundle
+    # Scan each token once; nested path repetitions can backtrack exponentially.
+    def strip_lua_path(match):
+        token = match.group(0)
+        filename = token.rsplit("/", 1)[-1]
+        return filename if token.startswith("/") and ".lua" in filename else token
+
+    msg = _ERROR_TOKEN.sub(strip_lua_path, str(exc))
+    if host:
+        msg = msg.replace(str(host), "<värd>")
+    return support_bundle.sanitize(f"FTW {name}.poll: {type(exc).__name__}: {msg}")
+
+
+def note_poll_failure(name, host, exc) -> None:
+    """Spara raden innan felrapporten byggs, så utdraget innehåller Lua-texten och inte bara feltypen."""
+    try:
+        import support_bundle
+        support_bundle.note_error_line(poll_failure_note(name, host, exc))
+    except Exception:
+        pass
+    try:                                     # syns i insamlaren (högst en gång i timmen per feltyp), aldrig osanerad feltext
+        import telemetry
+        telemetry.report_error({}, f"ftw_{name}.poll", type(exc).__name__)
+    except Exception:
+        pass
 
 
 def status() -> list:
@@ -129,6 +159,7 @@ class FtwBatteryDriver(BatteryDriver):
         self._dev = device(ftw or {}, allow_write=self._control)
         self._pmax = float(max_power_w or 5000)
         self._last = None
+        self._balance = False
 
     def read_state(self) -> dict:
         b = self._dev.emits.get("battery") or {}
@@ -139,7 +170,11 @@ class FtwBatteryDriver(BatteryDriver):
             soc = soc * 100.0                                # FTW skickar <= 1 % som andel
         cap = b.get("capacity_wh")
         return {"soc_pct": soc, "power_w": b.get("w", b.get("W")), "mode": None,
+                "modules": b.get("modules") or {},
                 "capacity_kwh": self.capacity_kwh or (cap / 1000.0 if isinstance(cap, (int, float)) and cap > 0 else None)}
+
+    def set_balancing(self, active):
+        self._balance = bool(active)
 
     def supports_control(self) -> bool:
         return self._control
@@ -157,7 +192,7 @@ class FtwBatteryDriver(BatteryDriver):
         if intent == "auto":
             ok = self._dev.default_mode()
         elif intent == "charge":
-            ok = self._dev.command("battery", p)
+            ok = self._dev.command("battery", p, balance=True) if self._balance else self._dev.command("battery", p)
         elif intent == "discharge":
             ok = self._dev.command("battery", -p)
         elif intent in ("idle", "hold"):

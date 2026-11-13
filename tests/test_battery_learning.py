@@ -3,6 +3,7 @@ verkningsgrad och kapacitet."""
 import math
 import os
 import sys
+import pytest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "smartbox")))
 
@@ -97,6 +98,24 @@ def test_kort_lag_effekt_sanker_inte_planen():
     assert abs(m["learned"]["charge_kw"] - 2.5) < 0.05
     assert "charge_kw" not in m["use"]
     assert "används inte" in describe(m)
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+def test_invalid_historical_timestamps_do_not_abort_power_learning(invalid):
+    samples = _quarters(10, 2500.0) + [(invalid, 50.0, 11000.0)]
+    model = learn(samples, [], {"max_power_w": 11000.0})
+    assert model["learned"]["charge_kw_quarters"] == 10
+    assert model["use"]["charge_kw"] == 2.5
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+def test_invalid_power_does_not_poison_sustained_quarters(invalid):
+    samples = _quarters(10, 2500.0)
+    # Every quarter has real finite measurements plus one invalid legacy reading.
+    samples = [(t, soc, invalid if t % 900 == 60 else p) for t, soc, p in samples]
+    model = learn(samples, [], {"max_power_w": 11000.0})
+    assert model["learned"]["charge_kw_quarters"] == 10
+    assert model["use"]["charge_kw"] == 2.5
 
 
 def test_enstaka_svaga_kvartar_sanker_inte_percentilen():

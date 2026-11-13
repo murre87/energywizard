@@ -41,11 +41,9 @@ def set_enabled(on: bool) -> None:
 
 
 def sanitize(text: str) -> str:
-    t = _ENTITY.sub("<entitet>", text or "")
-    t = _IPV4.sub("<ip>", t)
-    t = _PATH.sub("<sökväg>", t)
-    t = _TOKENISH.sub("<hemlighet>", t)
-    return t[:500]
+    """En rad, sanerad med log_scrub (husets egna namn + mönster + slutkontroll)."""
+    import log_scrub
+    return log_scrub.scrub_line(str(text or "")[:500], log_scrub.sensitive_words())
 
 
 def note_error_line(line: str) -> None:
@@ -57,10 +55,30 @@ def note_error_line(line: str) -> None:
         _ring.append(s)
 
 
+_NOISE = re.compile(r"^\s*$|1-minutslogg sparad|^\s*=+\s*$")
+JOURNAL_HOURS = 2           # #227: så mycket av husets logg följer med en felrapport
+JOURNAL_LINES = 400
+_MAX_BUNDLE = 40000
+
+
+def _journal_lines():
+    """Husets logg (ew_journal) de senaste JOURNAL_HOURS timmarna, äldst först, högst JOURNAL_LINES rader."""
+    import logger
+    with logger.get_db() as conn, conn.cursor() as cur:
+        cur.execute("SELECT ts, src, lvl, msg FROM ew_journal WHERE ts > now() - make_interval(hours => %s) "
+                    "ORDER BY id DESC LIMIT %s", (JOURNAL_HOURS, JOURNAL_LINES))
+        rows = cur.fetchall() or []
+    return [(ts, src, lvl, msg) for ts, src, lvl, msg in reversed(rows)]
+
+
 def build(module: str = "", error_type: str = "") -> str:
-    """Kort supportutdrag för en felrapport. Tom sträng om avstängt."""
+    """Supportutdrag för en felrapport (#227): felraderna, de senaste besluten och husets logg de senaste två
+    timmarna. Allt saneras rad för rad med log_scrub (husets egna namn, adresser, nycklar, koordinater, serienummer;
+    rader som ändå ser känsliga ut tas bort). Tom sträng om användaren stängt av felsökningsutdrag."""
     if not enabled():
         return ""
+    import log_scrub
+    words = log_scrub.sensitive_words()
     parts = [f"module={module}", f"error_type={error_type}"]
     if _ring:
         parts.append("--- recent_errors ---")
@@ -76,8 +94,22 @@ def build(module: str = "", error_type: str = "") -> str:
         if rows:
             parts.append("--- recent_decisions ---")
             for (raw,) in rows:
-                parts.append(sanitize(str(raw)[:400]))
+                parts.append(log_scrub.scrub_line(str(raw)[:400], words))
+    except Exception:
+        pass
+    try:
+        lines = _journal_lines()
+        if lines:
+            parts.append(f"--- log (senaste {JOURNAL_HOURS} h, sanerad) ---")
+            for ts, src, lvl, msg in lines:
+                if _NOISE.search(str(msg or "")):                # tomma rader och "1-minutslogg sparad" säger inget
+                    continue
+                first = str(msg or "").split("\n")
+                head = f"{ts:%H:%M:%S} {src or ''} {lvl or ''} " if hasattr(ts, "strftime") else ""
+                parts.append(head + log_scrub.scrub_line(first[0][:600], words))
+                for extra in first[1:12]:                    # traceback-rader (högst elva)
+                    parts.append("    " + log_scrub.scrub_line(extra[:300], words))
     except Exception:
         pass
     out = "\n".join(parts)
-    return out[:_MAX_CHARS]
+    return out[-_MAX_BUNDLE:] if len(out) > _MAX_BUNDLE else out

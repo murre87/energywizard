@@ -27,7 +27,7 @@
         const head = `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
           <b>${esc(x.device)}</b><span style="font-weight:800;font-size:${c ? 1.05 : 1.2}rem;color:${col(p)}">${p == null ? "–" : p + " %"}</span></div>
           <div style="height:6px;border-radius:3px;background:var(--line);margin:4px 0 2px;overflow:hidden"><div style="height:100%;width:${p || 0}%;background:${col(p)}"></div></div>
-          <div class="note" style="margin:0">Gjorde som planen ${h >= 1 ? `${h.toFixed(h < 10 ? 1 : 0).replace(".", ",")} h` : `${x.minutes} min`} kontrollerat${x.deviation_minutes ? `, avvek ${dur(x.deviation_minutes)}` : ""}</div>`;
+          <div class="note" style="margin:0"><span>Gjorde som planen ${h >= 1 ? `${h.toFixed(h < 10 ? 1 : 0).replace(".", ",")} h` : `${x.minutes} min`} kontrollerat</span>${x.deviation_minutes ? `, <span>avvek ${dur(x.deviation_minutes)}</span>` : ""}</div>`;
         const list = (x.deviations || []).map((v) => `<div style="display:flex;gap:10px;padding:4px 0;border-top:1px solid var(--line)">
           <span style="white-space:nowrap;color:var(--mut)">${hm(v.start)}–${hm(v.end)}</span>
           <span>${esc(v.note || "Avvek")}${v.ordered ? ` <span style="color:var(--mut)">(beställt ${esc(v.ordered)}, blev ${esc(v.actual)})</span>` : ""}</span></div>`).join("");

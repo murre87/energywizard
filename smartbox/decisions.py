@@ -16,6 +16,7 @@ import pandas as pd
 import logger
 import weather
 import settings
+import ev_heating  # temperaturberoende baslast (ev_planning.heating_adjustment)
 import ev_power   # bilens maxeffekt (evs[].max_charge_kw)
 import ev_block   # enkelblock-laddning (evs[].charge_block: single)
 
@@ -278,6 +279,12 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
     fuse_a = cfg.get('fuse_size_a', MAX_FUSE_A) if cfg else MAX_FUSE_A
     car_ids = list(car_data.get('car_ids') or [])
     specs = car_data.get('car_specs') or {}
+    # Temperaturberoende baslast (ev_heating.py): värme är en last som växer när det blir kallare, så det som blir kvar
+    # åt bilen i en ruta (tak - baslast) krymper och fler rutor behövs. Energin är densamma. None = av (som förut).
+    heating_model = car_data.get('heating_model')
+
+    def _slot_base_kw(slot_dt, temp_c, profile):
+        return ev_heating.adjust_base_load(learning.predict_base_load(slot_dt, profile), temp_c, heating_model)
 
     def _phases(cid):
         ph = str((specs.get(cid) or {}).get('phases', 'auto'))
@@ -318,7 +325,7 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
                 ORDER BY time_start ASC
             """, conn, params=(now.replace(minute=0, second=0), planning_window_end))
             df_weather = pd.read_sql("""
-                SELECT timestamp AT TIME ZONE 'Europe/Stockholm' AS t, cloud_cover
+                SELECT timestamp AT TIME ZONE 'Europe/Stockholm' AS t, cloud_cover, temp
                 FROM weather_forecast
                 WHERE timestamp >= %s AND timestamp < %s
                 ORDER BY timestamp ASC
@@ -340,12 +347,14 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
 
     if not df_weather.empty:
         df_weather['t_hour'] = pd.to_datetime(df_weather['t']).dt.floor('h')
-        weather_by_hour = df_weather.groupby('t_hour')['cloud_cover'].mean().reset_index()
+        weather_by_hour = df_weather.groupby('t_hour')[['cloud_cover', 'temp']].mean().reset_index()
         df_plan['t_hour'] = df_plan['t_slot'].dt.floor('h')
         df_plan = pd.merge(df_plan, weather_by_hour, on='t_hour', how='left')
         df_plan['cloud_cover'] = df_plan['cloud_cover'].ffill().bfill().fillna(50)
+        df_plan['temp'] = df_plan['temp'].ffill().bfill()      # prognostemperatur per ruta (NaN = okänd -> ingen justering)
     else:
         df_plan['cloud_cover'] = 50
+        df_plan['temp'] = float('nan')
 
     # FIX: låg tidigare felindenterad under else → solar_w saknades (KeyError) när väderdata fanns
     df_plan['solar_w'] = df_plan.apply(lambda r: safe_get_smart_solar_w(r['cloud_cover'], r['t_slot']), axis=1)
@@ -358,8 +367,8 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
     # Prognoskolumner för VISNING (grafen) – ren tilläggsdata, påverkar inte allokeringen nedan.
     # husets_forbrukning = inlärd baslastprofil per kvart; sol = redan beräknad solprognos ovan.
     _display_base_load_profile = learning.get_base_load_profile()
-    df_plan['house_load_kw'] = df_plan['t_slot'].apply(
-        lambda ts: learning.predict_base_load(ts, _display_base_load_profile))
+    df_plan['house_load_kw'] = df_plan.apply(
+        lambda r: _slot_base_kw(r['t_slot'], r['temp'], _display_base_load_profile), axis=1)
     df_plan['solar_kw'] = df_plan['solar_w'] / 1000.0
     df_plan['hour_val'] = df_plan['t_slot'].dt.hour
     df_plan.loc[(df_plan['hour_val'] >= 7) & (df_plan['hour_val'] < 20), 'score'] += 1.5
@@ -404,7 +413,7 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
         limit = row['slot_power_limit']
         if limit == 0: limit = 99.0
         
-        assumed_base = learning.predict_base_load(row['t_slot'], base_load_profile)
+        assumed_base = _slot_base_kw(row['t_slot'], row['temp'], base_load_profile)
         available_kw = max(0.0, limit - assumed_base)
         available_kw = min(13.8, available_kw)
         
@@ -473,7 +482,7 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
                 hourly_limit_kwh = limit if peak_shaving_enabled and limit > 0 else 99.0
             
                 base_load_profile = learning.get_base_load_profile()
-                assumed_base_load_kwh = learning.predict_base_load(slot_dt, base_load_profile)
+                assumed_base_load_kwh = _slot_base_kw(slot_dt, df_plan.at[idx, 'temp'], base_load_profile)
                 available_ev_kwh_for_hour = max(0.0, hourly_limit_kwh - assumed_base_load_kwh)
             
                 min_kwh_per_slot = car_min_kw / 4.0
@@ -518,7 +527,7 @@ def calculate_ev_charge_plan(now, ev_schedule, car_data, cfg):
                 
                     # Fysiskt tak: Huvudsäkring - Förväntad baslast i detta 15-min fönster
                     slot_dt = df_plan.at[idx, 't_slot']
-                    assumed_base_load_kw = learning.predict_base_load(slot_dt, base_load_profile)
+                    assumed_base_load_kw = _slot_base_kw(slot_dt, df_plan.at[idx, 'temp'], base_load_profile)
                     fuse_limit_kw = (fuse_a * 230 * 3 / 1000.0) - assumed_base_load_kw
                 
                     room_in_slot = max(0.0, fuse_limit_kw - df_plan.at[idx, 'allocated_kw'])

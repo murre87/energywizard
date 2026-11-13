@@ -20,6 +20,7 @@ PARAMS = {
     'eff', 'step_kwh', 'switch_cost', 'cycle_cost', 'terminal_pct', 'allow_export',
     'charge_wear_cost_sek_per_kwh', 'discharge_wear_cost_sek_per_kwh',
     'reversal_cost_sek', 'ev_mode', 'allowed',
+    'balance_target_kwh', 'balance_hold_slots', 'balance_deadline_slots',
 }
 SLOT_NUMBERS = ('buy', 'sell', 'load_kw', 'solar_kw', 'ev_kw')
 _queue = Queue(maxsize=1)

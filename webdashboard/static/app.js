@@ -467,7 +467,14 @@ async function renderOversikt() {
   api("api/control-alerts").then((r) => {                // en enhet som inte gör som den blir tillsagd syns överst
     if (!r || !r.alerts || !r.alerts.length || document.getElementById("ctrlalerts")) return;
     main.insertAdjacentHTML("afterbegin", `<div id="ctrlalerts">${r.alerts.map((a) => `<div class="card" style="margin-bottom:16px;border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}">
-      <b>${a.level === "info" ? "ℹ️" : "⚠️"} ${esc(a.device)}: ${esc(a.title)}</b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></div>`).join("")}</div>`);
+      <b>${a.level === "info" ? "ℹ️" : "⚠️"} <span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></div>`).join("")}</div>`);
+  }).catch(() => {});
+  api("api/update-status").then((u) => {                // en nyare version finns: säg det överst (update_check.py)
+    const st = u && u.status;
+    if (!st || !st.outdated || !st.latest || document.getElementById("updbanner")) return;
+    const how = st.kind === "addon" ? "Home Assistant → Inställningar → Tillägg → EnergyWizard → Uppdatera" : "docker compose pull (eller Watchtower)";
+    main.insertAdjacentHTML("afterbegin", `<div class="card" id="updbanner" style="margin-bottom:16px;border-color:var(--warn)">
+      ⬆️ <b>Ny version ${esc(st.latest)}</b> (du kör ${esc(st.running || "en äldre")}). Uppdatera: ${how}. <a href="${esc(st.changelog)}" target="_blank" rel="noopener">Vad är nytt</a></div>`);
   }).catch(() => {});
   api("api/shadow").then((sh) => {                       // skuggläget syns alltid överst, så ingen tror att huset styrs
     if (!sh || !sh.active || document.getElementById("shadowbanner")) return;
@@ -551,6 +558,21 @@ function goalText(g) {
 }
 
 async function renderElbil() {
+  const heat = await api("api/schedule/climate").catch(() => ({}));
+  const heatCard = (c) => {
+    const h = heat && heat[c.id];
+    if (!h || !h.has_climate) return "";
+    return `<div class="card" style="margin-top:12px;padding:12px">
+      <div class="note">Kupévärme</div>
+      <div class="note" style="margin:6px 0 8px">Varje dag, varm till klockan när bilen är hemma eller inkopplad.</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label class="switch" style="flex:none"><input type="checkbox" class="cl-en" data-car="${c.id}" ${h.enabled ? "checked" : ""}><span class="slider"></span></label>
+        <input type="time" class="cl-t" data-car="${c.id}" value="${h.time}" style="flex:1 1 90px;min-width:0">
+        <input type="number" class="cl-c" data-car="${c.id}" min="15" max="28" step="0.5" value="${h.temp}" style="width:72px"> <span>°C</span>
+      </div>
+      <button class="icobtn cl-save" data-car="${c.id}" style="margin-top:8px">Spara värmen</button>
+    </div>`;
+  };
   const d = await loadPage("api/car", (d) => `
     <div class="grid" style="margin-bottom:16px">
       ${d.cars.map(c => {
@@ -585,6 +607,7 @@ async function renderElbil() {
             <button class="icobtn sch-all" data-car="${c.id}" title="Måndagens rad gäller alla dagar">Samma som måndag alla dagar</button>
           </div>
         </div>
+        ${heatCard(c)}
       </div>`;
       }).join("")}
     </div>
@@ -607,6 +630,15 @@ async function renderElbil() {
   document.querySelectorAll(".sch-all").forEach(b => b.onclick = () => {
     const car = b.dataset.car;
     postAction("api/schedule", { car, days: [0, 1, 2, 3, 4, 5, 6], ...rowOf(car, 0) }, "Måndagens schema gäller nu alla dagar").then(renderElbil);
+  });
+  document.querySelectorAll(".cl-save").forEach(b => b.onclick = async () => {
+    const car = b.dataset.car;
+    const body = { car, enabled: document.querySelector(`.cl-en[data-car="${car}"]`).checked,
+      time: document.querySelector(`.cl-t[data-car="${car}"]`).value,
+      temp: parseFloat(document.querySelector(`.cl-c[data-car="${car}"]`).value) };
+    try { await postJSON("api/schedule/climate", body); toast("Värmeschemat sparat"); }
+    catch (e) { toast(e.message); }
+    renderElbil();
   });
   if (d) api("api/ev-cost").then((ec) => {                // laddat idag/veckan/månaden och vad det kostade
     const g = document.querySelector("#main .grid"), html = ec && ec.ok && window.EWJournal ? EWJournal.evCostHtml(ec, { unit: moneyUnit() }) : "";
@@ -2039,7 +2071,7 @@ function wizardForm() {
   (d.chargers || []).forEach((c, i) => { const cb = document.querySelector(`.charger-pick[data-i="${i}"]`); if (cb) f.chargers[c.device_name || i] = cb.checked; });
   document.querySelectorAll(".pick").forEach((cb) => { f.picks[cb.dataset.cat] = cb.checked; });
   // Elmätarvalen, generisk styrning och direkt anslutning till växelriktare (samma fel som bilarna)
-  f.selects = {}; ["pm_main", "pm_export", "pm_second"].forEach((id) => { const e = document.getElementById(id); if (e) f.selects[id] = e.value; });
+  f.selects = {}; ["pm_main", "pm_export", "pm_second", "hp_compressor"].forEach((id) => { const e = document.getElementById(id); if (e) f.selects[id] = e.value; });
   f.generic = {}; document.querySelectorAll(".generic-pick").forEach((cb) => { f.generic[cb.dataset.key] = cb.checked; });
   const v = (id) => { const e = document.getElementById(id); return !e ? undefined : e.type === "checkbox" ? e.checked : e.value; };
   f.ftw = { drv: v("ftw_drv"), host: v("ftw_host"), port: v("ftw_port"), unit: v("ftw_unit"), bat: v("ftw_bat"), sol: v("ftw_sol") };
@@ -2087,6 +2119,22 @@ function applyWizardForm(f) {
   _pendingFtw = f.ftw || null; applyFtwForm();
 }
 
+function compressorPicker(d) {
+  if (!d.heat_pump || d.heat_pump.driver !== "ha_entities") return "";
+  const selected = (d.heat_pump.entities || {}).compressor || "";
+  const options = [...(d.compressor_sensors || [])];
+  if (selected && !options.some(e => e.entity === selected)) options.push({ entity: selected, name: selected });
+  return `<label style="display:block;margin-top:8px"><span>Kompressorgivare (valfri)</span>
+    <select id="hp_compressor"><option value="">– ingen –</option>${options.map(e => `<option value="${esc(e.entity)}"${e.entity === selected ? " selected" : ""}>${esc(e.name)} · ${esc(e.entity)}${e.state != null ? " · " + esc(e.state) : ""}</option>`).join("")}</select></label>
+    <div class="note">Välj status eller frekvens för kompressorn. Lämna tomt om givaren saknas.</div>`;
+}
+function selectedHeatPump(item) {
+  const input = document.getElementById("hp_compressor");
+  if (!item || item.driver !== "ha_entities" || !input) return item;
+  const entities = { ...(item.entities || {}) };
+  if (input.value) entities.compressor = input.value; else delete entities.compressor;
+  return { ...item, entities };
+}
 async function runDiscovery(ev, cached) {
   const results = document.getElementById("discoverResults");
   let d = cached ? cached.d : null;
@@ -2126,8 +2174,18 @@ async function runDiscovery(ev, cached) {
       <label><input type="checkbox" class="pick" data-cat="${title}" checked> Använd detta fynd</label> ${driverTag(item, title)}
       <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div>${item.note ? `<div class="note" style="margin-top:6px">${esc(item.note)}</div>` : ""}</div>`;
   };
-  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? (d.heat_pump.note || `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)`) : "");
-  html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `Effekt: ${d.solar.pv_power_entity || "-"} · Dagsenergi: ${d.solar.today_kwh_entity || "-"}` : "");
+  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? `${esc(d.heat_pump.device_name || "")} ${compressorPicker(d)}` : "");
+  if ((d.radiators || []).length) {
+    html += `<div class="card" style="margin-bottom:16px"><h2>Radiatorer i Home Assistant</h2>
+      <div class="note">Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.</div>`;
+    d.radiators.forEach(r => {
+      html += `<div class="note"><b>${esc(r.name)}</b> · <code>${esc(r.entity)}</code>${r.area ? ` · ${esc(r.area)}` : ""}</div>`;
+    });
+    html += `</div>`;
+  }
+  // Etikett och värde i var sin textnod (#271): ordlistan kan översätta etiketten utan att
+  // entitets-id:t hamnar i nyckeln. En sammanslagen sträng matchar bara just den installationen.
+  html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `<span>Effekt</span>: ${d.solar.pv_power_entity || "-"} · <span>Dagsenergi</span>: ${d.solar.today_kwh_entity || "-"}` : "");
   html += simpleCard("🛁", "Spabad", d.spa, d.spa ? `Temp: ${d.spa.current_temp_entity || "-"} · Effekt: ${d.spa.power_entity || "-"}` : "");
   html += simpleCard("🔋", "Husbatteri", d.battery, d.battery ? `SOC: ${d.battery.soc_entity || "-"} · Effekt: ${d.battery.power_entity || "-"} · bara läsning/enkel styrning, EnergyWizard fattar inga automatiska laddningsbeslut - kör Predbat parallellt för det.` : "");
 
@@ -2151,11 +2209,16 @@ async function runDiscovery(ev, cached) {
       <span>Låt EnergyWizard <b>styra</b> batteriet (laddar billigt, laddar ur dyrt). <span class="note">Drivrutinen har styrning men är inte provad på riktig hårdvara – börja i skuggläge.</span></span></label>
     <div class="note" id="ftw_info" style="margin-top:6px"></div></div>`;
 
+  // #271: "Använd" / "effektsensorn" / Tibber-delarna i egna noder, värdet utanför.
+  const useMeter = (pm) => pm.driver === "tibber_pulse"
+    ? `<span>Använd</span> Tibber Pulse (${[pm.entities.import_w ? "<span>köp- och säljeffekt</span>" : "", pm.entities.current_l1 ? "<span>ström per fas</span>" : ""].filter(Boolean).join(" + ")})`
+    : `<span>Använd</span> <span>effektsensorn</span> ${esc(pm.entities.power_w)}`;
   html += `<div class="card" style="margin-bottom:16px"><h2>⚡ Elmätare / Tibber Pulse</h2>
     <div class="note">Krävs för effektvakten, säkringsskyddet och solladdningen. Bäst är en mätare med ström per fas (t.ex. Tibber Pulse); en smartmätare (HAN/P1) med bara effekt fungerar också.</div>
-    ${d.power_meter ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="pick" data-cat="Elmätare" checked> Använd ${d.power_meter.driver === "tibber_pulse" ? `Tibber Pulse (${[d.power_meter.entities.import_w ? "köp- och säljeffekt" : "", d.power_meter.entities.current_l1 ? "ström per fas" : ""].filter(Boolean).join(" + ")})` : "effektsensorn " + esc(d.power_meter.entities.power_w)}</label>` : ""}`;
+    ${d.power_meter ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="pick" data-cat="Elmätare" checked> ${useMeter(d.power_meter)}</label>` : ""}`;
   (d.grid_meters || []).forEach(g => {
-    html += `<div class="note" style="margin-top:6px">• ${g.kind === "pulse" ? "Tibber Pulse" : "Smartmätare"}: ${g.power_entity} (${g.maker || "okänt märke"})</div>`;
+    const kind = g.kind === "pulse" ? "Tibber Pulse" : "Smartmätare";
+    html += `<div class="note" style="margin-top:6px">• <span>${kind}</span>: ${esc(g.power_entity)} (<span>${esc(g.maker || "okänt märke")}</span>)</div>`;
   });
   if (!(d.grid_meters || []).length) html += `<div class="note" style="margin-top:6px">Ingen hittades.</div>`;
   // Fritt val bland alla effektsensorer i HA (issue #86), plus en valfri mätare för en annan byggnad
@@ -2273,7 +2336,7 @@ async function generateConfig(save) {
   });
   document.querySelectorAll(".pick:checked").forEach(cb => {
     const cat = cb.dataset.cat;
-    if (cat === "Värmepump") sel.heat_pump = _discovered.heat_pump;
+    if (cat === "Värmepump") sel.heat_pump = selectedHeatPump(_discovered.heat_pump);
     if (cat === "Solceller") sel.solar = _discovered.solar;
     if (cat === "Spabad") sel.spa = _discovered.spa;
     if (cat === "Husbatteri") sel.battery = _discovered.battery;

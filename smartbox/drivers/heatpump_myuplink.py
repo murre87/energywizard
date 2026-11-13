@@ -150,6 +150,20 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
             pid = self._entities.get(field)
             if pid and pid in by_id:
                 out[field] = by_id[pid].get("value")
+        # #184: kompressorns status kan vara NIBE:s kod (43427: 20 stoppad, 40 startar, 60 går, 100 stoppar) eller text
+        # ("Kör", "Running"); samma tolkning som HA-vägen. Förut räknades varje kod över 0 (även "stoppad") som att den gick.
+        pid = self._entities.get("compressor_running")
+        if pid and out.get("compressor_running") is not None:
+            from drivers.heatpump_ha_entities import compressor_running
+            raw = out["compressor_running"]
+            try:
+                num = float(raw)
+            except (TypeError, ValueError):
+                num = None
+            name = f"{pid} {by_id.get(str(pid), {}).get('parameterName') or ''}"
+            run = compressor_running(name if num is None or "43427" in name or "status" in name.lower() else f"freq {pid}",
+                                     num, lambda: raw)
+            out["compressor_running"] = None if run is None else int(run)
         for key in self._WRITE_FIELDS:
             pid = self._entities.get(key)
             if pid and pid in by_id:

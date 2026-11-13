@@ -606,6 +606,13 @@ def api_notify_log(days: int = 7):
         return {"ok": True, "rows": notify_log.recent(c, max(1, min(60, int(days))))}
 
 
+@app.get("/api/update-status")
+def api_update_status():
+    """Finns en nyare EnergyWizard? (smartbox/update_check.py) - samma i appen och webben. None = inte känt än."""
+    import update_check
+    return {"ok": True, "status": update_check.status(block=True)}   # väntar bara när svaret är äldre än sex timmar
+
+
 @app.get("/api/control-journal")
 def api_control_journal(back: int = 1):
     """Höll vi planen? Per enhet för ett dygn (0 = idag, 1 = igår), smartbox/control_journal.py - samma i appen och webben."""
@@ -1735,6 +1742,21 @@ async def proxy_schedule(request: Request):
     return await _ewapp_proxy("/api/schedule", await request.json())
 
 
+@app.get("/api/schedule/climate")
+async def climate_schedule_get():
+    """Kupévärme till ett klockslag (#233), samma svar som mobilappen."""
+    try:
+        r = requests.get(f"{EWAPP_URL}/api/schedule/climate", cookies={"ew": _ewapp_cookie()}, timeout=25)
+        return JSONResponse(r.json(), status_code=r.status_code)
+    except Exception:
+        return JSONResponse({"detail": "Nådde inte ewapp"}, status_code=502)
+
+
+@app.post("/api/schedule/climate")
+async def proxy_climate_schedule(request: Request):
+    return await _ewapp_proxy("/api/schedule/climate", await request.json())
+
+
 @app.post("/api/settings-action")
 async def proxy_setting(request: Request):
     """Elförbrukning-sidan (effektvakt på/av + effektgräns) och Värmepump-sidan
@@ -2042,6 +2064,8 @@ def _build_house_config_yaml(sel: dict) -> str:
             lines.append(f"  preset: {gs['preset']}   # vilken förinställning lägena kommer från (för telemetrin)")
         if gs.get("keepalive_s"):
             lines.append(f"  keepalive_s: {int(gs['keepalive_s'])}     # skriv om laddkommandot så här ofta (växelriktarens fjärrstyrning släpper annars)")
+        if "power_invert" in gs:
+            lines.append("  power_invert: " + ("true" if gs["power_invert"] is True else "false"))
         if modes:
             lines.append(f"  modes:               # förifyllt för {gs.get('preset') or 'din integration'} - kontrollera mot HA")
             for intent, opt in modes.items():

@@ -239,6 +239,7 @@ def battery_settings(cfg: dict) -> dict:
       reserve_soc / priority_soc / max_soc: procent (se battery_control.py)."""
     bat = (cfg or {}).get("battery") or {}
     control = str(bat.get("control", "samarbete")).strip().lower()
+    import battery_balance
     if control not in ("styr", "samarbete", "av"):
         control = "samarbete"
     def f(k, d, positive=False):
@@ -270,7 +271,8 @@ def battery_settings(cfg: dict) -> dict:
             # planeringsstil (very_careful/careful/balanced/bold/very_bold) och om batteriet får
             # sälja till nätet - kan också ändras i webben (sparas då i /data/energywizard.json)
             "plan_style": str(bat.get("plan_style", "balanced")),
-            "allow_export": str(bat.get("allow_export", True)).lower() not in ("false", "0", "nej", "no")}
+            "allow_export": str(bat.get("allow_export", True)).lower() not in ("false", "0", "nej", "no"),
+            "balance": battery_balance.settings(bat)}
 
 
 def build_solar_driver(cfg: dict) -> SolarDriver:

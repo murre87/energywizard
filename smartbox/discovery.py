@@ -352,6 +352,24 @@ def _battery_control_preset(ents, all_ents=None):
     """Känner igen batteristyrning från wills106/homeassistant-solax-modbus och föreslår hela
     lägesmappningen (drivers/battery_generic.py). Lägesnamnen är integrationens egna (plugin_solax.py /
     plugin_growatt.py), inte gissade."""
+    # Solinteg via wills106, pinned plugin_solinteg.py 0c715ee6 (2026-11-13):
+    # signed battery target in kW; negative charges. Require actual advertised
+    # modes and the exact power entities on this device, never infer by brand alone.
+    if any(_has(x.get("m"), re.compile(r"^solinteg$", re.I)) for x in ents):
+        mode = _find(ents, "select", re.compile(r"working.mode$", re.I))
+        target = _find(ents, "number", re.compile(r"(?:battery.|ems.battctrl.)charge.discharge.power.target$", re.I))
+        power = _find(ents, "sensor", re.compile(r"battery.power$", re.I))
+        if power and power.get("u") in ("W", "kW"):
+            result = {"name": "solinteg_modbus", "entities": {"power": power["e"]}, "modes": {},
+                      "power_invert": True}
+            if mode and {"General", "EMS BattCtrl"} <= set(mode.get("options") or []) and target and target.get("u") in ("W", "kW"):
+                result["entities"]["mode_select"] = mode["e"]
+                select = lambda option: {"service": "select.select_option", "data": {"entity_id": mode["e"], "option": option}}
+                dispatch = lambda sign: [{"number": target["e"], "sign": sign, "power_units": True}, select("EMS BattCtrl")]
+                result["modes"] = {"auto": [select("General")], "charge": dispatch(-1), "discharge": dispatch(1),
+                                   "hold": [{"number": target["e"], "value": 0}, select("EMS BattCtrl")]}
+            result["ftw_fallback"] = not bool(result["modes"])
+            return result
     # Felicity Solar via partach/ha_felicity: BARA avläsning. Integrationen har en egen prisstyrning (EMS) som
     # skriver växelriktarens Economic-regler, och dess "Operating Mode"-val skriver Economic (2) även när man väljer
     # Backup (1) på T-REX 5/10K (type_specific.py _handle_operating_mode, läst 2026-11-03). Att styra därifrån vore
@@ -1000,7 +1018,11 @@ def discover_house(entities: list[dict] | None = None) -> dict:
                 battery["generic_suggestion"]["entities"].update(preset["entities"])
                 battery["generic_suggestion"]["modes"] = preset["modes"]
                 battery["generic_suggestion"]["preset"] = preset["name"]
+                if "power_invert" in preset:
+                    battery["generic_suggestion"]["power_invert"] = preset["power_invert"]
                 battery["control_preset"] = preset["name"]
+                if preset.get("ftw_fallback"):
+                    battery["control_preset"] = None  # mapping readings is not a control capability
                 if preset.get("note"):
                     battery["note"] = preset["note"]
                 if preset.get("keepalive_s"):
@@ -1057,7 +1079,23 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         if isinstance(target, dict):
             prev = str(target.get("note") or "").strip()
             target["note"] = (prev + " " + hint["note"]).strip()
+    # Status sensors can contain text (e.g. NIBE "Kör"/"Från"). They must not
+    # be limited to numeric temperature/power candidates in the setup wizard.
+    compressor_sensors = sorted((
+        {"entity": e["e"], "name": e.get("n") or e["e"], "state": e.get("st")}
+        for e in entities if e["e"].split(".")[0] in ("sensor", "binary_sensor")
+        and re.search(r"kompressor|compressor|43427", f"{e.get('n') or ''} {e['e']}", re.I)
+    ), key=lambda e: e["name"].lower())
+    # Official Adax cloud/local climate devices report manufacturer Adax. Keep
+    # every zone visible without pretending the single heat-pump planner controls it.
+    radiators = sorted((
+        {"entity": e["e"], "name": e.get("n") or e["e"], "area": e.get("a"), "maker": "Adax"}
+        for e in entities if e["e"].startswith("climate.")
+        and str(e.get("m") or "").strip().casefold() == "adax"
+    ), key=lambda e: (e["name"].casefold(), e["entity"]))
     found = {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers,
+             "radiators": radiators,
+             "compressor_sensors": compressor_sensors,
              "grid_meters": grid_meters, "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
     if hint:
         found["ftw_suggestion"] = hint

@@ -39,7 +39,7 @@ bör köras i skuggläge först.
 | – | Enphase IQ Battery | HA:s inbyggda enphase_envoy | ✅ | ⚠️ bara självförbrukning ↔ full backup | – | Ny 2026-11-05 |
 | – | Emaldo | – (ingen integration) | ❌ | ❌ | – | Saknas, väntar på API |
 | – | HomeWizard Plug-In Battery | HA:s inbyggda homewizard | ✅ | ✅ laddstrategi | – | Förinställning |
-| – | Solinteg MHT/MHS | – (FTW direkt; guiden namnger `solinteg` när märket syns i HA) | ✅ via FTW | – | `solinteg` (har styrning) | Ej verifierad på hårdvara (#219). Styrning är av tills användaren kryssar i den. |
+| – | Solinteg MHT/MHS | Solinteg-plugin via Solax Modbus ([mappning](solinteg.md)) | ✅ via HA/FTW | – | `solinteg` (har styrning) | HA kräver annonserade lägen och signed effektbörvärde; annars bara mätning. Ej hårdvaruverifierad (#219), samarbete som standard. |
 
 ## FTW-drivrutinerna mot Sourcefuls simulator (GitHub Actions, `simulator.yml`)
 
@@ -67,3 +67,8 @@ men Sungrow är nu först i kön för `FTW_CONTROL_VERIFIED`.
    Sungrow, Sonnen, Victron och SMA har styrvägar i FTW – de är först i kön.
 3. **Deye/Sunsynk och Sigenergy via HA**: kräver att man skriver växelriktarens TOU-program eller Remote EMS-register.
    Görs när en testare finns (fel här kan låsa batteriet i fel läge).
+
+## Behovsstyrd balansering
+
+Se [behovsstyrd batteribalansering](battery-balancing.md) för opt-in-planering
+utifrån modulernas laddnivåskillnad, stöd per telemetriväg och visning i EW.

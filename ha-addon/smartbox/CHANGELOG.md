@@ -1,5 +1,93 @@
 # Ändringar
 
+## 1.2.77 (2026-11-13)
+- **Thermia: varmvattnets startvärde hålls inom pumpens intervall** (30–55 °C enligt installatörsmenyn
+  SERVICE → HOT WATER). Bortaläge och effekttak bad om start 5 °C, vilket pumpen inte tar emot.
+- **Kontrollen av start/stopp görs nästa kvart** i stället för direkt efter skrivningen. Husdata-gatewayen visar
+  ett nyskrivet värde först efter ungefär en halv minut, så den direkta kontrollen kunde varna i onödan.
+- Thermias stoppregister är nu belagt i manualen som legionellakörningens stopptemperatur (TOPH. STOP, 60 °C från
+  fabrik, 50–65 °C). EnergyWizard rör det inte (sedan 1.2.76).
+
+## 1.2.76 (2026-11-13)
+- **Thermia via Husdata: bara varmvattnets startvärde styrs.** Kompressorns varmvattenladdning stoppar vid
+  pressostaten, inte vid stoppregistret (Thermias manual). Stoppregistret styr troligen elpatronens toppvärmning,
+  så det lämnas nu som installatören satt det. Det enda som avgör när en ren varmvattenladdning startar är
+  startvärdet, och det sänks som förut när elen är dyr.
+- **Övriga pumpar som före 1.2.74**: för HeishaMon, ThermIQ, NIBE och myUplink är stoppvärdet laddningens mål
+  (för HeishaMon den enda spärren), så dyrt ger åter stopp 40 °C och start 35 °C. 1.2.74 höll stoppet på
+  normalnivån för alla pumpar, vilket tog bort spärren för HeishaMon.
+- Thermias växelventil (varmvatten eller husvärme) loggas varje minut, så att varmvattenladdningar kan mätas
+  exakt.
+
+## 1.2.75 (2026-11-13)
+- **Ruta om det nya utseendet**: den som uppdaterat och får den nya stilen ser en gång en ruta i appen som
+  berättar vad som ändrats och hur man byter tillbaka (Inställningar → Appen → Stil → Klassisk), med knapparna
+  "Behåll det nya" och "Byt till klassisk". Nya användare och den som redan valt stil ser den inte. På svenska,
+  engelska och tjeckiska.
+- Varmvattnets tillbakaläsning (1.2.74) läser start och stopp i en läsning och försöker en gång till om
+  Husdata-gatewayen släpper anslutningen.
+
+## 1.2.74 (2026-11-13)
+- **Varmvattenspärren vid dyrt elpris fäster nu** (Thermia via Husdata): när elen är dyr sänks bara
+  varmvattnets startvärde (så ingen dyr laddning startar förrän tanken är kall). Stoppvärdet ligger kvar på
+  normalnivån. Förut sänktes även stoppet till 40 °C, vilket pumpen inte tog emot (den visade 60 °C), så en
+  laddning som ändå startade under en dyr timme gick ända upp till 60 °C.
+- Efter varje ändring läses start- och stoppvärdet tillbaka från pumpen. Fäster de inte görs nya försök (högst
+  tre per värde) med en varning i loggen, i stället för att motorn tyst tror att det gick.
+
+## 1.2.73 (2026-11-13)
+- **Ny stil i appen (standard)**: lugnare ytor utan gradienter, glas och färgad glöd, en accentfärg bara på det som
+  betyder något, inga emoji i flödet och planen, inga versaler med spärrning, lättare vikter och en enda knappstil.
+  Överst står priset just nu ("Billigt just nu · 0,83 kr/kWh") i stället för en slumpad rad. Flödet "Just nu",
+  laddringen och skylinen behåller sina färger.
+- **Klassisk stil** finns kvar under Inställningar → Appen → Stil, för den som vill ha det gamla utseendet (med
+  glas och dygnsfärger som förut). I den nya stilen är glas och dygnsfärger av som standard men går att slå på.
+
+## 1.2.72 (2026-11-13)
+- **Större graf i appens Historik** (#371): tryck på effektgrafen så öppnas en stor, lättläst version med axlar,
+  tider och teckenförklaring, samma periodval (24 h, 7 d, 30 d, 1 år) och värdena där man trycker eller drar med
+  fingret.
+- Översatt: "30 dagar" och raden under varje enhet i "Höll vi planen?".
+
+## 1.2.71 (2026-11-13)
+- **Laddplanen räknar med kyla** (av natanoj, valfritt och avstängt som standard): när det blir kallare drar värmen
+  mer, så säkringen räcker till mindre ström åt bilen och laddningen sprids över fler timmar. Hur mycket mer huset
+  drar per grad lärs ur historiken (eller anges). Slås på med `ev_planning.heating_adjustment.enabled: true`, se
+  `config/house_config.example.yaml`. I projektets hus lär den sig ungefär 0,13-0,16 kW per grad under 10 °C.
+
+## 1.2.70 (2026-11-13)
+- **Säger till när en nyare version finns**: appens sidhuvud visar "✓ senaste" bara när det är bekräftat, annars en
+  knapp "Ny version X" med hur man uppdaterar. Webben visar en banderoll överst på Översikt, och motorn skickar en
+  avisering per ny version. HA-tillägget frågar Supervisor (nytt: `hassio_api: true`), Docker jämför med senaste
+  bildbygget. Fel som redan är rättade försvinner först när man uppdaterat; de flesta hus körde en äldre version.
+
+## 1.2.69 (2026-11-13)
+- **"Databasen svarar inte" blir ett samlat fel** när disken inte är full: `PoolTimeout` och liknande rapporteras som
+  ett enda fel (`database: DatabaseUnavailable`) i stället för ett per modul, så att en riktig bugg (som poolfelet i
+  PR #363) inte försvinner ur sikte. Full disk rapporteras fortfarande inte; användaren får en avisering som förut.
+
+## 1.2.68 (2026-11-13)
+- **Kompressorn via myUplink** (#184): den direkta myUplink-drivrutinen tolkar NIBE:s kompressorstatus (koderna
+  20/40/60/100 och text som "Kör") som HA-vägen. Förut räknades varje kod över 0, även "stoppad", som att pumpen gick.
+- **Appens aviseringar på installationens språk** (#202): "fulladdad", "kabeln lossnade", "lampa offline" och
+  "sensor saknas" översätts nu som motorns aviseringar.
+
+## 1.2.67 (2026-11-13)
+- **Full disk och databasen nere räknas inte längre som fel i EnergyWizard**: de beror på datorn den körs på. De
+  rapporteras inte, syns inte som fel på Installationer och blir inga ärenden, och husets logg visar dem som
+  varningar. I stället får användaren en avisering (högst var sjätte timme): "Disken är full" eller "Databasen svarar
+  inte", med vad man kan göra.
+
+## 1.2.66 (2026-11-13)
+- **Felrapporterna får loggen med** (#227): när ett fel rapporteras följer husets logg de senaste två timmarna med
+  (högst 400 rader), utöver felraderna och de senaste besluten, så att felet går att förstå utan att fråga.
+- **Inget känsligt följer med**: allt saneras rad för rad i huset (`log_scrub.py`) och igen i samlaren innan det kan
+  hamna i ett offentligt ärende. Bort tas husets egna namn ur Home Assistant och inställningarna (platsen, personer,
+  zoner, telefoner, användare, bilnamn som blir `<bil 1>`, `<bil 2>`), adresser och värdnamn, IP- och MAC-adresser,
+  e-post, token och nycklar, lösenord, koordinater och serienummer. Entiteter visas bara med sin domän
+  (`sensor.<…>`). En rad där något ändå ser känsligt ut tas bort helt. Felsökningsutdraget går som förut att stänga
+  av i Inställningar.
+
 ## 1.2.65 (2026-11-10)
 - **Licenser och ursprung förtydligade** (#231): FTW-drivrutinerna från srcfl/device-drivers används enligt deras
   licens (AGPL-3.0). Upstreams LICENSE, NOTICE, LICENSING och tredjepartsnotiser följer nu med, och ändringen i

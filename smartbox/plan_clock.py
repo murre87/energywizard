@@ -47,6 +47,7 @@ def build(now, prices, ev_rows=(), bat_rows=(), heat_modes=None, solar_w=None, f
         if action == "discharge" and grid is not None and float(grid) < -plan_brief.EXPORT_KW:
             action = "export"                                  # laddar ur och säljer - egen färg
         bat[_q(t)] = {"action": action, "soc": None if soc is None else round(float(soc)),
+                      "balance": bool(r[6]) if len(r) > 6 else False,
                       "kw": None if kw is None else round(float(kw), 2)}
     heat_modes, solar_w = heat_modes or {}, solar_w or {}
     slots = []
@@ -62,6 +63,7 @@ def build(now, prices, ev_rows=(), bat_rows=(), heat_modes=None, solar_w=None, f
             "spot": None if s is None else round(s, 4),
             "price": None if s is None else round(full_cost(s, t) if full_cost else s, 4),
             "bat": b.get("action"), "bat_kw": b.get("kw"), "soc": b.get("soc"),
+            "bat_balance": b.get("balance", False),
             "ev": ev.get(t) or {},
             "heat": heat_modes.get(hour),
             "sun_w": solar_w.get(hour),
