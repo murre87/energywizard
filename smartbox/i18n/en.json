@@ -2344,5 +2344,8 @@
  "Batterimodulerna har hållit målnivån under hela balanseringstiden.": "The battery modules maintained their target throughout the balancing hold period.",
  "Ingen bekräftad skillnad som kräver balansering.": "No confirmed difference requiring balancing.",
  "Balanseringen blev inte klar inom 36 timmar. Vanlig batteriplanering återupptas; kontrollera batteriets app.": "Balancing did not finish within 36 hours. Normal battery scheduling resumes; check the battery's app.",
- "Balansering är pausad eftersom underhållsstatus inte kunde sparas. Vanlig batteriplanering fortsätter.": "Balancing is paused because maintenance status could not be saved. Normal battery scheduling continues."
+ "Balansering är pausad eftersom underhållsstatus inte kunde sparas. Vanlig batteriplanering fortsätter.": "Balancing is paused because maintenance status could not be saved. Normal battery scheduling continues.",
+ "Batteri # %": "Battery # %",
+ "EnergyWizard: lampa offline": "EnergyWizard: lamp offline",
+ "EnergyWizard: sensor saknas": "EnergyWizard: sensor missing"
 }

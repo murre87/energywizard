@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.68 (2026-11-13)
+- **Kompressorn via myUplink** (#184): den direkta myUplink-drivrutinen tolkar NIBE:s kompressorstatus (koderna
+  20/40/60/100 och text som "Kör") som HA-vägen. Förut räknades varje kod över 0, även "stoppad", som att pumpen gick.
+- **Appens aviseringar på installationens språk** (#202): "fulladdad", "kabeln lossnade", "lampa offline" och
+  "sensor saknas" översätts nu som motorns aviseringar.
+
 ## 1.2.67 (2026-11-13)
 - **Full disk och databasen nere räknas inte längre som fel i EnergyWizard**: de beror på datorn den körs på. De
   rapporteras inte, syns inte som fel på Installationer och blir inga ärenden, och husets logg visar dem som

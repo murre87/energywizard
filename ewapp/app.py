@@ -1817,7 +1817,13 @@ def push(targets: list, title: str, msg: str, key: str | None = None) -> None:
             if not _svc:
                 continue
             sent_to += 1
-            requests.post(f"{H._BASE}/services/notify/{_svc}", headers=H._HEADERS, json={"title": title, "message": msg}, timeout=8, verify=False).raise_for_status()
+            # #202: samma översättning som motorns aviseringar (notifier._localized_payload), på installationens språk
+            try:
+                import notifier as _nf2
+                _pl = _nf2._localized_payload(title, msg, None)
+            except Exception:
+                _pl = {"title": title, "message": msg}
+            requests.post(f"{H._BASE}/services/notify/{_svc}", headers=H._HEADERS, json={"title": _pl["title"], "message": _pl["message"]}, timeout=8, verify=False).raise_for_status()
             _nlog(title, msg, "sent", _svc, key)
         except Exception as e:
             print(f"⚠️ push {t}: {e}", flush=True)
