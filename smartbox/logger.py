@@ -25,7 +25,7 @@ def get_db_pool():
     global _pool
     if _pool is None:
         # First use can race between background readers and log writers. Do not
-        # allocate extra pools whose worker threads/connections would be orphaned.
+        # allocate extra worker threads and connection budgets during initialization.
         with _pool_lock:
             if _pool is None:
                 _pool = ConnectionPool(f"host={DB_HOST} user={DB_USER} password={DB_PASS} dbname={DB_NAME}", min_size=1, max_size=20)
