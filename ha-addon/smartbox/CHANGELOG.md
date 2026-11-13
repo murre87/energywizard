@@ -1,5 +1,16 @@
 # Ändringar
 
+## 1.2.76 (2026-11-13)
+- **Thermia via Husdata: bara varmvattnets startvärde styrs.** Kompressorns varmvattenladdning stoppar vid
+  pressostaten, inte vid stoppregistret (Thermias manual). Stoppregistret styr troligen elpatronens toppvärmning,
+  så det lämnas nu som installatören satt det. Det enda som avgör när en ren varmvattenladdning startar är
+  startvärdet, och det sänks som förut när elen är dyr.
+- **Övriga pumpar som före 1.2.74**: för HeishaMon, ThermIQ, NIBE och myUplink är stoppvärdet laddningens mål
+  (för HeishaMon den enda spärren), så dyrt ger åter stopp 40 °C och start 35 °C. 1.2.74 höll stoppet på
+  normalnivån för alla pumpar, vilket tog bort spärren för HeishaMon.
+- Thermias växelventil (varmvatten eller husvärme) loggas varje minut, så att varmvattenladdningar kan mätas
+  exakt.
+
 ## 1.2.75 (2026-11-13)
 - **Ruta om det nya utseendet**: den som uppdaterat och får den nya stilen ser en gång en ruta i appen som
   berättar vad som ändrats och hur man byter tillbaka (Inställningar → Appen → Stil → Klassisk), med knapparna

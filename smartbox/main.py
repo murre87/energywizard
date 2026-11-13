@@ -2515,8 +2515,7 @@ while True:
                     print(f"  {log_msg}")
 
                 if ov_smart_mode != "manual":
-                    water_sp.apply(heat_pump_driver, gpm_actions["water_target_temp"],
-                                   cfg.get("water_target_normal", 50.0), sleep=time.sleep)
+                    water_sp.apply(heat_pump_driver, gpm_actions["water_target_temp"], sleep=time.sleep)
                         
                     ov_water = all_overrides.get("hotwater", "auto")
                     if ov_water == "on": print("🔧 Överstyrning: Varmvatten TILL")

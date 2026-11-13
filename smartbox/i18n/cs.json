@@ -2398,5 +2398,7 @@
   "Vill du hellre ha det gamla utseendet: Inställningar → Appen → Stil → Klassisk. Du kan byta när du vill.": "Chcete raději starý vzhled? Nastavení → Aplikace → Styl → Klasický. Přepnout můžete kdykoli.",
   "Behåll det nya": "Ponechat nový",
   "Byt till klassisk": "Přepnout na klasický",
-  "Klassisk stil – ändra under Inställningar → Appen → Stil": "Klasický styl – změníte v Nastavení → Aplikace → Styl"
+  "Klassisk stil – ändra under Inställningar → Appen → Stil": "Klasický styl – změníte v Nastavení → Aplikace → Styl",
+  "Varmvatten: start # °C fäster inte, pumpen visar start # °C": "Teplá voda: start # °C se neuloží, čerpadlo ukazuje start # °C",
+  "Varmvatten: start # °C fäste inte, pumpen visar start # °C": "Teplá voda: start # °C se neuložil, čerpadlo ukazuje start # °C"
 }

@@ -12,6 +12,10 @@ from drivers.heatpump import HeatPumpDriver
 
 
 class ThermiaHusdataHeatPumpDriver(HeatPumpDriver):
+    # Kompressorns varmvattenladdning stoppar vid pressostaten, inte vid stoppregistret (0208):
+    # bara startvärdet (0212) skrivs, se water_setpoints.py
+    WATER_START_ONLY = True
+
     def read_sensors(self) -> dict:
         return pump.read_sensors() or {}
 

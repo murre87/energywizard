@@ -2398,5 +2398,7 @@
  "Vill du hellre ha det gamla utseendet: Inställningar → Appen → Stil → Klassisk. Du kan byta när du vill.": "Prefer the old look? Settings → The app → Style → Classic. You can switch whenever you like.",
  "Behåll det nya": "Keep the new look",
  "Byt till klassisk": "Switch to classic",
- "Klassisk stil – ändra under Inställningar → Appen → Stil": "Classic style – change it under Settings → The app → Style"
+ "Klassisk stil – ändra under Inställningar → Appen → Stil": "Classic style – change it under Settings → The app → Style",
+ "Varmvatten: start # °C fäster inte, pumpen visar start # °C": "Hot water: start # °C does not stick, the pump shows start # °C",
+ "Varmvatten: start # °C fäste inte, pumpen visar start # °C": "Hot water: start # °C did not stick, the pump shows start # °C"
 }

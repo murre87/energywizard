@@ -173,6 +173,7 @@ def read_sensors():
             "compressor_running":   reg[25],        # 25: Compressor
             "pump_heat_running":    reg[29],        # 29: Pump Radiator
             "pump_radiator_running":reg[29],
+            "hotwater_valve":       reg[30],        # 30: Switch valve 1 (1A07): 0 = husvärme, 1 = varmvatten
 
             # Larm & Historik
             "alarm_active":         reg[32],        # 32: Alarm
