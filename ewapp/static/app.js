@@ -197,7 +197,7 @@ function svLine() {                                       // besparingen på en 
 }
 function planNow() {                                   // vad görs nu och varför (per enhet, ur motorns beslut) + nästa steg i planen
   const now = (EN && EN.now) || [], nxt = PL ? (PL.items || []).find((i) => !i.active) : null;
-  if (!now.length && !nxt) return PL ? `<section class="card plannow" data-a="nowsheet"><div class="note">${esc(PL.headline)}</div></section>` : "";
+  if (!now.length && !nxt) return PL ? `<section class="card plannow" data-a="nowsheet"><div class="note">${(PL.headline_parts || [PL.headline]).map(part => `<span>${esc(part)}</span>`).join("")}</div></section>` : "";
   // unslop 2026-11: etikett till vänster, hela meningen till höger (ingen emoji, inget "…")
   const rows = CL()
     ? now.slice(0, 3).map((i) => `<div class="pnrow"><span class="pnl">${esc(i.icon)}</span><span><b>${esc(i.label)}</b><span class="note"> ${esc(i.text)}</span></span></div>`).join("")
@@ -338,7 +338,7 @@ function planList() {
   const sd = PL.solar_days, f = (v) => v >= 10 ? v.toFixed(0) : v.toFixed(1).replace(".", ",");
   const sun = sd && sd.today_kwh != null ? `<div class="note">☀️ Sol idag ${f(sd.today_kwh)} kWh${sd.today_left_kwh != null ? ` (${f(sd.today_left_kwh)} kvar)` : ""}${sd.tomorrow_kwh != null ? ` · imorgon ${f(sd.tomorrow_kwh)} kWh` : ""}</div>` : "";
   const clock = window.EWPlanView && PC && PC.slots && PC.slots.length ? `<section class="card pccard"><div id="pcslot"></div></section>` : "";
-  return `${clock}<section class="card planlist"><div class="planhead">${esc(PL.headline)}</div>${sun}${items.slice(0, 5).map((i) => `<div class="plrow ${i.active ? "on" : ""}"><div class="plw">${i.active ? '<span class="chip ok">Nu</span> ' : ""}${esc(i.when)}</div><div><b>${esc(i.title)}</b><div class="note">${esc(i.detail)}</div></div></div>`).join("")}${items.length > 5 ? `<button class="link" data-a="planall" style="padding:0;font-size:.82rem;text-align:left">+${items.length - 5} till</button>` : ""}<div class="note plnote">${esc(PL.note)}</div></section>`;
+  return `${clock}<section class="card planlist"><div class="planhead">${(PL.headline_parts || [PL.headline]).map(part => `<span>${esc(part)}</span>`).join("")}</div>${sun}${items.slice(0, 5).map((i) => `<div class="plrow ${i.active ? "on" : ""}"><div class="plw">${i.active ? '<span class="chip ok">Nu</span> ' : ""}${esc(i.when)}</div><div><b>${esc(i.title)}</b><div class="note">${esc(i.detail)}</div></div></div>`).join("")}${items.length > 5 ? `<button class="link" data-a="planall" style="padding:0;font-size:.82rem;text-align:left">+${items.length - 5} till</button>` : ""}<div class="note plnote">${esc(PL.note)}</div></section>`;
 }
 function pagePlan() {
   const seg = `<div class="seg"><button data-a="planview" data-v="plan" class="${planView === "plan" ? "on" : ""}">Planen</button><button data-a="planview" data-v="schema" class="${planView === "schema" ? "on" : ""}">Laddschema</button></div>`;

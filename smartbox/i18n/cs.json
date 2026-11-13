@@ -2388,5 +2388,15 @@
   "Ny (standard)": "Nový (výchozí)",
   "Klassisk": "Klasický",
   "Radiatorer i Home Assistant": "Radiátory v Home Assistant",
-  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Nalezené radiátory se zobrazují pouze jako přehled zařízení. Ovládejte je v Home Assistant; samostatné plánování zón zatím není podporováno."
+  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Nalezené radiátory se zobrazují pouze jako přehled zařízení. Ovládejte je v Home Assistant; samostatné plánování zón zatím není podporováno.",
+  "EnergyWizard visar vad den hade gjort men styr ingenting.": "EnergyWizard ukazuje, co by udělal, ale nic neovládá.",
+  "Härnäst": "Dále",
+  "Ute #°C": "Venku #°C",
+  "{kwh} kWh köpt för {paid} {currency}, mot {baseline} {currency} i ett vanligt hushåll utan styrning (inkl. moms)": "{kwh} kWh nakoupeno za {paid} {currency} oproti {baseline} {currency} v běžné domácnosti bez řízení (včetně DPH)",
+  "Felsökningsutdrag vid fel": "Diagnostické výpisy při chybách",
+  "När något går fel skickas ett": "Když dojde k chybě, odešle se",
+  "sanerat": "očištěný",
+  "utdrag (senaste felloggrader utan entiteter/IP) till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga. På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.": "výpis (poslední chybové řádky protokolu bez entit/IP adres) vývojáři spolu s hlášením chyby, aby byla automatická hlášení na GitHubu srozumitelná. Ve výchozím nastavení zapnuto. Vypněte, pokud chcete odesílat pouze třídu chyby a místo v kódu.",
+  "Felsökningsutdrag är på": "Diagnostické výpisy jsou zapnuté",
+  "Felsökningsutdrag är av": "Diagnostické výpisy jsou vypnuté"
 }

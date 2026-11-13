@@ -2,6 +2,7 @@
 RIKTIGA prisregel (nordpool.calculate_day_strategy), inte en kopia av den."""
 import os
 import sys
+import pytest
 from datetime import datetime, timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "smartbox")))
@@ -19,6 +20,22 @@ def _prices(hourly, day=DAY):
 
 # Billigt på natten, dyrt morgon och kväll - en vanlig vinterdag.
 WINTER = [0.30] * 6 + [1.80] * 3 + [0.90] * 8 + [2.20] * 4 + [0.60] * 3
+
+
+@pytest.mark.parametrize('active_flags',[[],[True],[False],[True,False]])
+def test_headline_parts_preserve_source_and_separate_translatable_values(monkeypatch,active_flags):
+    import plan_brief
+    items=[dict(start=(DAY+timedelta(hours=i)).isoformat(),kind='heat',active=active,
+                title='😌 Jämn komfort hela dygnet',when='imorgon 00:00–imorgon 24:00')
+           for i,active in enumerate(active_flags)]
+    monkeypatch.setattr(plan_brief,'ev_items',lambda *args:[])
+    monkeypatch.setattr(plan_brief,'heat_items',lambda *args:items)
+    monkeypatch.setattr(plan_brief,'battery_items',lambda *args:[])
+    result=build_brief(DAY,[],[],lambda *args:None)
+    assert ''.join(result['headline_parts'])==result['headline']
+    if items:
+        assert 'Jämn komfort hela dygnet' in result['headline_parts']
+        assert 'imorgon 00:00–imorgon 24:00' in result['headline_parts']
 
 
 def test_elbilens_slottar_slas_ihop_till_ett_pass_med_snittpris():

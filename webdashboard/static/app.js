@@ -273,6 +273,13 @@ function planStripHtml(d, now) {
     ${goals ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">${goals}</div>` : ""}`;
 }
 
+function decisionHeadlineHtml(text) {
+  const source = String(text || "");
+  const at = source.indexOf(": ");
+  if (at < 0) return esc(source);
+  return `<span>${esc(source.slice(0, at + 1))}</span> <span>${esc(source.slice(at + 2))}</span>`;
+}
+
 function planCardHtml(d) {
   // Tid och text sida vid sida när det får plats, annars tiden ovanför (förut bröts texten i en smal kolumn).
   const row = (i, hidden) => `
@@ -286,7 +293,7 @@ function planCardHtml(d) {
   return `
     <div class="card">
       <h2>🗓️ Planen framåt</h2>
-      <div style="font-size:1.02rem;margin:4px 0 10px">${esc(d.headline)}</div>
+      <div style="font-size:1.02rem;margin:4px 0 10px">${(d.headline_parts || [d.headline]).map(part => `<span>${esc(part)}</span>`).join("")}</div>
       ${window.EWPlanView ? `<div class="ewpcslot" style="margin:6px 0 14px"></div>` : planClockHtml(d)}
       ${sunDaysHtml(d.solar_days)}
       ${rows || ""}
@@ -437,7 +444,7 @@ async function renderOversikt() {
     : d.high_load_source === "tidstariff" ? `⚡ Tidstariff just nu: ${d.is_high_load ? "🔴 Höglast" : "🟢 Låglast"}` : "";
   main.innerHTML = `
     <div class="card" style="margin-bottom:16px">
-      <div style="font-size:1.15rem;font-weight:700">${emoji} ${d.decision}</div>
+      <div style="font-size:1.15rem;font-weight:700">${emoji} ${decisionHeadlineHtml(d.decision)}</div>
       <div class="note" style="margin-top:4px">💸 ${fmtKrOre(d.price)}/kWh · 🌡️ Inne ${fmt(d.indoor_temp, 1, "°C")} (mål ${d.indoor_target.toFixed(0)}) · 🌳 Ute ${fmt(d.outdoor_temp, 1, "°C")}</div>
     </div>
     ${(d.ftw_problems || []).map((s) => `<div class="card" style="margin-bottom:16px;border-color:var(--warn,#f59e0b)">
@@ -479,7 +486,7 @@ async function renderOversikt() {
   api("api/shadow").then((sh) => {                       // skuggläget syns alltid överst, så ingen tror att huset styrs
     if (!sh || !sh.active || document.getElementById("shadowbanner")) return;
     main.insertAdjacentHTML("afterbegin", `<div class="card" id="shadowbanner" style="margin-bottom:16px;border-color:var(--warn)">
-      🕶️ <b>Skuggläge:</b> EnergyWizard visar vad den hade gjort men styr ingenting. <a href="#" id="shadowgo">Se vad den hade gjort</a></div>`);
+      🕶️ <b>Skuggläge:</b> <span>EnergyWizard visar vad den hade gjort men styr ingenting.</span> <a href="#" id="shadowgo">Se vad den hade gjort</a></div>`);
     document.getElementById("shadowgo").onclick = (e) => { e.preventDefault(); openPage("installningar"); };
   }).catch(() => {});
   mountTimeline("timelineslot");
@@ -1955,9 +1962,7 @@ async function renderInstallningar() {
     <div class="card" style="margin-bottom:16px" id="supportcard">
       <div class="togglerow" style="align-items:flex-start;gap:14px"><div>
         <div style="font-size:1.1rem;font-weight:700">🩺 Felsökningsutdrag vid fel</div>
-        <div class="note" style="margin-top:4px;line-height:1.5">När något går fel skickas ett <b>sanerat</b> utdrag (senaste felloggrader utan entiteter/IP)
-          till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga.
-          På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.</div></div>
+        <div class="note" style="margin-top:4px;line-height:1.5"><span>När något går fel skickas ett</span> <b>sanerat</b> <span>utdrag (senaste felloggrader utan entiteter/IP) till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga. På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.</span></div></div>
         <label class="switch" style="flex:0 0 auto"><input type="checkbox" id="supporttoggle"><span class="slider"></span></label></div>
     </div>
     <div class="card" style="margin-bottom:16px" id="sensorcard" hidden>

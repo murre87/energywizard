@@ -2388,5 +2388,15 @@
  "Ny (standard)": "New (default)",
  "Klassisk": "Classic",
   "Radiatorer i Home Assistant": "Radiators in Home Assistant",
-  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Discovered radiators are shown as inventory only. Control them in Home Assistant; separate zone scheduling is not supported yet."
+  "Upptäckta radiatorer visas endast som inventering. Styr dem i Home Assistant; separat zonschemaläggning stöds ännu inte.": "Discovered radiators are shown as inventory only. Control them in Home Assistant; separate zone scheduling is not supported yet.",
+  "EnergyWizard visar vad den hade gjort men styr ingenting.": "EnergyWizard shows what it would have done but controls nothing.",
+  "Härnäst": "Next",
+  "Ute #°C": "Outside #°C",
+  "{kwh} kWh köpt för {paid} {currency}, mot {baseline} {currency} i ett vanligt hushåll utan styrning (inkl. moms)": "{kwh} kWh bought for {paid} {currency}, compared with {baseline} {currency} in an ordinary household without control (incl. VAT)",
+  "Felsökningsutdrag vid fel": "Diagnostic excerpts on errors",
+  "När något går fel skickas ett": "When something goes wrong, a",
+  "sanerat": "sanitized",
+  "utdrag (senaste felloggrader utan entiteter/IP) till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga. På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.": "excerpt (recent error log lines without entities/IP addresses) is sent to the developer with the error report, so that automatic GitHub issues are understandable. On by default. Turn off to send only the error class and code location.",
+  "Felsökningsutdrag är på": "Diagnostic excerpts are on",
+  "Felsökningsutdrag är av": "Diagnostic excerpts are off"
 }
