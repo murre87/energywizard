@@ -2440,5 +2440,16 @@
  "Prissensor vald automatiskt: {entity}, {kind}": "Price sensor chosen automatically: {entity}, {kind}",
  "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Could not look for price sensors in Home Assistant ({err}) - trying again later",
  "Säkringen har inte utrymme för batteriet just nu - det håller i stället": "The main fuse has no room for the battery right now - it holds instead",
- "Laddningen begränsas till # W så att säkringen räcker": "Charging is limited to # W so the main fuse is not exceeded"
+ "Laddningen begränsas till # W så att säkringen räcker": "Charging is limited to # W so the main fuse is not exceeded",
+  "Planernas ögonblicksbilder": "Planning snapshots",
+  "Väntar på första ögonblicksbilden": "Waiting for the first snapshot",
+  "I kö": "Queued",
+  "Sparning misslyckades eller tappades": "Snapshot failed or was dropped",
+  "Sparad": "Saved",
+  "Okänd eller inaktuell status": "Unknown or stale status",
+  "Senast sparad": "Last saved",
+  "Misslyckade sedan motorstart": "Failed since engine start",
+  "Tappade sedan motorstart": "Dropped since engine start",
+  "Status rapporteras av motorn. Inga råa inställningar eller feltexter visas.": "Status is reported by the engine. Raw settings and error text are not displayed.",
+  "Uppdatera status": "Refresh status"
 }

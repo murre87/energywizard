@@ -200,6 +200,8 @@ def _on_sigterm(signum, frame):
 
 signal.signal(signal.SIGTERM, _on_sigterm)
 config_watch.start(HOUSE_CONFIG_PATH)   # ny house_config.yaml -> omstart som läser in den
+import snapshot_status
+snapshot_status.start()               # diagnostics only; never waits for storage or database
 import ew_settings as _ew_settings
 # ny anslutning till HA från startguiden -> omstart (andra inställningar läses utan omstart)
 config_watch.start(_ew_settings.PATH, signature=lambda _p: (_ew_settings.get("ha_url"), _ew_settings.get("ha_token")) if _ew_settings.get("ha_url") else None)

@@ -5,9 +5,11 @@ import json
 import math
 import os
 from pathlib import Path
-from queue import Queue
+from queue import Queue, Full
 import tempfile
 import threading
+import time
+import uuid
 from datetime import datetime, timezone
 
 SCHEMA = 1
@@ -26,6 +28,27 @@ SLOT_NUMBERS = ('buy', 'sell', 'load_kw', 'solar_kw', 'ev_kw')
 _queue = Queue(maxsize=1)
 _lock = threading.Lock()
 _worker = None
+_stats_lock = threading.Lock()
+_stats = {'session': str(uuid.uuid4()), 'failed': 0, 'dropped': 0,
+          'last_saved_at': None, 'last_failure_at': None, 'saving': False}
+
+
+def status():
+    """Process-local counters only; no storage, database or device access."""
+    with _stats_lock:
+        result = dict(_stats)
+    pending = _queue.qsize()
+    enabled = os.environ.get('EW_PLAN_SNAPSHOTS', '1') != '0'
+    state = ('disabled' if not enabled else 'saving' if result['saving'] else 'queued' if pending
+             else 'failed' if (result['last_failure_at'] or 0) > (result['last_saved_at'] or 0)
+             else 'saved' if result['last_saved_at'] else 'waiting')
+    return {'schema': 1, **result, 'pending': pending, 'state': state}
+
+
+def _problem(counter):
+    with _stats_lock:
+        _stats[counter] += 1
+        _stats['last_failure_at'] = time.time()
 
 
 def canonical(value):
@@ -145,11 +168,17 @@ def store(payload, directory):
 def _run():
     while True:
         item = _queue.get()
+        with _stats_lock:
+            _stats['saving'] = True
         try:
             store(*item)
+            with _stats_lock:
+                _stats['last_saved_at'] = time.time()
         except Exception:
-            pass  # Evidence must never affect device control; no raw config/error dumps.
+            _problem('failed')  # Never expose raw configuration or storage errors.
         finally:
+            with _stats_lock:
+                _stats['saving'] = False
             _queue.task_done()
 
 
@@ -166,5 +195,9 @@ def capture(slots, params, result, made_at):
                 _worker.start()
         _queue.put_nowait((payload, os.environ.get('EW_PLAN_SNAPSHOT_DIR', '/data/planning-snapshots')))
         return payload['plan_id']
+    except Full:
+        _problem('dropped')
+        return None
     except Exception:
+        _problem('failed')
         return None

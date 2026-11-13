@@ -57,6 +57,17 @@ function checkScreenshotCards(lang,tr) {
   ctx.moneyUnit=()=>ctx.symbol;
   vm.runInContext(web.slice(web.indexOf('function decisionHeadlineHtml('),web.indexOf('async function mountPlan(')),ctx);
   vm.runInContext(web.slice(web.indexOf('function savingsCardHtml('),web.indexOf('// Kostnad per dag')),ctx);
+  ctx.I18N=ctx.window.I18N={lang};
+  vm.runInContext(web.slice(web.indexOf('function snapshotStatusHtml('),web.indexOf('async function mountSnapshotStatus(')),ctx);
+  for(const state of ['disabled','waiting','queued','saving','failed','saved','unknown']){
+    const html=ctx.snapshotStatusHtml({state,fresh:state!=='unknown',failed:4,dropped:2,last_saved_at:null,raw_error:'must-not-leak'});
+    const translated=text(html,tr);
+    assert(!translated.includes('must-not-leak'));
+    if(state!=='unknown')assert(translated.includes('4')&&translated.includes('2'));
+    if(lang!=='sv')assert(!/Misslyckade sedan|Tappade sedan|Väntar på första|Sparning misslyckades|Okänd eller inaktuell/.test(translated),`${lang}: ${translated}`);
+  }
+  const stale=ctx.snapshotStatusHtml({state:'saved',fresh:false,failed:99,dropped:99});
+  assert(!stale.includes('99'));
   vm.runInContext(mobile.slice(mobile.indexOf('function planNow('),mobile.indexOf('async function roomsSheet(')),ctx);
   vm.runInContext(mobile.slice(mobile.indexOf('function planList()'),mobile.indexOf('function pagePlan()')),ctx);
   const expected={sv:plan.headline,en:'Right now: Even comfort all day. Next tomorrow 00:00–tomorrow 24:00: Even comfort all day.',
@@ -98,5 +109,5 @@ function checkScreenshotCards(lang,tr) {
     for (const row of cases) assert.equal(i18n.tr(row[0]), row[index], `${lang}: ${row[0]}`);
     checkScreenshotCards(lang,i18n.tr);
   }
-  console.log(`UI translations: ${cases.length * 3} checks and catalog parity passed`);
+  console.log(`UI translations: ${cases.length * 3} checks, rendered cards and catalog parity passed`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

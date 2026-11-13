@@ -2440,5 +2440,16 @@
   "Prissensor vald automatiskt: {entity}, {kind}": "Cenový senzor vybrán automaticky: {entity}, {kind}",
   "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Nepodařilo se hledat cenové senzory v Home Assistantu ({err}) - zkusí to znovu později",
   "Säkringen har inte utrymme för batteriet just nu - det håller i stället": "Hlavní jistič teď nemá pro baterii prostor - místo toho drží",
-  "Laddningen begränsas till # W så att säkringen räcker": "Nabíjení je omezeno na # W, aby jistič vydržel"
+  "Laddningen begränsas till # W så att säkringen räcker": "Nabíjení je omezeno na # W, aby jistič vydržel",
+  "Planernas ögonblicksbilder": "Snímky plánů",
+  "Väntar på första ögonblicksbilden": "Čekání na první snímek",
+  "I kö": "Ve frontě",
+  "Sparning misslyckades eller tappades": "Snímek se nepodařilo uložit nebo byl zahozen",
+  "Sparad": "Uloženo",
+  "Okänd eller inaktuell status": "Neznámý nebo zastaralý stav",
+  "Senast sparad": "Naposledy uloženo",
+  "Misslyckade sedan motorstart": "Neúspěšné od spuštění řídicího procesu",
+  "Tappade sedan motorstart": "Zahozené od spuštění řídicího procesu",
+  "Status rapporteras av motorn. Inga råa inställningar eller feltexter visas.": "Stav hlásí řídicí proces. Nezobrazují se surová nastavení ani chybové zprávy.",
+  "Uppdatera status": "Obnovit stav"
 }
