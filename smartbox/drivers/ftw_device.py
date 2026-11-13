@@ -27,6 +27,7 @@ Styrning: driver_command("battery", W) med + = ladda och - = ladda ur, driver_de
 läge. FTW:s egen vakthund släpper styrningen efter 60 s utan nytt kommando, så refresh() skickar om varje varv.
 """
 import os
+import re
 import threading
 import time
 
@@ -34,6 +35,7 @@ from drivers.battery import BatteryDriver
 from drivers.solar import SolarDriver
 
 FTW_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ftw_drivers")
+_ERROR_TOKEN = re.compile(r"[^\s:'\"]+")
 # Drivrutiner vars styrning provats på riktig hårdvara (FTW:s egen verifiering eller hos oss). Tomt tills vidare:
 # all FTW-styrning är avstängd om inte installationen uttryckligen säger control_unverified: true.
 FTW_CONTROL_VERIFIED: set = set()
@@ -74,11 +76,7 @@ class FtwDevice:
             except Exception as e:
                 self.error = f"{type(e).__name__}: {e}"
                 print(f"⚠️ FTW {self.name}: {self.error}")
-                try:                                     # syns i insamlaren (högst en gång i timmen per feltyp), aldrig feltexten
-                    import telemetry
-                    telemetry.report_error({}, f"ftw_{self.name}.poll", type(e).__name__)
-                except Exception:
-                    pass
+                note_poll_failure(self.name, self.host, e)
                 nxt = 15000
             time.sleep(max(1.0, min(60.0, nxt / 1000.0)))
 
@@ -93,6 +91,35 @@ class FtwDevice:
         with self._cmd_lock:
             f = self.drv.L.globals().driver_default_mode
             return bool(f()) if f is not None else False
+
+
+def poll_failure_note(name, host, exc) -> str:
+    """Sanerad rad till supportutdraget. Lua-texten behövs för att se felet (#297); värd och sökväg följer inte med."""
+    import support_bundle
+    # Scan each token once; nested path repetitions can backtrack exponentially.
+    def strip_lua_path(match):
+        token = match.group(0)
+        filename = token.rsplit("/", 1)[-1]
+        return filename if token.startswith("/") and ".lua" in filename else token
+
+    msg = _ERROR_TOKEN.sub(strip_lua_path, str(exc))
+    if host:
+        msg = msg.replace(str(host), "<värd>")
+    return support_bundle.sanitize(f"FTW {name}.poll: {type(exc).__name__}: {msg}")
+
+
+def note_poll_failure(name, host, exc) -> None:
+    """Spara raden innan felrapporten byggs, så utdraget innehåller Lua-texten och inte bara feltypen."""
+    try:
+        import support_bundle
+        support_bundle.note_error_line(poll_failure_note(name, host, exc))
+    except Exception:
+        pass
+    try:                                     # syns i insamlaren (högst en gång i timmen per feltyp), aldrig osanerad feltext
+        import telemetry
+        telemetry.report_error({}, f"ftw_{name}.poll", type(exc).__name__)
+    except Exception:
+        pass
 
 
 def status() -> list:
