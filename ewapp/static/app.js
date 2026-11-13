@@ -48,7 +48,7 @@ const TABS = { owner: ["hem", "bil", "hus", "plan", "historik"], family: ["hem",
 const TABNAME = { hem: "Hem", bil: "Bil", hus: "Hus", plan: "Plan", historik: "Historik" };
 const primary = () => LS.get("ew_primary", "");
 function chooseCar() {
-  app.innerHTML = `<div class="card" style="text-align:center;display:grid;gap:14px;margin-top:10dvh"><h2 style="margin:0">Vilken bil kör du mest?</h2><div class="note">Den visas stor överst. Du kan byta senare.</div>${((S && S.cars) || []).map((c, i) => `<button class="big" data-p="${esc(c.key)}"${i % 2 ? ' style="background:linear-gradient(135deg,#a5b4fc,#38bdf8)"' : ""}>${esc(c.name)}</button>`).join("")}</div>`;
+  app.innerHTML = `<div class="card" style="text-align:center;display:grid;gap:14px;margin-top:10dvh"><h2 style="margin:0">Vilken bil kör du mest?</h2><div class="note">Den visas stor överst. Du kan byta senare.</div>${((S && S.cars) || []).map((c, i) => `<button class="big" data-p="${esc(c.key)}">${esc(c.name)}</button>`).join("")}</div>`;
   app.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { LS.set("ew_primary", b.dataset.p); start(); });
 }
 // ---- Bil -------------------------------------------------------------------------------------------------------------------------
@@ -198,8 +198,13 @@ function svLine() {                                       // besparingen på en 
 function planNow() {                                   // vad görs nu och varför (per enhet, ur motorns beslut) + nästa steg i planen
   const now = (EN && EN.now) || [], nxt = PL ? (PL.items || []).find((i) => !i.active) : null;
   if (!now.length && !nxt) return PL ? `<section class="card plannow" data-a="nowsheet"><div class="note">${esc(PL.headline)}</div></section>` : "";
-  const rows = now.slice(0, 3).map((i) => `<div class="pnrow"><span class="pnl">${esc(i.icon)}</span><span><b>${esc(i.label)}</b><span class="note"> ${esc(i.text)}</span></span></div>`).join("");
-  const later = nxt ? `<div class="pnrow"><span class="pnl pnl-t">Sen</span><span><b>${esc(nxt.title.replace(/^[^\p{L}\p{N}]+/u, ""))}</b><span class="note"> ${esc(nxt.when)}</span></span></div>` : "";
+  // unslop 2026-11: etikett till vänster, hela meningen till höger (ingen emoji, inget "…")
+  const rows = CL()
+    ? now.slice(0, 3).map((i) => `<div class="pnrow"><span class="pnl">${esc(i.icon)}</span><span><b>${esc(i.label)}</b><span class="note"> ${esc(i.text)}</span></span></div>`).join("")
+    : now.slice(0, 3).map((i) => `<div class="pnrow2"><span class="pnk">${esc(i.label)}</span><span>${esc(i.text)}</span></div>`).join("");
+  const later = !nxt ? "" : CL()
+    ? `<div class="pnrow"><span class="pnl pnl-t">Sen</span><span><b>${esc(nxt.title.replace(/^[^\p{L}\p{N}]+/u, ""))}</b><span class="note"> ${esc(nxt.when)}</span></span></div>`
+    : `<div class="pnrow2"><span class="pnk">Sen</span><span>${esc(nxt.title.replace(/^[^\p{L}\p{N}]+/u, ""))} <span class="note">${esc(nxt.when)}</span></span></div>`;
   return `<section class="card plannow" data-a="nowsheet">${rows}${later}</section>`;
 }
 async function roomsSheet() {                            // "alla rum": de valda innegivarna, live (api/rooms)
@@ -283,13 +288,15 @@ const FL_TAB = { sol: ["solarsheet"], nat: ["insights"], batteri: ["insights"], 
 function flowCard() {                    // delad med webbens Översikt (smartbox/static/liveflow.js) - samma bild och regler
   if (!FL || !FL.ok || !FL.nodes || !window.EWLiveFlow) return "";
   const attrs = (n) => { const t = n.key.startsWith("ev_") ? ["tab", "bil"] : (FL_TAB[n.key] || ["tab", "hus"]); return `data-a="${t[0]}"${t[1] ? ` data-v="${t[1]}"` : ""}`; };
-  return `<section class="card flowcard"><div class="flh"><b>Just nu</b><span class="note">${esc(FL.ts || "")}</span></div>${EWLiveFlow.svg(FL, { compact: true, attrs, hubAttrs: 'data-a="insights"' })}</section>`;
+  return `<section class="card flowcard"><div class="flh"><b>Just nu</b><span class="note">${esc(FL.ts || "")}</span></div>${EWLiveFlow.svg(FL, { compact: true, icons: CL(), attrs, hubAttrs: 'data-a="insights"' })}</section>`;
 }
 
 function pageHem() {
   if (!EN) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
   const s = EN.solar, g = EN.grid, net = g.net_w;
-  const alerts = (EN.alerts || []).map((a) => `<section class="card" style="border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}"><b>${a.level === "info" ? "ℹ️" : "⚠️"} <span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`).join("");
+  const alerts = (EN.alerts || []).map((a) => CL()
+    ? `<section class="card" style="border:1.5px solid ${a.level === "info" ? "#38bdf8" : "#ef4444"}"><b>${a.level === "info" ? "ℹ️" : "⚠️"} <span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`
+    : `<section class="card"><b><span class="alertdot ${a.level === "info" ? "info" : ""}"></span><span>${esc(a.device)}</span>: <span>${esc(a.title)}</span></b><div style="margin-top:4px">${esc(a.text)}</div><div class="note">${esc(a.hint)}</div></section>`).join("");
   // Planklockan/Skyline ligger bara under Plan (Emil 2026-11-08: framsidan visar vad som händer just nu)
   return `<div class="page">${alerts}${flowCard()}${planNow()}${quickGrid(s, g, net, !!(FL && FL.ok))}${carsRow()}${ljusRow()}</div>`;
 }
@@ -517,6 +524,13 @@ function updateSheet() {
   const how = u.kind === "addon" ? "Öppna Home Assistant → <b>Inställningar → Tillägg → EnergyWizard</b> och tryck <b>Uppdatera</b>." : "Hämta den nya bilden (<code>docker compose pull</code> och starta om) eller låt Watchtower göra det.";
   sheet(`<h3>Ny version: ${esc(u.latest || "")}</h3><div class="note" style="margin-bottom:8px">Du kör ${esc(u.running || "en äldre version")}. Nya versioner har rättningar och förbättringar, och fel som redan är rättade försvinner först när du uppdaterat.</div><p>${how}</p><a class="mini" href="${esc(u.changelog || "")}" target="_blank" rel="noopener">Vad är nytt</a>`);
 }
+// unslop 2026-11: överst priset just nu och hur det ligger (i stället för en slumpad rad)
+function priceLine() {
+  const g = EN && EN.grid; if (!g || g.price == null) return "";
+  const lv = g.level || "", col = lv === "billigt" ? "var(--acc)" : lv === "dyrt" ? "var(--warn)" : "var(--txt)";
+  return `<span class="gl gprice"><strong style="color:${col};font-weight:500">${esc(lv ? lv[0].toUpperCase() + lv.slice(1) : "Elpris")} just nu</strong> · ${f1(g.price, 2)} kr/kWh</span>`;
+}
+const CL = () => LS.get("ew_style", "new") === "classic";   // Inställningar → Appen → Stil: Ny (standard) eller Klassisk (före unslop)
 function render() {
   if (page === "bil" && !primary() && S && S.cars.length) return chooseCar();
   const warn = S && S.health && S.health.length;
@@ -527,7 +541,7 @@ function render() {
   // Scrollar sidan (stor text, tscroll) ska omritningen var 5:e sekund inte kasta en tillbaka till toppen
   const _oldPg = document.querySelector(".page"), _keepScroll = _oldPg && _oldPg.dataset.p === page ? _oldPg.scrollTop : 0;
   const _oldDay = document.querySelector(".dayscroll"), _keepDay = _oldDay ? _oldDay.scrollLeft : null;
-  app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? GR.hello : "EnergyWizard")}</b>${GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : ""}${verBadge()}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
+  app.innerHTML = `<div class="top"><div class="greet" data-a="greet"><b><span class="dot ${ok ? "" : "off"}"></span>${esc(GR ? (CL() ? GR.hello : GR.hello.replace(/!+$/, "")) : "EnergyWizard")}</b>${CL() ? (GR ? `<span class="gl">${esc([GR.weather, GR.line].filter(Boolean).join(" · "))}</span>` : "") : `${priceLine()}${GR ? `<span class="gl">${esc(GR.weather || "")}</span>` : ""}`}${verBadge()}</div><div class="tools"><button class="icobtn" data-a="theme" aria-label="Byt tema">${themeIcon()}</button>${warn ? `<button class="icobtn warn" data-a="health">⚠ ${S.health.length}</button>` : ""}<button class="icobtn" data-a="settings" aria-label="Inställningar">${ICON.gear}</button></div></div>${ROLE === "owner" && VIEWAS ? `<button class="vastrip" data-a="viewas" data-v="">Visar som ${VIEWAS === "family" ? "familj" : "gäst"} · tryck för att avsluta</button>` : ER() === "guest" ? `<div class="vastrip">Gästläge · bara titta</div>` : ""}${needInstall() && page === "bil" ? `<button class="installbar" data-a="installapp"><b>Installera som app</b><span>${installEvt ? "Ett tryck" : "Så gör du"}</span></button>` : ""}${body}`;
   let tb = $("#tabs"); if (!tb) { tb = document.createElement("nav"); tb.id = "tabs"; tb.className = "tabs"; document.body.insertBefore(tb, $("#toast")); }
   tb.style.setProperty("--ntabs", tabs.length);
   tb.innerHTML = tabs.map(([k, l]) => `<button class="tab ${page === k ? "on" : ""}" data-a="tab" data-v="${k}">${ICON[k]}<span>${l}</span></button>`).join("");
@@ -728,7 +742,7 @@ async function settingsSheet() {
     logg: () => `<div class="seg">${[["", "Allt"], ["fel", "Fel"], ["varning", "Varningar"], ["notis", "Notiser"]].map(([v, t]) => `<button data-s="lg:${v}" class="${LGL === v ? "on" : ""}">${t}</button>`).join("")}</div>
       <div class="note">Allt EnergyWizard läst in, bestämt, skickat och fått för fel de senaste 6 timmarna. <a href="api/journal/download?days=2">Ladda ner 2 dygn</a> (att bifoga i en issue).</div>
       ${LG ? (LG.length ? LG.map((r) => `<div class="plrow" style="display:block;font-size:.8rem"><span class="note">${esc(new Date(r.ts).toLocaleTimeString("sv-SE"))} · ${esc(r.lvl)} · ${esc(r.src)}</span><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(r.msg)}</div></div>`).join("") : `<div class="note">Inget i loggen.</div>`) : `<div class="note">Laddar…</div>`}`,
-    appen: () => `<div class="seg">${((S && S.cars) || []).map((c) => `<button data-s="car:${esc(c.key)}" class="${primary() === c.key ? "on" : ""}">Huvudbil: ${esc(c.name)}</button>`).join("")}</div><div class="seg"><button data-s="glass" class="${LS.get("ew_glass", "1") !== "0" ? "on" : ""}">Glasdesign</button><button data-s="ambient" class="${LS.get("ew_ambient", "1") !== "0" ? "on" : ""}">Dygnsfärger</button></div><div class="seg"><button data-s="simple" class="${LS.get("ew_simple", "") === "1" ? "on" : ""}">Enkel vy (bara huvudbilen)</button>${standalone ? "" : `<button data-s="install">${installEvt ? "Installera appen" : "Lägg till på hemskärmen"}</button>`}</div><div class="seg"><button data-s="reload">Ladda om appen</button></div>
+    appen: () => `<div class="note" style="margin-top:2px">Stil</div><div class="seg"><button data-s="style:new" class="${CL() ? "" : "on"}">Ny (standard)</button><button data-s="style:classic" class="${CL() ? "on" : ""}">Klassisk</button></div><div class="seg">${((S && S.cars) || []).map((c) => `<button data-s="car:${esc(c.key)}" class="${primary() === c.key ? "on" : ""}">Huvudbil: ${esc(c.name)}</button>`).join("")}</div><div class="seg"><button data-s="glass" class="${LS.get("ew_glass", CL() ? "1" : "0") === "1" ? "on" : ""}">Glasdesign</button><button data-s="ambient" class="${LS.get("ew_ambient", CL() ? "1" : "0") === "1" ? "on" : ""}">Dygnsfärger</button></div><div class="seg"><button data-s="simple" class="${LS.get("ew_simple", "") === "1" ? "on" : ""}">Enkel vy (bara huvudbilen)</button>${standalone ? "" : `<button data-s="install">${installEvt ? "Installera appen" : "Lägg till på hemskärmen"}</button>`}</div><div class="seg"><button data-s="reload">Ladda om appen</button></div>
       <div class="note" style="margin-top:6px">Språk / Language</div><div class="seg" data-noi18n>${Object.entries(I18N.languages).map(([k, v]) => `<button data-s="lang:${k}" class="${I18N.lang === k ? "on" : ""}">${esc(v)}</button>`).join("")}</div>
       <div class="seg"><a class="mini" href="${I18N.TRANSLATE_URL}" target="_blank" rel="noopener">Hjälp till att översätta</a><a class="mini" href="${SPONSOR_URL}" target="_blank" rel="noopener">❤️ Sponsra EnergyWizard</a></div>
       ${ER() === "owner" ? `<div class="seg"><button data-s="sponsornotice" class="${SPONSOR && SPONSOR.enabled ? "on" : ""}">Påminn mig en gång i månaden</button></div>` : ""}`,
@@ -745,7 +759,8 @@ async function settingsSheet() {
     if (s.startsWith("np:")) { const k = s.slice(3), c = (NP || []).find((x) => x.key === k); if (!c) return; try { NP = (await api("notify-prefs", { on: { [k]: !c.on } })).categories; } catch (er) { toast(er.message); } settingsSheet(); return; }
     if (s.startsWith("lang:")) { const l = s.slice(5); if (ER() === "owner") { try { await api("setup/language", { language: l }); } catch {} } I18N.set(l); return; }
     if (s === "sponsornotice") { try { const r = await api("sponsor/notice", { enabled: !(SPONSOR && SPONSOR.enabled) }); SPONSOR = { ...(SPONSOR || {}), enabled: r.enabled }; } catch (er) { toast(er.message); } settingsSheet(); return; }
-    if (s === "glass" || s === "ambient") { LS.set("ew_" + s, LS.get("ew_" + s, "1") !== "0" ? "0" : "1"); applyLook(); }
+    if (s.startsWith("style:")) { LS.set("ew_style", s.slice(6)); applyLook(); render(); settingsSheet(); return; }
+    if (s === "glass" || s === "ambient") { LS.set("ew_" + s, LS.get("ew_" + s, CL() ? "1" : "0") === "1" ? "0" : "1"); applyLook(); }
     if (s.startsWith("car:")) LS.set("ew_primary", s.slice(4)); if (s === "simple") LS.set("ew_simple", LS.get("ew_simple", "") === "1" ? "" : "1");
     if (s === "install") { installApp(); return; }
     if (s === "reload") { hardReload(); return; }
@@ -877,7 +892,9 @@ function scaleFix() {                       // Chrome i "Datoranpassad webbplats
 const todOf = (h) => (h >= 5 && h < 10 ? "morning" : h >= 10 && h < 16 ? "day" : h >= 16 && h < 21 ? "evening" : "night");
 function applyLook() {
   const de = document.documentElement, q = new URLSearchParams(location.search).get("look") || "", pv = q.split(",");
-  const glass = pv.includes("glass") || (q === "" && LS.get("ew_glass", "1") !== "0"), amb = pv.includes("ambient") || (q === "" && LS.get("ew_ambient", "1") !== "0");      // båda på som standard; "0" = avstängd av användaren
+  const dflt = CL() ? "1" : "0";        // klassisk stil: glas och dygnsfärger på som förut; ny stil: av tills man slår på dem
+  CL() ? de.setAttribute("data-classic", "1") : de.removeAttribute("data-classic");
+  const glass = pv.includes("glass") || (q === "" && LS.get("ew_glass", dflt) === "1"), amb = pv.includes("ambient") || (q === "" && LS.get("ew_ambient", dflt) === "1");      // båda på som standard; "0" = avstängd av användaren
   glass ? de.setAttribute("data-glass", "1") : de.removeAttribute("data-glass");
   if (amb) { de.setAttribute("data-ambient", "1"); de.setAttribute("data-tod", ["morning", "day", "evening", "night"].find((t) => pv.includes(t)) || todOf(new Date().getHours())); } else { de.removeAttribute("data-ambient"); de.removeAttribute("data-tod"); }
 }
