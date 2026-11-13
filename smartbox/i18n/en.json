@@ -2435,5 +2435,8 @@
  "Använd det aktuella priset, inte prognosen. Ambers motsvarande _price-sensor provas automatiskt. Välj den här om den har bytt namn.": "Use the current price, not the forecast. Amber's matching _price sensor is tried automatically. Select it here if it has been renamed.",
  "Exempel: spotpris": "Example: a spot price of",
  "exkl. moms blir": "excl. VAT becomes",
- "hittas inte i Home Assistant": "not found in Home Assistant"
+ "hittas inte i Home Assistant": "not found in Home Assistant",
+ "Prissensorn är vald automatiskt. Välj en annan om du vill och tryck Använd priskällan.": "The price sensor was chosen automatically. Choose another one if you like and press Use this price source.",
+ "Prissensor vald automatiskt: {entity}, {kind}": "Price sensor chosen automatically: {entity}, {kind}",
+ "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Could not look for price sensors in Home Assistant ({err}) - trying again later"
 }

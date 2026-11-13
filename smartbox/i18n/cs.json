@@ -2435,5 +2435,8 @@
   "Använd det aktuella priset, inte prognosen. Ambers motsvarande _price-sensor provas automatiskt. Välj den här om den har bytt namn.": "Použijte aktuální cenu, ne předpověď. Odpovídající senzor _price od Amberu se zkouší automaticky. Vyberte ho zde, pokud byl přejmenován.",
   "Exempel: spotpris": "Příklad: spotová cena",
   "exkl. moms blir": "bez DPH znamená",
-  "hittas inte i Home Assistant": "nenalezeno v Home Assistantu"
+  "hittas inte i Home Assistant": "nenalezeno v Home Assistantu",
+  "Prissensorn är vald automatiskt. Välj en annan om du vill och tryck Använd priskällan.": "Cenový senzor byl vybrán automaticky. Pokud chcete, vyberte jiný a stiskněte Použít tento zdroj cen.",
+  "Prissensor vald automatiskt: {entity}, {kind}": "Cenový senzor vybrán automaticky: {entity}, {kind}",
+  "Kunde inte leta efter prissensorer i Home Assistant ({err}) - försöker igen senare": "Nepodařilo se hledat cenové senzory v Home Assistantu ({err}) - zkusí to znovu později"
 }

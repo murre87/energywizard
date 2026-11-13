@@ -515,9 +515,14 @@ async def price_entities():
             out.append({"entity_id": e, "name": a.get("friendly_name") or e, "integration": kind,
                         "unit": a.get("unit_of_measurement") or "", "points": n})
     selected = ew_settings.get("price_ha_entity") or ""
-    if not selected and nordpool.price_source() == "ha_nordpool":       # vald via miljön (PRICE_SOURCE/NORDPOOL_HA_ENTITY)
-        selected = os.environ.get("NORDPOOL_HA_ENTITY", "sensor.nordpool")
-    return {"ok": True, "entities": out, "selected": selected,
+    auto = False
+    if not selected and nordpool.price_source() == "ha_nordpool":
+        auto_e = nordpool.auto_price_entity()[0]          # vald automatiskt (land utan Nord Pool, ingen egen sensor)
+        if auto_e:
+            selected, auto = auto_e, True
+        else:                                            # vald via miljön (PRICE_SOURCE/NORDPOOL_HA_ENTITY)
+            selected = os.environ.get("NORDPOOL_HA_ENTITY", "sensor.nordpool")
+    return {"ok": True, "entities": out, "selected": selected, "auto": auto,
             "final": nordpool.price_final_mode(),
             "current_entity": ew_settings.get("price_current_entity") or "",
             "includes_vat": nordpool.prices_include_vat() if nordpool.price_source() == "ha_nordpool" else

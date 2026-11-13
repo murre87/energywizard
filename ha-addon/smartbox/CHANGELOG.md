@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.81 (2026-11-13)
+- **Prissensorn väljs automatiskt** där Nord Pool inte täcker landet (t.ex. Australien och Tjeckien) och ingen
+  sensor är vald: EnergyWizard letar upp prissensorn i Home Assistant själv. Landets egen källa går före (Amber i
+  Australien, OTE i Tjeckien), och momsen följer integrationens vanliga format om man inte angett något. Webben
+  visar att sensorn är vald automatiskt, och man kan välja en annan.
+
 ## 1.2.80 (2026-11-13)
 - **Webben, Elpris: rättade texter.** "Publicerade priser" och "Sensor för aktuellt pris" stod på engelska i
   svensk vy, och exempelraden ("spotpris 1,00 € exkl. moms blir …") stod delvis på svenska i tjeckisk vy.

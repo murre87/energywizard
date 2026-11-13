@@ -1603,6 +1603,7 @@ async function mountPriceSource(slotId, country) {
   slot.innerHTML = `
     <label style="display:flex;flex-direction:column;gap:4px"><span class="note">Priskälla (spotpriset per kvart/timme)</span>
       <select id="psrc" style="max-width:100%">${opts.join("")}</select></label>
+    ${d.auto ? `<div class="note" style="margin-top:4px">Prissensorn är vald automatiskt. Välj en annan om du vill och tryck Använd priskällan.</div>` : ""}
     ${npAuto ? `<div class="note" style="margin-top:4px">Spotpriset hämtas automatiskt från Nord Pool. Välj en prissensor bara om du hellre vill använda din elleverantörs pris. Slutar sensorn fungera tar Nord Pool över.</div>` : ""}
     <div class="note" style="margin-top:4px">${d.entities.length ? `${d.entities.length} prissensor${d.entities.length > 1 ? "er" : ""} hittades i Home Assistant.`
       : npAuto ? `Ingen prissensor hittades i Home Assistant. Det behövs inte.` : `Ingen prissensor hittades. Installera t.ex. <a href="https://github.com/custom-components/nordpool" target="_blank" rel="noopener">Nord Pool</a>,

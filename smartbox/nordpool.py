@@ -217,7 +217,17 @@ def prices_include_vat() -> bool:
     (Nord Pool i HA har moms som standard, ENTSO-e/EPEX oftast inte, Octopus/Amber alltid)."""
     if price_source() != "ha_nordpool":
         return False
-    return str(_setting("price_includes_vat", "PRICE_INCLUDES_VAT", "false" if cost_settings()["country"] == "CZ" else "true")).lower() not in ("0", "false", "nej", "no")
+    default = "false" if cost_settings()["country"] == "CZ" else "true"
+    try:
+        import ew_settings
+        explicit = ew_settings.get("price_includes_vat") is not None or "PRICE_INCLUDES_VAT" in os.environ
+    except Exception:
+        explicit = True
+    if not explicit and not explicit_price_entity():
+        kind = auto_price_entity()[1]                 # automatiskt vald sensor: integrationens vanliga format
+        if kind in AUTO_PRICE_VAT:
+            default = "true" if AUTO_PRICE_VAT[kind] else "false"
+    return str(_setting("price_includes_vat", "PRICE_INCLUDES_VAT", default)).lower() not in ("0", "false", "nej", "no")
 
 
 def high_load_window() -> dict:
@@ -530,8 +540,61 @@ def recognize_price_entity(state: dict):
     return "prissensor"
 
 
+# ---- Automatiskt val av prissensor (2026-11-13) -------------------------------------------------------------------
+# Utan vald prissensor, i länder som Nord Pools portal inte täcker (t.ex. Australien och Tjeckien), letar motorn
+# själv upp prissensorn i HA. Landets egen källa går före, sedan den med flest priser.
+AUTO_PRICE_PREFER = {"AU": ("Amber Electric",), "GB": ("Octopus Energy",), "CZ": ("OTE (CZ)",),
+                     "DK": ("Energi Data Service",)}
+# Om integrationens priser brukar ha moms (används bara när användaren inte själv har angett det)
+AUTO_PRICE_VAT = {"Amber Electric": True, "Octopus Energy": True, "Nord Pool": True, "Energi Data Service": True,
+                  "ENTSO-e": False, "EPEX Spot": False, "OTE (CZ)": False}
+AUTO_PRICE_TTL = (3600, 600)          # sekunder: hittad / ingen hittad
+_auto_price = {"key": None, "at": -1e9, "entity": None, "kind": None}
+
+
+def explicit_price_entity():
+    """Prissensorn som användaren valt (Inställningar/guiden) eller angett i miljön, annars None."""
+    return _setting("price_ha_entity", "NORDPOOL_HA_ENTITY", None)
+
+
+def auto_price_entity(c=None):
+    """(entitet, integration) som väljs automatiskt, eller (None, None). Bara när ingen sensor är vald och landet
+    varken är Sverige eller täcks av Nord Pools portal."""
+    c = c or cost_settings()
+    if explicit_price_entity() or c["country"] == "SE" or nordpool_api_supported(c) or "PRICE_SOURCE" in os.environ:
+        return None, None
+    now = time.monotonic()
+    if _auto_price["key"] == c["country"] and now - _auto_price["at"] < AUTO_PRICE_TTL[0 if _auto_price["entity"] else 1]:
+        return _auto_price["entity"], _auto_price["kind"]
+    found = []
+    try:
+        import homeassistant
+        r = requests.get(f"{homeassistant._BASE}/states", headers=homeassistant._HEADERS, timeout=15,
+                         verify=homeassistant._VERIFY)
+        r.raise_for_status()
+        for st in r.json() or []:
+            e = st.get("entity_id", "")
+            if not (e.startswith("sensor.") or e.startswith("event.")) or e.endswith("_next_day_rates"):
+                continue
+            kind = recognize_price_entity(st)
+            if kind:
+                a = st.get("attributes") or {}
+                found.append((e, kind, len(parse_price_attributes(a, a.get("unit_of_measurement", "")))))
+    except (requests.RequestException, ValueError) as ex:
+        print(f"⚠️ Kunde inte leta efter prissensorer i Home Assistant ({type(ex).__name__}) - försöker igen senare")
+        _auto_price.update(key=c["country"], at=now, entity=None, kind=None)
+        return None, None
+    prefer = AUTO_PRICE_PREFER.get(c["country"], ())
+    found.sort(key=lambda f: (f[1] not in prefer, -f[2], f[0]))
+    entity, kind = (found[0][0], found[0][1]) if found else (None, None)
+    if entity and entity != _auto_price["entity"]:
+        print(f"🔎 Prissensor vald automatiskt: {entity}, {kind}.")
+    _auto_price.update(key=c["country"], at=now, entity=entity, kind=kind)
+    return entity, kind
+
+
 def _price_entities():
-    e = _setting("price_ha_entity", "NORDPOOL_HA_ENTITY", NORDPOOL_HA_ENTITY)
+    e = explicit_price_entity() or auto_price_entity()[0] or NORDPOOL_HA_ENTITY
     out = [e]
     if e.endswith("_current_day_rates"):              # Octopus: morgondagen ligger i en egen entitet
         out.append(e[: -len("_current_day_rates")] + "_next_day_rates")
