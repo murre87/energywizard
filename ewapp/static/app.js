@@ -929,8 +929,30 @@ window.addEventListener("beforeinstallprompt", () => { if (document.getElementBy
 // ---- sponsring: länk i inställningarna + en vänlig ruta en gång i månaden till ägaren (kan stängas av) ----------------------------
 const SPONSOR_URL = "https://github.com/sponsors/murre87";
 let SPONSOR = null;
+// Engångsruta om det nya utseendet (Emil 2026-11-13): den som använt appen före 1.2.73 får veta vad som ändrats och
+// hur man byter tillbaka. Nya användare har inte sett det gamla och får ingen ruta. Texterna översätts (i18n).
+function maybeStyleNotice() {
+  if (LS.get("ew_style_notice", "") === "1") return;
+  if (document.getElementById("lf")) { setTimeout(maybeStyleNotice, 4000); return; }      // vänta tills man loggat in
+  const before = LS.get("ew_installed", "") || LS.get("ew_page", "") || LS.get("ew_theme", "") || LS.get("ew_primary", "");
+  if (!before || LS.get("ew_style", "")) { LS.set("ew_style_notice", "1"); return; }      // ny användare, eller har redan valt stil
+  const o = document.createElement("div"); o.id = "stylenote";
+  o.innerHTML = `<div class="instbox" role="dialog" aria-modal="true" aria-labelledby="stylenote-h">
+    <h3 id="stylenote-h">Appen har fått ett nytt utseende</h3>
+    <p>Lugnare och lättare att läsa: färg bara där den betyder något, priset just nu överst och inga emoji i flödet. Allt finns kvar på samma ställe.</p>
+    <p class="note">Vill du hellre ha det gamla utseendet: Inställningar → Appen → Stil → Klassisk. Du kan byta när du vill.</p>
+    <button class="btn instgo" data-v="keep">Behåll det nya</button>
+    <button class="mini" data-v="classic" style="width:100%;margin-top:8px">Byt till klassisk</button></div>`;
+  document.body.appendChild(o);
+  o.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-v]"); if (!b) return;
+    if (b.dataset.v === "classic") { LS.set("ew_style", "classic"); applyLook(); render(); toast("Klassisk stil – ändra under Inställningar → Appen → Stil"); }
+    LS.set("ew_style_notice", "1"); o.remove();
+  });
+}
+setTimeout(maybeStyleNotice, 1500);
 async function maybeSponsor() {
-  if (document.getElementById("lf") || document.getElementById("instp")) { setTimeout(maybeSponsor, 5000); return; }
+  if (document.getElementById("lf") || document.getElementById("instp") || document.getElementById("stylenote")) { setTimeout(maybeSponsor, 5000); return; }
   try { const r = await fetch("api/sponsor?lang=" + I18N.lang); if (!r.ok) return; SPONSOR = await r.json(); } catch (e) { return; }
   if (!SPONSOR.show) return;
   const o = document.createElement("div"); o.id = "sponsp"; document.body.appendChild(o);

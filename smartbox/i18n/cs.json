@@ -2398,5 +2398,15 @@
   "sanerat": "očištěný",
   "utdrag (senaste felloggrader utan entiteter/IP) till utvecklaren tillsammans med felrapporten, så att auto-ärenden på GitHub blir begripliga. På som standard. Stäng av om du inte vill skicka mer än felklass + var i koden.": "výpis (poslední chybové řádky protokolu bez entit/IP adres) vývojáři spolu s hlášením chyby, aby byla automatická hlášení na GitHubu srozumitelná. Ve výchozím nastavení zapnuto. Vypněte, pokud chcete odesílat pouze třídu chyby a místo v kódu.",
   "Felsökningsutdrag är på": "Diagnostické výpisy jsou zapnuté",
-  "Felsökningsutdrag är av": "Diagnostické výpisy jsou vypnuté"
+  "Felsökningsutdrag är av": "Diagnostické výpisy jsou vypnuté",
+  "Varmvatten: stopp # °C och start # °C fäster inte, pumpen visar stopp # °C och start # °C": "Teplá voda: stop # °C a start # °C se neuloží, čerpadlo ukazuje stop # °C a start # °C",
+  "Varmvatten: stopp # °C och start # °C fäste inte, pumpen visar stopp # °C och start # °C": "Teplá voda: stop # °C a start # °C se neuložily, čerpadlo ukazuje stop # °C a start # °C",
+  "Slutar försöka tills målet ändras": "Přestává to zkoušet, dokud se cíl nezmění",
+  "Försöker igen nästa kvart": "Zkusí to znovu za čtvrt hodiny",
+  "Appen har fått ett nytt utseende": "Aplikace má nový vzhled",
+  "Lugnare och lättare att läsa: färg bara där den betyder något, priset just nu överst och inga emoji i flödet. Allt finns kvar på samma ställe.": "Klidnější a čitelnější: barva jen tam, kde něco znamená, aktuální cena nahoře a žádné emoji v toku. Vše je stále na stejném místě.",
+  "Vill du hellre ha det gamla utseendet: Inställningar → Appen → Stil → Klassisk. Du kan byta när du vill.": "Chcete raději starý vzhled? Nastavení → Aplikace → Styl → Klasický. Přepnout můžete kdykoli.",
+  "Behåll det nya": "Ponechat nový",
+  "Byt till klassisk": "Přepnout na klasický",
+  "Klassisk stil – ändra under Inställningar → Appen → Stil": "Klasický styl – změníte v Nastavení → Aplikace → Styl"
 }

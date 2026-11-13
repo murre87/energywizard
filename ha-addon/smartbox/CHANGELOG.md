@@ -1,5 +1,21 @@
 # Ändringar
 
+## 1.2.75 (2026-11-13)
+- **Ruta om det nya utseendet**: den som uppdaterat och får den nya stilen ser en gång en ruta i appen som
+  berättar vad som ändrats och hur man byter tillbaka (Inställningar → Appen → Stil → Klassisk), med knapparna
+  "Behåll det nya" och "Byt till klassisk". Nya användare och den som redan valt stil ser den inte. På svenska,
+  engelska och tjeckiska.
+- Varmvattnets tillbakaläsning (1.2.74) läser start och stopp i en läsning och försöker en gång till om
+  Husdata-gatewayen släpper anslutningen.
+
+## 1.2.74 (2026-11-13)
+- **Varmvattenspärren vid dyrt elpris fäster nu** (Thermia via Husdata): när elen är dyr sänks bara
+  varmvattnets startvärde (så ingen dyr laddning startar förrän tanken är kall). Stoppvärdet ligger kvar på
+  normalnivån. Förut sänktes även stoppet till 40 °C, vilket pumpen inte tog emot (den visade 60 °C), så en
+  laddning som ändå startade under en dyr timme gick ända upp till 60 °C.
+- Efter varje ändring läses start- och stoppvärdet tillbaka från pumpen. Fäster de inte görs nya försök (högst
+  tre per värde) med en varning i loggen, i stället för att motorn tyst tror att det gick.
+
 ## 1.2.73 (2026-11-13)
 - **Ny stil i appen (standard)**: lugnare ytor utan gradienter, glas och färgad glöd, en accentfärg bara på det som
   betyder något, inga emoji i flödet och planen, inga versaler med spärrning, lättare vikter och en enda knappstil.

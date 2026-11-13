@@ -244,6 +244,47 @@ def set_room_temp(target_temp):
     """
     return _write_holding(15, target_temp)
 
+def _read_holding(reg_addr, count=1):
+    """Läser holding-register (råvärden) eller None."""
+    client = _get_client()
+    if not client:
+        return None
+    try:
+        try:
+            res = client.read_holding_registers(address=reg_addr, count=count, device_id=DEVICE_ID)
+        except TypeError:
+            try:
+                res = client.read_holding_registers(address=reg_addr, count=count, slave=DEVICE_ID)
+            except TypeError:
+                try:
+                    res = client.read_holding_registers(address=reg_addr, count=count, unit=DEVICE_ID)
+                except TypeError:
+                    res = client.read_holding_registers(address=reg_addr, count=count)
+        if res is None or res.isError():
+            return None
+        return list(res.registers)
+    except Exception:
+        return None
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+def read_water_setpoints():
+    """(stopp, start) för varmvattnet i °C som pumpen faktiskt har, eller None."""
+    if not PUMP_IPS:
+        return None
+    import shadow
+    if shadow.active():                       # skuggläge: inget skrivs, alltså inget att kontrollera
+        return None
+    for attempt in range(2):                  # gatewayen släpper ibland anslutningen direkt efter en skrivning
+        regs = _read_holding(13, count=8)     # 13 = stopp, 20 = start, i en läsning
+        if regs and len(regs) >= 8:
+            return _to_signed(regs[0]) / 10.0, _to_signed(regs[7]) / 10.0
+        time.sleep(1)
+    return None
+
 def set_water_stop_temp(target_temp):
     """Sätter maxtemperatur för Varmvatten (Holding 13)."""
     return _write_holding(13, int(target_temp * 10))
