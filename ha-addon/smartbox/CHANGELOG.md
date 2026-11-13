@@ -1,5 +1,13 @@
 # Ändringar
 
+## 1.2.80 (2026-11-13)
+- **Webben, Elpris: rättade texter.** "Publicerade priser" och "Sensor för aktuellt pris" stod på engelska i
+  svensk vy, och exempelraden ("spotpris 1,00 € exkl. moms blir …") stod delvis på svenska i tjeckisk vy.
+- Inställningarna som bara gäller en prissensor i Home Assistant (moms i sensorn, publicerade priser, sensor för
+  aktuellt pris) visas bara när en sensor är vald.
+- En vald prissensor som inte längre finns i Home Assistant visas som vald med "hittas inte i Home Assistant", i
+  stället för att väljaren tyst visar standardkällan.
+
 ## 1.2.79 (2026-11-13)
 - **Elpriset utanför Sverige hämtas direkt från Nord Pool** (#392): Norden, Baltikum, Nederländerna, Belgien,
   Frankrike, Tyskland, Österrike, Polen och Storbritannien, i rätt valuta och utan nyckel eller prissensor i Home

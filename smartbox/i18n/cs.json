@@ -2426,5 +2426,14 @@
   "Standard: Nord Pool (automatiskt)": "Výchozí: Nord Pool (automaticky)",
   "Spotpriset hämtas automatiskt från Nord Pool. Välj en prissensor bara om du hellre vill använda din elleverantörs pris. Slutar sensorn fungera tar Nord Pool över.": "Spotová cena se načítá automaticky z Nord Pool. Cenový senzor vyberte, jen pokud chcete raději používat cenu svého dodavatele. Pokud senzor přestane fungovat, převezme to Nord Pool.",
   "Ingen prissensor hittades i Home Assistant. Det behövs inte.": "V Home Assistantu nebyl nalezen žádný cenový senzor. Není potřeba.",
-  "Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.": "Odkud se bere spotová cena. Mimo Švédsko se načítá automaticky z Nord Pool, kromě Česka a Austrálie, kde vyberete cenový senzor v Home Assistantu. DPH a poplatky nastavíte v části Cena elektřiny a poplatky."
+  "Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.": "Odkud se bere spotová cena. Mimo Švédsko se načítá automaticky z Nord Pool, kromě Česka a Austrálie, kde vyberete cenový senzor v Home Assistantu. DPH a poplatky nastavíte v části Cena elektřiny a poplatky.",
+  "Publicerade priser": "Zveřejněné ceny",
+  "Automatiskt (Amber uppdateras var 5:e minut)": "Automaticky (Amber se aktualizuje každých 5 minut)",
+  "Slutgiltiga när de publicerats (dagen före-priser)": "Konečné po zveřejnění (ceny na další den)",
+  "Uppdatera aktuella och kommande priser var 5:e minut": "Aktualizovat aktuální a budoucí ceny každých 5 minut",
+  "Sensor för aktuellt pris (valfri)": "Senzor aktuální ceny (volitelný)",
+  "Använd det aktuella priset, inte prognosen. Ambers motsvarande _price-sensor provas automatiskt. Välj den här om den har bytt namn.": "Použijte aktuální cenu, ne předpověď. Odpovídající senzor _price od Amberu se zkouší automaticky. Vyberte ho zde, pokud byl přejmenován.",
+  "Exempel: spotpris": "Příklad: spotová cena",
+  "exkl. moms blir": "bez DPH znamená",
+  "hittas inte i Home Assistant": "nenalezeno v Home Assistantu"
 }

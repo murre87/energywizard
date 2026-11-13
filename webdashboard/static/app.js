@@ -1505,7 +1505,7 @@ async function mountPriceSettings() {
       </details>
       <div id="pricesrc" style="margin-top:12px"></div>
       <div id="priceexample" style="margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);line-height:1.5">
-        Exempel: spotpris 1,00 ${sym} (exkl. moms) blir <b>${kr(d.example.buy)} ${sym}/kWh</b> att köpa och <b>${kr(d.example.sell)} ${sym}/kWh</b> att sälja.</div>
+        Exempel: spotpris <span data-noi18n>1,00 ${sym}</span> exkl. moms blir <b>${kr(d.example.buy)} ${sym}/kWh</b> att köpa och <b>${kr(d.example.sell)} ${sym}/kWh</b> att sälja.</div>
       <button class="icobtn" id="psave" style="margin-top:10px">Spara</button>`;
     const loadSchedules = async () => {
       if (d.country !== "CZ" || !document.getElementById("phdodetails").open) return;
@@ -1596,7 +1596,10 @@ async function mountPriceSource(slotId, country) {
   // #392: Nord Pools öppna portal täcker de här länderna - där behövs ingen prissensor i HA
   const npAuto = ["NO", "DK", "FI", "EE", "LV", "LT", "DE", "NL", "BE", "AT", "FR", "PL", "GB"].includes(country);
   const opts = [`<option value="">${country && country !== "SE" ? (npAuto ? "Standard: Nord Pool (automatiskt)" : "Ingen vald") : "Standard: elprisetjustnu.se (Sverige)"}</option>`]
-    .concat(d.entities.map((e) => `<option value="${esc(e.entity_id)}"${e.entity_id === d.selected ? " selected" : ""}>${esc(e.name)} · ${esc(e.integration)}${e.unit ? " · " + esc(e.unit) : ""}</option>`));
+    .concat(d.entities.map((e) => `<option value="${esc(e.entity_id)}"${e.entity_id === d.selected ? " selected" : ""}>${esc(e.name)} · ${esc(e.integration)}${e.unit ? " · " + esc(e.unit) : ""}</option>`))
+    // Vald sensor som inte (längre) finns i HA: visa den som vald i stället för att väljaren tyst visar standard
+    .concat(d.selected && !d.entities.some((e) => e.entity_id === d.selected)
+      ? [`<option value="${esc(d.selected)}" selected>${esc(d.selected)} · hittas inte i Home Assistant</option>`] : []);
   slot.innerHTML = `
     <label style="display:flex;flex-direction:column;gap:4px"><span class="note">Priskälla (spotpriset per kvart/timme)</span>
       <select id="psrc" style="max-width:100%">${opts.join("")}</select></label>
@@ -1606,18 +1609,22 @@ async function mountPriceSource(slotId, country) {
         <a href="https://github.com/JaccoR/hass-entso-e" target="_blank" rel="noopener">ENTSO-e</a> (hela Europa),
         Energi Data Service (Danmark) eller Octopus Energy (Storbritannien) i Home Assistant och skanna igen.`}</div>
     ${country === "CZ" ? `<div class="note">Råa OTE-spotpriser är normalt utan moms. Kontrollera om den valda sensorn redan inkluderar moms innan du sparar.</div>` : ""}
+    <div id="psrcsensor"${d.selected ? "" : " hidden"}>
     <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="psrcvat"${d.includes_vat ? " checked" : ""}>
       Priset i sensorn är redan inklusive moms (Nord Pool och Octopus brukar vara det, ENTSO-e och EPEX inte)</label>
-    <label style="display:flex;flex-direction:column;gap:4px;margin-top:8px">Published prices
+    <label style="display:flex;flex-direction:column;gap:4px;margin-top:8px">Publicerade priser
       <select id="psrcfinal">
-        <option value="auto"${d.final === "auto" ? " selected" : ""}>Automatic (Amber refreshes every 5 minutes)</option>
-        <option value="true"${d.final === "true" ? " selected" : ""}>Final once published (day-ahead prices)</option>
-        <option value="false"${d.final === "false" ? " selected" : ""}>Refresh current and future prices every 5 minutes</option>
+        <option value="auto"${d.final === "auto" ? " selected" : ""}>Automatiskt (Amber uppdateras var 5:e minut)</option>
+        <option value="true"${d.final === "true" ? " selected" : ""}>Slutgiltiga när de publicerats (dagen före-priser)</option>
+        <option value="false"${d.final === "false" ? " selected" : ""}>Uppdatera aktuella och kommande priser var 5:e minut</option>
       </select></label>
-    <label style="display:flex;flex-direction:column;gap:4px;margin-top:8px">Current price sensor (optional)
+    <label style="display:flex;flex-direction:column;gap:4px;margin-top:8px">Sensor för aktuellt pris (valfri)
       <input id="psrccurrent" value="${esc(d.current_entity || "")}" placeholder="sensor.amber_general_price">
-      <span class="note">Use the current price, not the forecast. Amber's matching _price sensor is tried automatically; select it here if renamed.</span></label>
+      <span class="note">Använd det aktuella priset, inte prognosen. Ambers motsvarande _price-sensor provas automatiskt. Välj den här om den har bytt namn.</span></label>
+    </div>
     <button class="icobtn" id="psrcsave" style="margin-top:8px">Använd priskällan</button>`;
+  // Moms, publicering och aktuellt pris gäller bara en vald prissensor i HA
+  slot.querySelector("#psrc").onchange = (e) => { slot.querySelector("#psrcsensor").hidden = !e.target.value; };
   slot.querySelector("#psrcsave").onclick = async () => {
     try { await postJSON("api/price-source", { ha_entity: slot.querySelector("#psrc").value, includes_vat: slot.querySelector("#psrcvat").checked,
       final: slot.querySelector("#psrcfinal").value, current_entity: slot.querySelector("#psrccurrent").value });

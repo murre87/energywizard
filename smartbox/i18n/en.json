@@ -2426,5 +2426,14 @@
  "Standard: Nord Pool (automatiskt)": "Default: Nord Pool (automatic)",
  "Spotpriset hämtas automatiskt från Nord Pool. Välj en prissensor bara om du hellre vill använda din elleverantörs pris. Slutar sensorn fungera tar Nord Pool över.": "The spot price is fetched automatically from Nord Pool. Only choose a price sensor if you would rather use your electricity supplier's price. If the sensor stops working, Nord Pool takes over.",
  "Ingen prissensor hittades i Home Assistant. Det behövs inte.": "No price sensor was found in Home Assistant. None is needed.",
- "Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.": "Where the spot price comes from. Outside Sweden it is fetched automatically from Nord Pool, except in the Czech Republic and Australia, where you choose a price sensor in Home Assistant. VAT and fees are set under Electricity price and fees."
+ "Varifrån spotpriset hämtas. Utanför Sverige hämtas det automatiskt från Nord Pool, utom i Tjeckien och Australien där du väljer en prissensor i Home Assistant. Moms och avgifter ställer du in under Elpris och avgifter.": "Where the spot price comes from. Outside Sweden it is fetched automatically from Nord Pool, except in the Czech Republic and Australia, where you choose a price sensor in Home Assistant. VAT and fees are set under Electricity price and fees.",
+ "Publicerade priser": "Published prices",
+ "Automatiskt (Amber uppdateras var 5:e minut)": "Automatic (Amber refreshes every 5 minutes)",
+ "Slutgiltiga när de publicerats (dagen före-priser)": "Final once published (day-ahead prices)",
+ "Uppdatera aktuella och kommande priser var 5:e minut": "Refresh current and future prices every 5 minutes",
+ "Sensor för aktuellt pris (valfri)": "Current price sensor (optional)",
+ "Använd det aktuella priset, inte prognosen. Ambers motsvarande _price-sensor provas automatiskt. Välj den här om den har bytt namn.": "Use the current price, not the forecast. Amber's matching _price sensor is tried automatically. Select it here if it has been renamed.",
+ "Exempel: spotpris": "Example: a spot price of",
+ "exkl. moms blir": "excl. VAT becomes",
+ "hittas inte i Home Assistant": "not found in Home Assistant"
 }
