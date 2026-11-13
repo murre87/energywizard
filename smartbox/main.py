@@ -247,11 +247,16 @@ if not car_drivers and isinstance(heat_pump_driver, house_config.NullHeatPumpDri
         # webdashboard terminerar ingen egen TLS (bekräftat: bara vanlig uvicorn-HTTP på
         # 8503) - tvinga http:// oavsett HA:s eget schema, annars blir länken trasig.
         dashboard_url = urlunsplit(("http", f"{parts.hostname}:8503", "", "", ""))
+        # #271: notisen går inte genom webbläsarens översättare. Länken byts mot URL före
+        # uppslagning, annars hamnar värdens siffror i ordliste-nyckeln.
+        _lang = i18n_py.language()
+        _title = "EnergyWizard: slutför installationen"
+        _msg = ("Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren](URL) "
+                "för att hitta din värmepump, bilar, solceller m.m. automatiskt.")
         homeassistant.send_persistent_notification(
             "energywizard_setup",
-            "🔆 EnergyWizard: slutför installationen",
-            f"Inget hittat än i din house_config.yaml. Gå till [entitetsväljaren]({dashboard_url}) "
-            "för att hitta din värmepump, bilar, solceller m.m. automatiskt.",
+            "🔆 " + i18n_py.tr(_title, _lang),
+            i18n_py.tr(_msg, _lang).replace("URL", dashboard_url),
         )
         print(f"🔆 Ny installation upptäckt - skickade en påminnelse till HA:s notisfält ({dashboard_url}).")
     else:

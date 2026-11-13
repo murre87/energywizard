@@ -2127,7 +2127,9 @@ async function runDiscovery(ev, cached) {
       <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div>${item.note ? `<div class="note" style="margin-top:6px">${esc(item.note)}</div>` : ""}</div>`;
   };
   html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? (d.heat_pump.note || `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)`) : "");
-  html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `Effekt: ${d.solar.pv_power_entity || "-"} · Dagsenergi: ${d.solar.today_kwh_entity || "-"}` : "");
+  // Etikett och värde i var sin textnod (#271): ordlistan kan översätta etiketten utan att
+  // entitets-id:t hamnar i nyckeln. En sammanslagen sträng matchar bara just den installationen.
+  html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `<span>Effekt</span>: ${d.solar.pv_power_entity || "-"} · <span>Dagsenergi</span>: ${d.solar.today_kwh_entity || "-"}` : "");
   html += simpleCard("🛁", "Spabad", d.spa, d.spa ? `Temp: ${d.spa.current_temp_entity || "-"} · Effekt: ${d.spa.power_entity || "-"}` : "");
   html += simpleCard("🔋", "Husbatteri", d.battery, d.battery ? `SOC: ${d.battery.soc_entity || "-"} · Effekt: ${d.battery.power_entity || "-"} · bara läsning/enkel styrning, EnergyWizard fattar inga automatiska laddningsbeslut - kör Predbat parallellt för det.` : "");
 
@@ -2151,11 +2153,16 @@ async function runDiscovery(ev, cached) {
       <span>Låt EnergyWizard <b>styra</b> batteriet (laddar billigt, laddar ur dyrt). <span class="note">Drivrutinen har styrning men är inte provad på riktig hårdvara – börja i skuggläge.</span></span></label>
     <div class="note" id="ftw_info" style="margin-top:6px"></div></div>`;
 
+  // #271: "Använd" / "effektsensorn" / Tibber-delarna i egna noder, värdet utanför.
+  const useMeter = (pm) => pm.driver === "tibber_pulse"
+    ? `<span>Använd</span> Tibber Pulse (${[pm.entities.import_w ? "<span>köp- och säljeffekt</span>" : "", pm.entities.current_l1 ? "<span>ström per fas</span>" : ""].filter(Boolean).join(" + ")})`
+    : `<span>Använd</span> <span>effektsensorn</span> ${esc(pm.entities.power_w)}`;
   html += `<div class="card" style="margin-bottom:16px"><h2>⚡ Elmätare / Tibber Pulse</h2>
     <div class="note">Krävs för effektvakten, säkringsskyddet och solladdningen. Bäst är en mätare med ström per fas (t.ex. Tibber Pulse); en smartmätare (HAN/P1) med bara effekt fungerar också.</div>
-    ${d.power_meter ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="pick" data-cat="Elmätare" checked> Använd ${d.power_meter.driver === "tibber_pulse" ? `Tibber Pulse (${[d.power_meter.entities.import_w ? "köp- och säljeffekt" : "", d.power_meter.entities.current_l1 ? "ström per fas" : ""].filter(Boolean).join(" + ")})` : "effektsensorn " + esc(d.power_meter.entities.power_w)}</label>` : ""}`;
+    ${d.power_meter ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="pick" data-cat="Elmätare" checked> ${useMeter(d.power_meter)}</label>` : ""}`;
   (d.grid_meters || []).forEach(g => {
-    html += `<div class="note" style="margin-top:6px">• ${g.kind === "pulse" ? "Tibber Pulse" : "Smartmätare"}: ${g.power_entity} (${g.maker || "okänt märke"})</div>`;
+    const kind = g.kind === "pulse" ? "Tibber Pulse" : "Smartmätare";
+    html += `<div class="note" style="margin-top:6px">• <span>${kind}</span>: ${esc(g.power_entity)} (<span>${esc(g.maker || "okänt märke")}</span>)</div>`;
   });
   if (!(d.grid_meters || []).length) html += `<div class="note" style="margin-top:6px">Ingen hittades.</div>`;
   // Fritt val bland alla effektsensorer i HA (issue #86), plus en valfri mätare för en annan byggnad
