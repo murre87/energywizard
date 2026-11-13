@@ -2410,5 +2410,13 @@
  "Byt till klassisk": "Switch to classic",
  "Klassisk stil – ändra under Inställningar → Appen → Stil": "Classic style – change it under Settings → The app → Style",
  "Varmvatten: start # °C fäster inte, pumpen visar start # °C": "Hot water: start # °C does not stick, the pump shows start # °C",
- "Varmvatten: start # °C fäste inte, pumpen visar start # °C": "Hot water: start # °C did not stick, the pump shows start # °C"
+ "Varmvatten: start # °C fäste inte, pumpen visar start # °C": "Hot water: start # °C did not stick, the pump shows start # °C",
+ "Huset drar # kW": "The house is using # kW",
+ "myUplink: logga in igen": "myUplink: sign in again",
+ "myUplink nekar EnergyWizards inloggning, så värmepumpen styrs inte just nu": "myUplink is rejecting EnergyWizard's sign-in, so the heat pump is not being controlled right now",
+ "Logga in på nytt och byt MYUPLINK_REFRESH_TOKEN": "Sign in again and replace MYUPLINK_REFRESH_TOKEN",
+ "MyUplinkHeatPumpDriver: myUplink nekar inloggningen, HTTP #": "MyUplinkHeatPumpDriver: myUplink is rejecting the sign-in, HTTP #",
+ "Logga in på nytt med scripts/myuplink_authorize.py och byt MYUPLINK_REFRESH_TOKEN": "Sign in again with scripts/myuplink_authorize.py and replace MYUPLINK_REFRESH_TOKEN",
+ "Värmepumpen styrs inte så länge": "The heat pump is not controlled until then",
+ "MyUplinkHeatPumpDriver: inloggningen fungerar igen": "MyUplinkHeatPumpDriver: the sign-in works again"
 }

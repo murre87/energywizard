@@ -1,5 +1,13 @@
 # Ändringar
 
+## 1.2.78 (2026-11-13)
+- **myUplink: inloggningen håller** (#384). myUplink byter refresh-token vid varje förnyelse, men EnergyWizard
+  fortsatte använda den gamla, så efter en tid nekades varje inloggning (400 Bad Request) och värmepumpen styrdes
+  inte. Nu används den nya direkt och sparas i datamappen. En egen ny `MYUPLINK_REFRESH_TOKEN` går alltid före.
+  Nekas inloggningen ändå kommer en tydlig varning och en avisering om att logga in igen, nya försök görs var
+  30:e minut, och det räknas inte längre som programfel.
+- Översatt: brödtexten i aviseringen om onormal baslast ("Huset drar 4,5 kW") (#202).
+
 ## 1.2.77 (2026-11-13)
 - **Thermia: varmvattnets startvärde hålls inom pumpens intervall** (30–55 °C enligt installatörsmenyn
   SERVICE → HOT WATER). Bortaläge och effekttak bad om start 5 °C, vilket pumpen inte tar emot.

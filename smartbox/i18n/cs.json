@@ -2410,5 +2410,13 @@
   "Byt till klassisk": "Přepnout na klasický",
   "Klassisk stil – ändra under Inställningar → Appen → Stil": "Klasický styl – změníte v Nastavení → Aplikace → Styl",
   "Varmvatten: start # °C fäster inte, pumpen visar start # °C": "Teplá voda: start # °C se neuloží, čerpadlo ukazuje start # °C",
-  "Varmvatten: start # °C fäste inte, pumpen visar start # °C": "Teplá voda: start # °C se neuložil, čerpadlo ukazuje start # °C"
+  "Varmvatten: start # °C fäste inte, pumpen visar start # °C": "Teplá voda: start # °C se neuložil, čerpadlo ukazuje start # °C",
+  "Huset drar # kW": "Dům odebírá # kW",
+  "myUplink: logga in igen": "myUplink: přihlaste se znovu",
+  "myUplink nekar EnergyWizards inloggning, så värmepumpen styrs inte just nu": "myUplink odmítá přihlášení EnergyWizardu, takže tepelné čerpadlo se teď neřídí",
+  "Logga in på nytt och byt MYUPLINK_REFRESH_TOKEN": "Přihlaste se znovu a vyměňte MYUPLINK_REFRESH_TOKEN",
+  "MyUplinkHeatPumpDriver: myUplink nekar inloggningen, HTTP #": "MyUplinkHeatPumpDriver: myUplink odmítá přihlášení, HTTP #",
+  "Logga in på nytt med scripts/myuplink_authorize.py och byt MYUPLINK_REFRESH_TOKEN": "Přihlaste se znovu pomocí scripts/myuplink_authorize.py a vyměňte MYUPLINK_REFRESH_TOKEN",
+  "Värmepumpen styrs inte så länge": "Do té doby se tepelné čerpadlo neřídí",
+  "MyUplinkHeatPumpDriver: inloggningen fungerar igen": "MyUplinkHeatPumpDriver: přihlášení opět funguje"
 }

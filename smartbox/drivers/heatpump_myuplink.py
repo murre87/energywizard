@@ -36,6 +36,8 @@ användaren hittar dem själv via GET /v2/devices/{deviceId}/points, exakt som
 myUplink-integrationens egen felsökningsguide beskriver) - vi gissar INTE på vilket
 parameterId som betyder vad för ett visst märke/modell. set_*-metoder skriver bara
 till punkter som dels är konfigurerade, dels senast lästes med writable=true."""
+import hashlib
+import json
 import os
 import time
 
@@ -52,6 +54,42 @@ _REFRESH_TOKEN = os.environ.get("MYUPLINK_REFRESH_TOKEN", "")
 _DEVICE_ID = os.environ.get("MYUPLINK_DEVICE_ID", "")
 # Supervisor-proxyn svarar 502/503/504 medan API:t startar om. Samma gräns som mot Home Assistant.
 _GATEWAY_STATUS = (502, 503, 504)
+# myUplink roterar refresh_token vid varje förnyelse: den nya sparas här (samma datamapp som
+# energywizard.json) så att den överlever en omstart. Tillhör den en annan MYUPLINK_REFRESH_TOKEN
+# än den som står i miljön nu (användaren har loggat in på nytt) används miljöns.
+_TOKEN_STORE = os.environ.get("EW_MYUPLINK_TOKEN_PATH") or os.path.join(
+    os.path.dirname(os.environ.get("EW_SETTINGS_PATH", "/data/energywizard.json")), "myuplink-token.json")
+_AUTH_RETRY_S = 1800      # nekad inloggning: nytt försök var 30:e minut, inte varje kvart
+_AUTH_DENIED = (400, 401)  # invalid_grant / ogiltig klient: användaren måste logga in igen
+
+
+def _seed(token: str) -> str:
+    return hashlib.sha256((token or "").encode()).hexdigest()[:16]
+
+
+def _load_refresh_token() -> str:
+    try:
+        with open(_TOKEN_STORE, encoding="utf-8") as f:
+            d = json.load(f)
+        if d.get("seed") == _seed(_REFRESH_TOKEN) and d.get("refresh_token"):
+            return d["refresh_token"]
+    except (OSError, ValueError):
+        pass
+    return _REFRESH_TOKEN
+
+
+def _save_refresh_token(token: str) -> bool:
+    try:
+        tmp = _TOKEN_STORE + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"seed": _seed(_REFRESH_TOKEN), "refresh_token": token, "saved": int(time.time())}, f)
+        os.replace(tmp, _TOKEN_STORE)
+        return True
+    except OSError as e:
+        print(f"⚠️ MyUplinkHeatPumpDriver: kunde inte spara den nya inloggningen ({e.__class__.__name__}). "
+              "Den gäller tills motorn startas om.")
+        return False
 
 
 def _myuplink_mark(exc) -> str:
@@ -85,6 +123,8 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
         self._token_expiry = 0.0
         self._writable: dict[str, bool] = {}
         self._warned: set[str] = set()
+        self._refresh_token: str | None = None   # läses första gången den behövs
+        self._auth_denied_at = 0.0
 
     def _warn_unsupported(self, method: str, reason: str):
         if method not in self._warned:
@@ -94,32 +134,55 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
     def _refresh_access_token(self) -> str | None:
         """grant_type=refresh_token - headless, kräver ingen webbläsare efter den
         allra första engångsauktoriseringen (se scripts/myuplink_authorize.py).
-        VARNING, dokumenterad begränsning: om myUplink roterar refresh_token vid
-        förnyelse (vanligt i OAuth2) används den ANTINGEN kvar i minnet för resten
-        av processens livstid, ELLER - om den inte roteras - samma värde i .env
-        fortsätter fungera. Vi skriver INTE tillbaka en ny refresh_token till .env
-        automatiskt (containern har ingen säker, skrivbar väg dit) - om inloggning
-        börjar misslyckas efter en tid kan en ny engångsauktorisering krävas."""
+        myUplink roterar refresh_token: den nya används direkt och sparas (_TOKEN_STORE).
+        Förut användes alltid den gamla ur miljön, så inloggningen slutade fungera med
+        400 Bad Request efter första rotationen. Nekar myUplink ändå (400/401) är det ett
+        inloggningsproblem hos användaren, inte ett programfel: en tydlig varning, en
+        avisering och nytt försök var 30:e minut."""
         if not (_CLIENT_ID and _CLIENT_SECRET and _REFRESH_TOKEN):
             return None
+        if self._auth_denied_at and time.time() - self._auth_denied_at < _AUTH_RETRY_S:
+            return None
+        if self._refresh_token is None:
+            self._refresh_token = _load_refresh_token()
         try:
             r = requests.post(_TOKEN_URL, data={
-                "grant_type": "refresh_token", "refresh_token": _REFRESH_TOKEN,
+                "grant_type": "refresh_token", "refresh_token": self._refresh_token,
                 "client_id": _CLIENT_ID, "client_secret": _CLIENT_SECRET,
             }, timeout=10)
+            if getattr(r, "status_code", 200) in _AUTH_DENIED:
+                self._auth_denied(r.status_code)
+                return None
             r.raise_for_status()
             d = r.json()
             self._access_token = d["access_token"]
             self._token_expiry = time.time() + float(d.get("expires_in", 3600)) - 60
             new_refresh = d.get("refresh_token")
-            if new_refresh and new_refresh != _REFRESH_TOKEN:
-                print("⚠️ MyUplinkHeatPumpDriver: myUplink skickade en NY refresh_token - "
-                      "uppdatera MYUPLINK_REFRESH_TOKEN i .env manuellt, annars slutar "
-                      "inloggningen fungera när den gamla går ut.")
+            if new_refresh and new_refresh != self._refresh_token:
+                self._refresh_token = new_refresh
+                _save_refresh_token(new_refresh)
+            if self._auth_denied_at:
+                print("✅ MyUplinkHeatPumpDriver: inloggningen fungerar igen.")
+                self._auth_denied_at = 0.0
             return self._access_token
         except Exception as e:
             print(f"{_myuplink_mark(e)} MyUplinkHeatPumpDriver: kunde inte förnya access-token: {e}")
             return None
+
+    def _auth_denied(self, status):
+        first = not self._auth_denied_at
+        self._auth_denied_at = time.time()
+        if not first:
+            return
+        print(f"⚠️ MyUplinkHeatPumpDriver: myUplink nekar inloggningen, HTTP {status}. Logga in på nytt med "
+              "scripts/myuplink_authorize.py och byt MYUPLINK_REFRESH_TOKEN. Värmepumpen styrs inte så länge.")
+        try:
+            import notifier
+            notifier.send_emil("⚠️ myUplink: logga in igen",
+                               "myUplink nekar EnergyWizards inloggning, så värmepumpen styrs inte just nu. "
+                               "Logga in på nytt och byt MYUPLINK_REFRESH_TOKEN.")
+        except Exception:
+            pass
 
     def _headers(self) -> dict | None:
         if not self._access_token or time.time() >= self._token_expiry:
