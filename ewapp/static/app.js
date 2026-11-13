@@ -4,7 +4,7 @@ const $ = (s) => document.querySelector(s), app = $("#app");
 const LS = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let FL = null;                     // "Just nu"-flödet på Hem (api/flow, samma som webbens Översikt)
 let PC = null, PCAt = 0, PCNEW = false, PCEL = null, PCH = null;   // planklockan (planclock.js) - samma DOM-nod mellan omritningar så att visaren inte hoppar
-let LJ = null, VIEWAS = LS.get("ew_viewas", ""), GR = null, ME = "", ROLE = "owner", EN = null, S = null, H = null, page = LS.get("ew_page", "bil"), busy = false, timer = null, installEvt = null, SCH = null, schCar = "", HIST = null, SET = null, PL = null, SV = null, HX = null, JR = null, jBack = 1, EC = null, ecAt = 0, TL = null, TLAt = 0;
+let LJ = null, VIEWAS = LS.get("ew_viewas", ""), GR = null, ME = "", ROLE = "owner", EN = null, S = null, H = null, page = LS.get("ew_page", "bil"), busy = false, timer = null, installEvt = null, SCH = null, CLIM = null, schCar = "", HIST = null, SET = null, PL = null, SV = null, HX = null, JR = null, jBack = 1, EC = null, ecAt = 0, TL = null, TLAt = 0;
 let svPeriod = LS.get("ew_sv_period", "week"), hxPeriod = LS.get("ew_hx_period", "today"), hxRange = LS.get("ew_hx_range", "24h");
 // gamla flikar (före fem-flik-layouten) pekas om så ingen hamnar på en tom sida
 page = ({ ljus: "hem", energi: "hem", schema: "plan", grafer: "historik" })[page] || page;
@@ -41,7 +41,7 @@ function showLogin(msg) {
   $("#lf").onsubmit = async (e) => { e.preventDefault(); try { await api("login", { user: $("#un").value, password: $("#pw").value }); start(); } catch (er) { showLogin(er.message); } };
 }
 const ER = () => (ROLE === "owner" && VIEWAS) ? VIEWAS : ROLE;                    // effektiv roll: ägaren kan förhandsgranska Elins vy och gästläget
-const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
+const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "clim", "climclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
               guest: ["theme", "ser", "tab", "health", "settings", "swap", "schcar", "cardata", "rooms", "greet", "log", "report", "hp", "hr", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"] };
 const can = (a) => ER() === "owner" || (ROLE === "owner" && a === "viewas") || (CAN[ER()] || []).includes(a);   // ägaren kan alltid byta tillbaka från förhandsvisningen
 const TABS = { owner: ["hem", "bil", "hus", "plan", "historik"], family: ["hem", "bil", "plan"], guest: ["hem", "bil", "hus", "plan", "historik"] };
@@ -346,9 +346,13 @@ function schemaInner() {
   const _cs = (S && S.cars) || []; if (!_cs.some((c) => c.key === schCar) && _cs.length) schCar = _cs[0].key;
   const s = SCH[schCar];
   if (!s) return `<div class="note" style="text-align:center">Inget laddschema för den här bilen.</div>`;
+  const hx = CLIM && CLIM[schCar];
+  const heat = hx && hx.has_climate ? `<section class="card" style="margin-top:12px"><h4>Kupévärme</h4>
+    <div class="note">Varje dag, varm till klockan när bilen är hemma eller inkopplad.</div>
+    <div class="card srow"><b>På</b><button class="sw ${hx.enabled ? "on" : ""}" data-a="clim" data-f="enabled" aria-label="Kupévärme på/av"></button><button class="tm" data-a="climclock" aria-label="Varm kl"><span>${hx.time}</span></button><div class="step"><button data-a="clim" data-f="t-">−</button><span>${hx.temp}°</span><button data-a="clim" data-f="t+">+</button></div></div></section>` : "";
   return `<div class="seg">${_cs.map((c) => `<button data-a="schcar" data-v="${esc(c.key)}" class="${schCar === c.key ? "on" : ""}">${esc(c.name)}</button>`).join("")}</div>
   <div class="note" style="text-align:center">Klar till vald tid och batterinivå. Av = laddar bara enligt pris/Auto.</div>
-  <div class="sched">${DAYS.map((d, i) => { const x = s[i]; return `<div class="card srow"><b>${d}</b><button class="sw ${x.enabled ? "on" : ""}" data-a="sch" data-d="${i}" data-f="enabled" aria-label="${d} på/av"></button><button class="tm" data-a="schclock" data-d="${i}" aria-label="${d} klar kl"><span>${x.time}</span></button><div class="step"><button data-a="sch" data-d="${i}" data-f="soc-">−</button><span>${x.soc}%</span><button data-a="sch" data-d="${i}" data-f="soc+">+</button></div></div>`; }).join("")}</div>`;
+  <div class="sched">${DAYS.map((d, i) => { const x = s[i]; return `<div class="card srow"><b>${d}</b><button class="sw ${x.enabled ? "on" : ""}" data-a="sch" data-d="${i}" data-f="enabled" aria-label="${d} på/av"></button><button class="tm" data-a="schclock" data-d="${i}" aria-label="${d} klar kl"><span>${x.time}</span></button><div class="step"><button data-a="sch" data-d="${i}" data-f="soc-">−</button><span>${x.soc}%</span><button data-a="sch" data-d="${i}" data-f="soc+">+</button></div></div>`; }).join("")}</div>${heat}`;
 }
 // ---- Grafer ----------------------------------------------------------------------------------------------------------------------
 const hiddenSer = (key) => String(LS.get("ew_hide_" + key, "")).split(",").filter((x) => x !== "").map(Number);
@@ -519,7 +523,7 @@ async function load() {
     if (page === "hem") { if (!S || Date.now() - (S._t || 0) > 30000) { S = await api("state").catch(() => S); if (S) S._t = Date.now(); }
       [EN, PL, SV, FL] = await Promise.all([api("energy"), api("plan").catch(() => PL), ER() === "owner" ? api("savings").catch(() => null) : null, api("flow").catch(() => FL)]); if (!LJ && can("lights")) LJ = await api("lights").catch(() => null); await loadClock(); }
     if (page === "bil" && Date.now() - ecAt > 300000) { ecAt = Date.now(); api("ev-cost").then((d) => { EC = d; if (page === "bil") render(); }).catch(() => {}); }
-    if (page === "plan") { PL = await api("plan").catch(() => PL); if (!SCH) SCH = await api("schedule"); await loadClock(); }
+    if (page === "plan") { PL = await api("plan").catch(() => PL); if (!SCH) SCH = await api("schedule"); if (!CLIM) CLIM = await api("schedule/climate").catch(() => CLIM); await loadClock(); }
     if (page === "historik") {
       if (histView === "energi") { HX = await api("energyhistory?range=" + hxRange); JR = await api("control-journal?back=" + jBack).catch(() => JR); }
       else if (histView === "pris") { if (!TL || Date.now() - TLAt > 60000) { TL = await api("timeline").catch(() => TL); if (TL) TLAt = Date.now(); } }
@@ -697,6 +701,19 @@ function schClockSheet(d) {
     if (v === "ok") { SCH[schCar][d].time = `${pad2(h)}:${pad2(m)}`; closeSheet(); schedSave(schCar, d); } else { [h, m] = clockStep(v, h, m); draw(); } };
 }
 async function schedSave(car, day) { const x = SCH[car][day]; try { await api("schedule", { car, day, enabled: x.enabled, time: x.time, soc: x.soc }); toast("Sparat"); } catch (e) { toast(e.message); } }
+function climClockSheet() {
+  const x = CLIM && CLIM[schCar]; if (!x) return;
+  let [h, m] = String(x.time).split(":").map(Number);
+  const draw = () => sheet(`<h3>Kupévärme – varm kl</h3>${clockHTML(h, m)}<button class="big" data-v="ok">Klar</button>`);
+  draw();
+  $("#sheet").onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) { if (e.target.id === "sheet") closeSheet(); return; } const v = b.dataset.v;
+    if (v === "ok") { x.time = `${pad2(h)}:${pad2(m)}`; closeSheet(); render(); climSave(); } else { [h, m] = clockStep(v, h, m); draw(); } };
+}
+async function climSave() {
+  const x = CLIM && CLIM[schCar]; if (!x) return;
+  try { await api("schedule/climate", { car: schCar, enabled: x.enabled, time: x.time, temp: x.temp }); toast("Sparat"); }
+  catch (e) { toast(e.message); }
+}
 document.addEventListener("click", async (e) => {
   const jb = e.target.closest("[data-jback]");             // Höll vi planen? Idag/Igår (journal.js) - bara att titta, alla roller
   if (jb) { jBack = +jb.dataset.jback; JR = await api("control-journal?back=" + jBack).catch(() => JR); return render(); }
@@ -728,6 +745,8 @@ document.addEventListener("click", async (e) => {
   if (a === "theme") { cycleTheme(); return; }
   if (a === "ser") { const [ck, ix] = v.split(":"); const h = hiddenSer(ck), n = +ix; LS.set("ew_hide_" + ck, (h.includes(n) ? h.filter((x) => x !== n) : [...h, n]).join(",")); render(); return; }
   if (a === "schclock") { schClockSheet(+b.dataset.d); return; }
+  if (a === "climclock") { climClockSheet(); return; }
+  if (a === "clim") { const x = CLIM && CLIM[schCar]; if (!x) return; const f = b.dataset.f; buzz(8); if (f === "enabled") x.enabled = !x.enabled; else if (f === "t+") x.temp = Math.min(28, Math.round((Number(x.temp) + 1) * 10) / 10); else if (f === "t-") x.temp = Math.max(15, Math.round((Number(x.temp) - 1) * 10) / 10); render(); return climSave(); }
   if (a === "lights") { buzz(25); try { const r = await api("lights", { action: v }); toast(r.msg); LJ = await api("lights"); render(); } catch (er) { toast(er.message); } return; }
   if (a === "viewas") { VIEWAS = v; LS.set("ew_viewas", v); grAt = 0; closeSheet(); loadGreeting(); return; }
   if (a === "trip") return tripSheet(c);

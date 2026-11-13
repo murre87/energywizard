@@ -546,7 +546,8 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
             "mode": mode, "amps": amps, "phases": phases, "eta": eta, "away": away, "online": (val(st, c["online"]) or "off") == "on", "default_phases": c["phases"],
             # Klimatet är igång när man kör - det är inte "förvärmning". Bara när bilen står hemma och inte är i körläge.
             "driving": driving(st, c),
-            "climate_on": (val(st, c["climate"]) or "off") not in ("off", "unavailable") and home and not driving(st, c), "inside": num(st, c["inside"]),
+            "climate_on": (val(st, c["climate"]) or "off") not in ("off", "unavailable") and home and not driving(st, c),
+            "has_climate": bool(c.get("climate")), "inside": num(st, c["inside"]),
             "age_h": age_h(st, c["soc"]), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "plan_all": plan_blocks_ui(key, soc, c["cap_kwh"]), "plan_slots": plan_slots(key), "solar": solar_info(ov),
             "guest": _guest_of(ov, key),
             "access": ({"locked": val(st, c["lock"]) == "locked", "trunk": bool(c["trunk"]) and val(st, c["trunk"]) == "open",
@@ -1021,6 +1022,35 @@ async def set_schedule(request: Request):
         save_schedule_row(car, day, t, bool(b.get("enabled")), soc)
     logact(request, f"Schema {car} dag {','.join(str(d) for d in days)}: {'på' if b.get('enabled') else 'av'} {t} {soc} %")
     return {"ok": True}
+
+
+@app.get("/api/schedule/climate")
+def get_climate_schedule():
+    """Kupévärme till ett klockslag (#233). Samma climate_schedule som motorn läser."""
+    import settings
+    import car_climate_schedule as cc
+    saved = settings.get_climate_schedule(list(CARS))
+    return {cid: cc.view(saved.get(cid), bool(spec.get("climate"))) for cid, spec in CARS.items()}
+
+
+@app.post("/api/schedule/climate")
+async def set_climate_schedule(request: Request):
+    import settings
+    import car_climate_schedule as cc
+    b = await request.json()
+    car = b.get("car")
+    if car not in CARS:
+        raise HTTPException(400, "Ogiltig bil")
+    if not CARS[car].get("climate"):
+        raise HTTPException(409, "Ingen värme vald för bilen - välj bilens klimatentitet i installationen")
+    try:
+        row = cc.normalize(b.get("enabled"), b.get("time"), b.get("temp"))
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    if not settings.save_climate_schedule_db(car, row["enabled"], row["time"], row["temp"]):
+        raise HTTPException(502, "Kunde inte spara värmeschemat")
+    logact(request, f"Kupévärme {car}: {'på' if row['enabled'] else 'av'} {row['time']} {row['temp']} °C")
+    return {"ok": True, **row}
 
 
 # -- Grafer ----------------------------------------------------------------------------------------------------------------

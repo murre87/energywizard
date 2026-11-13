@@ -551,6 +551,21 @@ function goalText(g) {
 }
 
 async function renderElbil() {
+  const heat = await api("api/schedule/climate").catch(() => ({}));
+  const heatCard = (c) => {
+    const h = heat && heat[c.id];
+    if (!h || !h.has_climate) return "";
+    return `<div class="card" style="margin-top:12px;padding:12px">
+      <div class="note">Kupévärme</div>
+      <div class="note" style="margin:6px 0 8px">Varje dag, varm till klockan när bilen är hemma eller inkopplad.</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label class="switch" style="flex:none"><input type="checkbox" class="cl-en" data-car="${c.id}" ${h.enabled ? "checked" : ""}><span class="slider"></span></label>
+        <input type="time" class="cl-t" data-car="${c.id}" value="${h.time}" style="flex:1 1 90px;min-width:0">
+        <input type="number" class="cl-c" data-car="${c.id}" min="15" max="28" step="0.5" value="${h.temp}" style="width:72px"> <span>°C</span>
+      </div>
+      <button class="icobtn cl-save" data-car="${c.id}" style="margin-top:8px">Spara värmen</button>
+    </div>`;
+  };
   const d = await loadPage("api/car", (d) => `
     <div class="grid" style="margin-bottom:16px">
       ${d.cars.map(c => {
@@ -585,6 +600,7 @@ async function renderElbil() {
             <button class="icobtn sch-all" data-car="${c.id}" title="Måndagens rad gäller alla dagar">Samma som måndag alla dagar</button>
           </div>
         </div>
+        ${heatCard(c)}
       </div>`;
       }).join("")}
     </div>
@@ -607,6 +623,15 @@ async function renderElbil() {
   document.querySelectorAll(".sch-all").forEach(b => b.onclick = () => {
     const car = b.dataset.car;
     postAction("api/schedule", { car, days: [0, 1, 2, 3, 4, 5, 6], ...rowOf(car, 0) }, "Måndagens schema gäller nu alla dagar").then(renderElbil);
+  });
+  document.querySelectorAll(".cl-save").forEach(b => b.onclick = async () => {
+    const car = b.dataset.car;
+    const body = { car, enabled: document.querySelector(`.cl-en[data-car="${car}"]`).checked,
+      time: document.querySelector(`.cl-t[data-car="${car}"]`).value,
+      temp: parseFloat(document.querySelector(`.cl-c[data-car="${car}"]`).value) };
+    try { await postJSON("api/schedule/climate", body); toast("Värmeschemat sparat"); }
+    catch (e) { toast(e.message); }
+    renderElbil();
   });
   if (d) api("api/ev-cost").then((ec) => {                // laddat idag/veckan/månaden och vad det kostade
     const g = document.querySelector("#main .grid"), html = ec && ec.ok && window.EWJournal ? EWJournal.evCostHtml(ec, { unit: moneyUnit() }) : "";
