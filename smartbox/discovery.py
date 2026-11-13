@@ -1057,7 +1057,15 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         if isinstance(target, dict):
             prev = str(target.get("note") or "").strip()
             target["note"] = (prev + " " + hint["note"]).strip()
+    # Status sensors can contain text (e.g. NIBE "Kör"/"Från"). They must not
+    # be limited to numeric temperature/power candidates in the setup wizard.
+    compressor_sensors = sorted((
+        {"entity": e["e"], "name": e.get("n") or e["e"], "state": e.get("st")}
+        for e in entities if e["e"].split(".")[0] in ("sensor", "binary_sensor")
+        and re.search(r"kompressor|compressor|43427", f"{e.get('n') or ''} {e['e']}", re.I)
+    ), key=lambda e: e["name"].lower())
     found = {"cars": cars, "heat_pump": heat_pump, "solar": solar, "spa": spa, "chargers": chargers,
+             "compressor_sensors": compressor_sensors,
              "grid_meters": grid_meters, "power_meter": power_meter, "battery": battery, "power_sensors": power_sensors}
     if hint:
         found["ftw_suggestion"] = hint

@@ -2071,7 +2071,7 @@ function wizardForm() {
   (d.chargers || []).forEach((c, i) => { const cb = document.querySelector(`.charger-pick[data-i="${i}"]`); if (cb) f.chargers[c.device_name || i] = cb.checked; });
   document.querySelectorAll(".pick").forEach((cb) => { f.picks[cb.dataset.cat] = cb.checked; });
   // Elmätarvalen, generisk styrning och direkt anslutning till växelriktare (samma fel som bilarna)
-  f.selects = {}; ["pm_main", "pm_export", "pm_second"].forEach((id) => { const e = document.getElementById(id); if (e) f.selects[id] = e.value; });
+  f.selects = {}; ["pm_main", "pm_export", "pm_second", "hp_compressor"].forEach((id) => { const e = document.getElementById(id); if (e) f.selects[id] = e.value; });
   f.generic = {}; document.querySelectorAll(".generic-pick").forEach((cb) => { f.generic[cb.dataset.key] = cb.checked; });
   const v = (id) => { const e = document.getElementById(id); return !e ? undefined : e.type === "checkbox" ? e.checked : e.value; };
   f.ftw = { drv: v("ftw_drv"), host: v("ftw_host"), port: v("ftw_port"), unit: v("ftw_unit"), bat: v("ftw_bat"), sol: v("ftw_sol") };
@@ -2119,6 +2119,22 @@ function applyWizardForm(f) {
   _pendingFtw = f.ftw || null; applyFtwForm();
 }
 
+function compressorPicker(d) {
+  if (!d.heat_pump || d.heat_pump.driver !== "ha_entities") return "";
+  const selected = (d.heat_pump.entities || {}).compressor || "";
+  const options = [...(d.compressor_sensors || [])];
+  if (selected && !options.some(e => e.entity === selected)) options.push({ entity: selected, name: selected });
+  return `<label style="display:block;margin-top:8px"><span>Kompressorgivare (valfri)</span>
+    <select id="hp_compressor"><option value="">– ingen –</option>${options.map(e => `<option value="${esc(e.entity)}"${e.entity === selected ? " selected" : ""}>${esc(e.name)} · ${esc(e.entity)}${e.state != null ? " · " + esc(e.state) : ""}</option>`).join("")}</select></label>
+    <div class="note">Välj status eller frekvens för kompressorn. Lämna tomt om givaren saknas.</div>`;
+}
+function selectedHeatPump(item) {
+  const input = document.getElementById("hp_compressor");
+  if (!item || item.driver !== "ha_entities" || !input) return item;
+  const entities = { ...(item.entities || {}) };
+  if (input.value) entities.compressor = input.value; else delete entities.compressor;
+  return { ...item, entities };
+}
 async function runDiscovery(ev, cached) {
   const results = document.getElementById("discoverResults");
   let d = cached ? cached.d : null;
@@ -2158,7 +2174,7 @@ async function runDiscovery(ev, cached) {
       <label><input type="checkbox" class="pick" data-cat="${title}" checked> Använd detta fynd</label> ${driverTag(item, title)}
       <div class="note" style="margin-top:6px;font-size:.8rem">${fields}</div>${item.note ? `<div class="note" style="margin-top:6px">${esc(item.note)}</div>` : ""}</div>`;
   };
-  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? (d.heat_pump.note || `${d.heat_pump.device_name} (${d.heat_pump.entity_count} entiteter)`) : "");
+  html += simpleCard("♨️", "Värmepump", d.heat_pump, d.heat_pump ? `${esc(d.heat_pump.device_name || "")} ${compressorPicker(d)}` : "");
   // Etikett och värde i var sin textnod (#271): ordlistan kan översätta etiketten utan att
   // entitets-id:t hamnar i nyckeln. En sammanslagen sträng matchar bara just den installationen.
   html += simpleCard("☀️", "Solceller", d.solar, d.solar ? `<span>Effekt</span>: ${d.solar.pv_power_entity || "-"} · <span>Dagsenergi</span>: ${d.solar.today_kwh_entity || "-"}` : "");
@@ -2312,7 +2328,7 @@ async function generateConfig(save) {
   });
   document.querySelectorAll(".pick:checked").forEach(cb => {
     const cat = cb.dataset.cat;
-    if (cat === "Värmepump") sel.heat_pump = _discovered.heat_pump;
+    if (cat === "Värmepump") sel.heat_pump = selectedHeatPump(_discovered.heat_pump);
     if (cat === "Solceller") sel.solar = _discovered.solar;
     if (cat === "Spabad") sel.spa = _discovered.spa;
     if (cat === "Husbatteri") sel.battery = _discovered.battery;
