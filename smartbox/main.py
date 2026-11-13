@@ -25,6 +25,7 @@ import health            # Sensor-/länkövervakning (varnar när en sensor tyst
 import learning         # AI-modeller för temperatur och avsvalning
 import mpc               # Prediktiv förvärmnings-planerare (skuggläge + veckovis självvalidering)
 import house_config      # EnergyWizard Open: drivrutinsarkitektur (bil/laddare/värmepump/sol/spa)
+import smart_plugs
 import ev_handshake      # Generisk laddar-handskakning (vilken fysisk laddare hör till vilken bil)
 import decision_summary  # Vad görs nu och varför, per enhet (ur gpm.py:s logg)
 import solar_write_guard # Hur ofta exportgränsen får skrivas (flashminnet i växelriktaren)
@@ -114,6 +115,11 @@ try:
 except Exception as e:
     print(f"⚠️ Kunde inte ladda house_config.yaml från {HOUSE_CONFIG_PATH} ({e}) - fortsätter med tomt hus (bara Null-drivrutiner).")
     house_cfg = {}
+try:
+    _smart_plugs = smart_plugs.Controller(house_cfg.get('smart_plugs'))
+except ValueError as e:
+    print(f"Smart plugs disabled: {e}")
+    _smart_plugs = smart_plugs.Controller(None)
 car_drivers = house_config.build_car_drivers(house_cfg)
 charger_drivers = house_config.build_charger_drivers(house_cfg)
 physical_charger_drivers = house_config.build_physical_charger_drivers(house_cfg)
@@ -1136,6 +1142,15 @@ while True:
                 )
             pump_data, price_tuple = asyncio.run(fetch_heavy_data())
             current_price, dynamic_limit, strategy, all_prices = price_tuple
+            # Explicit nonessential devices only; never switch from yesterday's
+            # fallback profile or a missing current interval. Prices use the
+            # configured contract's complete import-price calculation.
+            if _smart_plugs.devices:
+                try:
+                    _plug_price = smart_plugs.policy_price(current_price, strategy, now, nordpool.planning_buy_price)
+                    smart_plugs.run(_smart_plugs, _plug_price, now.timestamp())
+                except Exception as e:
+                    print(f"Smart plug policy skipped: {type(e).__name__}")
 
             # Notis (deduppad per dygn) om vi kör på gårdagens prisprofil pga prisbortfall
             if strategy and strategy.get("price_fallback") and last_price_fallback_notify_date != now.date():
