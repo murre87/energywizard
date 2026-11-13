@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import threading
 import psycopg
 import pandas as pd
 from datetime import datetime
@@ -19,10 +20,15 @@ DB_NAME = os.environ.get("POSTGRES_DB")
 from psycopg_pool import ConnectionPool
 
 _pool = None
+_pool_lock = threading.Lock()
 def get_db_pool():
     global _pool
     if _pool is None:
-        _pool = ConnectionPool(f"host={DB_HOST} user={DB_USER} password={DB_PASS} dbname={DB_NAME}", min_size=1, max_size=20)
+        # First use can race between background readers and log writers. Do not
+        # allocate extra pools whose worker threads/connections would be orphaned.
+        with _pool_lock:
+            if _pool is None:
+                _pool = ConnectionPool(f"host={DB_HOST} user={DB_USER} password={DB_PASS} dbname={DB_NAME}", min_size=1, max_size=20)
     return _pool
 
 @contextmanager
