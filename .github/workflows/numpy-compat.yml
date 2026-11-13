@@ -22,7 +22,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 scripts/check_numpy_compat.py --candidate-target ${{ matrix.target }}
+      - if: matrix.target == 'candidate'
+        run: python3 scripts/check_numpy_compat.py
+      - if: matrix.target == 'candidate-openblas'
+        run: python3 scripts/check_numpy_compat.py --candidate-target candidate-openblas --record-experimental-rejection numpy-legacy-openblas.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && matrix.target == 'candidate-openblas'
+        with:
+          name: numpy-legacy-openblas
+          path: numpy-legacy-openblas.json
+          retention-days: 14
+          if-no-files-found: error
   native-stack:
     strategy:
       fail-fast: false
