@@ -80,6 +80,7 @@ def build(module: str = "", error_type: str = "") -> str:
     import log_scrub
     words = log_scrub.sensitive_words()
     parts = [f"module={module}", f"error_type={error_type}"]
+    journal_start = None
     if _ring:
         parts.append("--- recent_errors ---")
         parts.extend(list(_ring)[-_MAX_LINES:])
@@ -100,6 +101,7 @@ def build(module: str = "", error_type: str = "") -> str:
     try:
         lines = _journal_lines()
         if lines:
+            journal_start = len(parts)
             parts.append(f"--- log (senaste {JOURNAL_HOURS} h, sanerad) ---")
             for ts, src, lvl, msg in lines:
                 if _NOISE.search(str(msg or "")):                # tomma rader och "1-minutslogg sparad" säger inget
@@ -112,4 +114,16 @@ def build(module: str = "", error_type: str = "") -> str:
     except Exception:
         pass
     out = "\n".join(parts)
-    return out[-_MAX_BUNDLE:] if len(out) > _MAX_BUNDLE else out
+    if len(out) <= _MAX_BUNDLE:
+        return out
+    # Preserve the diagnostic header/error ring when the two-hour journal is
+    # large. Truncating the whole string from the front discarded the reason
+    # the report was sent. All content has already passed the same scrubber.
+    prefix = "\n".join(parts[:journal_start]) if journal_start is not None else "\n".join(parts[:2])
+    if len(prefix) > _MAX_BUNDLE // 2:
+        prefix = "\n".join(parts[:2]) + "\n" + prefix[-(_MAX_BUNDLE // 2):]
+    marker = "--- log truncated: older lines omitted ---"
+    remaining = _MAX_BUNDLE - len(prefix) - len(marker) - 2
+    tail = out[-remaining:]
+    tail = tail.partition("\n")[2]  # never start with half a journal line
+    return prefix + "\n" + marker + "\n" + tail
