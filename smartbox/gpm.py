@@ -1005,6 +1005,38 @@ class GlobalPriorityManager:
                     actions["pump_target_temp"] = target
                     actions["log"].append(f"🏠 Prio 5 (HUS): {why}")
 
+        # --- Prio 5b: RUMSÅTERKOPPLING (2026-11-14) ---
+        # En pump utan egen innegivare (t.ex. Thermia via Husdata) går på värmekurvan: börvärde 20 °C gav ~21,6-21,9 °C
+        # inne och kompressorn värmde under dyra timmar fast huset hade värme att ge av. Med rumsgivarna väljs börvärdet
+        # efter hur varmt huset faktiskt är (1 °C börvärde ≈ 3 °C framledning, uppmätt): dyrt + varmt hus -> golv - 1,
+        # nära golvet -> golv + 1, billigt -> billig temp + 1 tills huset är 0,5 °C under maxgränsen. Över maxgränsen
+        # tar den hårda stoppen ovan över. Backtest mars-nov 2026: ~270 kr, golvet hölls (lägst 19,8 °C kort).
+        # Lägen: av (standard) / skugga (loggar bara) / på. Gäller inte vid hård stopp, kyla, solöverskott eller sommar.
+        fb_mode = state.get('heat_feedback') or "av"
+        if (fb_mode in ("skugga", "på") and indoor_temp is not None and not is_summer
+                and not self.prio5_hysteresis_active and not (indoor_temp < indoor_min)
+                and actions["pump_mode"] in ("CHEAP", "EXPENSIVE")
+                and not any("Kraftigt solöverskott" in l for l in actions["log"][-2:])):
+            fb_floor = float(state.get('temp_expensive', 20.0))
+            fb_boost = float(state.get('heat_feedback_boost', 1.0))
+            if indoor_temp < fb_floor + 0.4:
+                fb_sp, fb_why = fb_floor + 1.0, f"Nära golvet, {indoor_temp:.1f} °C inne"
+            elif actions["pump_mode"] == "CHEAP" and indoor_temp < indoor_max - 0.5:
+                fb_sp, fb_why = float(state.get('temp_cheap', 22.0)) + fb_boost, f"Billigt, lagrar värme, {indoor_temp:.1f} °C inne"
+            elif actions["pump_mode"] == "CHEAP":
+                fb_sp, fb_why = fb_floor, f"Billigt men huset är redan varmt, {indoor_temp:.1f} °C inne"
+            elif indoor_temp >= fb_floor + 0.5:
+                fb_sp, fb_why = fb_floor - 1.0, f"Dyrt och huset har värme att ge av, {indoor_temp:.1f} °C inne"
+            else:
+                fb_sp, fb_why = fb_floor, f"Dyrt, {indoor_temp:.1f} °C inne"
+            if fb_mode == "på":
+                actions["pump_target_temp"] = fb_sp
+                actions["log"].append(f"🌡️ Prio 5b (HUS): Rumsåterkoppling sätter börvärdet till {fb_sp:.1f} °C. {fb_why}.")
+            else:
+                actions["log"].append(f"🧪 Prio 5b (HUS): Rumsåterkoppling i skugga skulle sätta {fb_sp:.1f} °C, nu "
+                                      f"{float(actions['pump_target_temp']):.1f} °C. {fb_why}.")
+            actions["heat_feedback_sp"] = fb_sp
+
         # --- Prio 5.5: BORTALÄGE (AWAY MODE) ---
         if state.get('away_mode_active'):
             actions["spa_target"] = state.get('spa_low_temp', 15.0)
