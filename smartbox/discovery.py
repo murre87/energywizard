@@ -829,10 +829,36 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             continue
         kind = "pulse" if _has(_candidate(e), re.compile("tibber", re.I)) else "smartmätare"
         grid_meters.append({"power_entity": e["e"], "maker": e.get("m"), "kind": kind})
+    # ESPHome p1reader exposes separate *total* active import/export sensors.
+    # Match the upstream names (also with a device prefix), never phase/reactive
+    # power, and never join entities belonging to different physical meters.
+    p1 = None
+    for candidate in power:
+        dev = candidate.get("d")
+        if not dev:
+            continue
+        same_device = [e for e in entities if e.get("d") == dev and e["e"].startswith("sensor.")]
+
+        def unique(suffix, units):
+            matches = [e["e"] for e in same_device if e.get("u") in units
+                       and re.search(rf"(?:^|[_.]){suffix}$", e["e"], re.I)]
+            return matches[0] if len(matches) == 1 else None
+
+        imp = unique("momentary_active_import", {"W", "kW"})
+        exp = unique("momentary_active_export", {"W", "kW"})
+        if imp and exp:
+            p1 = {"import_w": imp, "export_w": exp}
+            for ph in (1, 2, 3):
+                cur = unique(rf"current_phase_{ph}", {"A"})
+                if cur:
+                    p1[f"current_l{ph}"] = cur
+            break
     from homeassistant import detect_tibber_pulse
     pulse = detect_tibber_pulse([e["e"] for e in entities])
     if pulse:
         power_meter = {"driver": "tibber_pulse", "entities": pulse}
+    elif p1:
+        power_meter = {"driver": "power_w", "entities": p1}
     elif grid_meters:
         power_meter = {"driver": "power_w", "entities": {"power_w": grid_meters[0]["power_entity"]}}
         # Strömmen per fas på samma mätare (HomeWizard P1/kWh-mätare: "Current phase 1-3", avstängda som standard
