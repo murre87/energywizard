@@ -2547,5 +2547,22 @@
   "+# € mot självförbrukning": "+# € oproti vlastní spotřebě",
   "−# € mot självförbrukning": "−# € oproti vlastní spotřebě",
   "# € mot självförbrukning": "# € oproti vlastní spotřebě",
-  "{amount} mot sj\u00e4lvf\u00f6rbrukning": "{amount} oproti vlastní spotřebě"
+  "{amount} mot sj\u00e4lvf\u00f6rbrukning": "{amount} oproti vlastní spotřebě",
+  "Per kvart (felsökning)": "Po čtvrthodinách (řešení potíží)",
+  "# av # min mätta": "# z # min změřeno",
+  "följde # av # loggade min": "dodrženo # z # zaznamenaných min",
+  "{dev}: beställt {o}, uppmätt {a}": "{dev}: objednáno {o}, změřeno {a}",
+  "{dev}: beställt {o}": "{dev}: objednáno {o}",
+  "uppmätt elbil # kWh": "změřeno auto # kWh",
+  "uppmätt batteri # kWh": "změřeno baterie # kWh",
+  "uppmätt elbil # kWh, batteri # kWh": "změřeno auto # kWh, baterie # kWh",
+  "# av # kvartar med avvikelse.": "# z # čtvrthodin s odchylkou.",
+  "# av # kvartar med avvikelse": "# z # čtvrthodin s odchylkou",
+  "Inga loggade kvartar det här dygnet.": "Tento den nejsou žádné zaznamenané čtvrthodiny.",
+  "Inga loggade kvartar det här dygnet": "Tento den nejsou žádné zaznamenané čtvrthodiny",
+  "beställt {o}, uppmätt {a}": "objednáno {o}, změřeno {a}",
+  "beställt {o}": "objednáno {o}",
+  "best\u00e4llt paus": "objednáno pauza",
+  "beställt paus, uppmätt {a}": "objednáno pauza, změřeno {a}",
+  "Lägre ström": "Nižší proud"
 }

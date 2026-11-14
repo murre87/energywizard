@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.91 (2026-11-14)
+- **Felsökning per kvart på webben** (#386): under "Höll vi planen?" i Historik finns "Per kvart (felsökning)" med
+  pris, vad varje enhet beställdes och vad den gjorde, hur många av kvartens minuter som loggades och mättes, och
+  uppmätt energi för elbil och batteri. Avvikande kvartar markeras. Bara läsning, och saknade minuter räknas aldrig
+  som att planen följdes.
+
 ## 1.2.90 (2026-11-14)
 - **Besparing jämfört med batteriet i självförbrukningsläge** (#398): för den som har husbatteri visar
   besparingsrutan i appen vad styrningen gav utöver ett batteri i växelriktarens vanliga självförbrukningsläge, t.ex.

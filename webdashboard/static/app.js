@@ -1134,14 +1134,28 @@ async function renderHistorik() {
       </div>
     </div>` : "";
   let jBack = 1, jData = await api("api/control-journal?back=1").catch(() => null);
-  const jHtml = () => window.EWJournal && jData && jData.ok ? `<div class="card" id="journalcard">${EWJournal.html(jData, { back: jBack })}</div>` : "";
+  const jHtml = () => window.EWJournal && jData && jData.ok ? `<div class="card" id="journalcard">${EWJournal.html(jData, { back: jBack })}
+    <details id="sqdet" style="margin-top:10px"><summary>Per kvart (felsökning)</summary><div id="sqbody" class="note">Laddar…</div></details></div>` : "";
+  // #386: per kvart - beställt mot uppmätt per enhet, pris, uppmätt energi och hur mycket som faktiskt mättes
+  const sqRow = (r) => {
+    const t = new Date(r.t).toTimeString().slice(0, 5);
+    const devs = Object.entries(r.devices).map(([n, d]) => `<div style="margin-left:8px"><span>${esc(n)}</span>: <span>${d.ordered != null ? `beställt ${esc(d.ordered)}` : "–"}${d.actual != null ? `, uppmätt ${esc(d.actual)}` : ""}</span> · <span>följde ${d.ok_min} av ${d.logged_min} loggade min</span>${d.notes.map((x) => ` · <span>${esc(x)}</span>`).join("")}</div>`).join("");
+    const meas = [r.ev_kwh > 0.01 ? `elbil ${kr(r.ev_kwh)} kWh` : "", Math.abs(r.battery_kwh) > 0.01 ? `batteri ${r.battery_kwh > 0 ? "+" : ""}${kr(r.battery_kwh)} kWh` : ""].filter(Boolean).join(", ");
+    return `<div style="padding:6px 0;border-top:1px solid var(--line);${r.deviation ? "color:var(--warn)" : ""}"><b>${t}</b>${r.price != null ? ` · ${kr(r.price)} ${moneyUnit()}/kWh` : ""} · ${r.measured_min} av 15 min mätta${meas ? ` · uppmätt ${meas}` : ""}${devs}</div>`;
+  };
+  const sqWire = () => { const det = document.getElementById("sqdet"); if (!det) return;
+    det.ontoggle = async () => { if (!det.open) return; const body = document.getElementById("sqbody");
+      try { const r = await api("api/support-quarters?back=" + jBack); const rows = (r.rows || []);
+        const dev = rows.filter((x) => x.deviation);
+        body.innerHTML = rows.length ? `<div>${dev.length} av ${rows.length} kvartar med avvikelse.</div>${rows.map(sqRow).join("")}` : "Inga loggade kvartar det här dygnet."; }
+      catch (e) { body.textContent = e.message; } }; };
   const jWire = () => main.querySelectorAll("#journalcard [data-jback]").forEach((b) => b.onclick = async () => {
     jBack = +b.dataset.jback; jData = await api("api/control-journal?back=" + jBack).catch(() => jData);
-    const el = document.getElementById("journalcard"); if (el) { el.outerHTML = jHtml(); jWire(); }
+    const el = document.getElementById("journalcard"); if (el) { el.outerHTML = jHtml(); jWire(); sqWire(); }
   });
   const draw = () => {
     main.innerHTML = historyHtml(d) + jHtml() + logHtml;
-    jWire();
+    jWire(); sqWire();
     historyChart(d.series);
     main.querySelectorAll("#histperiod button").forEach((b) => b.onclick = () => { histPeriod = b.dataset.v; try { localStorage.setItem("ew_hist_period", histPeriod); } catch (e) {} draw(); });
     main.querySelectorAll("#histrange button").forEach((b) => b.onclick = async () => {

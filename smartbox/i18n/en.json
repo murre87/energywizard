@@ -2547,5 +2547,22 @@
  "+# € mot självförbrukning": "+# € vs self-consumption",
  "−# € mot självförbrukning": "−# € vs self-consumption",
  "# € mot självförbrukning": "# € vs self-consumption",
- "{amount} mot sj\u00e4lvf\u00f6rbrukning": "{amount} vs self-consumption"
+ "{amount} mot sj\u00e4lvf\u00f6rbrukning": "{amount} vs self-consumption",
+ "Per kvart (felsökning)": "Per quarter-hour (troubleshooting)",
+ "# av # min mätta": "# of # min measured",
+ "följde # av # loggade min": "followed # of # logged min",
+ "{dev}: beställt {o}, uppmätt {a}": "{dev}: ordered {o}, measured {a}",
+ "{dev}: beställt {o}": "{dev}: ordered {o}",
+ "uppmätt elbil # kWh": "measured EV # kWh",
+ "uppmätt batteri # kWh": "measured battery # kWh",
+ "uppmätt elbil # kWh, batteri # kWh": "measured EV # kWh, battery # kWh",
+ "# av # kvartar med avvikelse.": "# of # quarter-hours with a deviation.",
+ "# av # kvartar med avvikelse": "# of # quarter-hours with a deviation",
+ "Inga loggade kvartar det här dygnet.": "No logged quarter-hours this day.",
+ "Inga loggade kvartar det här dygnet": "No logged quarter-hours this day",
+ "beställt {o}, uppmätt {a}": "ordered {o}, measured {a}",
+ "beställt {o}": "ordered {o}",
+ "best\u00e4llt paus": "ordered pause",
+ "beställt paus, uppmätt {a}": "ordered pause, measured {a}",
+ "Lägre ström": "Lower current"
 }

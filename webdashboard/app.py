@@ -639,6 +639,15 @@ def api_control_journal(back: int = 1):
         return {"ok": True, "back": back, "devices": control_journal.day_summary(c, back)}
 
 
+@app.get("/api/support-quarters")
+def api_support_quarters(back: int = 1):
+    """#386: felsökning per kvart - beställt mot uppmätt per enhet, pris, uppmätt energi och täckning (bara läsning)."""
+    import support_view
+    back = max(0, min(29, int(back)))
+    with ENGINE.connect() as c:
+        return {"ok": True, "back": back, "rows": support_view.load(c, back)}
+
+
 @app.get("/api/control-alerts")
 async def control_alerts():
     """Enheter som inte gör det EnergyWizard säger åt dem (smartbox/control_alerts.py, samma som appen) - visas överst."""
