@@ -2566,5 +2566,16 @@
  "beställt paus, uppmätt {a}": "ordered pause, measured {a}",
  "Lägre ström": "Lower current",
  "Aviseringshistoriken: # väntande rader sparade": "Notification history: # pending rows saved",
- "Aviseringshistoriken: {err} - {n} rader väntar och sparas senare": "Notification history: {err} - {n} rows are waiting and will be saved later"
+ "Aviseringshistoriken: {err} - {n} rader väntar och sparas senare": "Notification history: {err} - {n} rows are waiting and will be saved later",
+ "Prio #b (HUS): Rumsåterkoppling sätter börvärdet till # °C": "Prio #b (HOUSE): Room feedback sets the setpoint to # °C",
+ "Prio #b (HUS): Rumsåterkoppling i skugga skulle sätta # °C, nu # °C": "Prio #b (HOUSE): Room feedback in shadow mode would set # °C, now # °C",
+ "Nära golvet, # °C inne": "Close to the floor, # °C indoors",
+ "Billigt, lagrar värme, # °C inne": "Cheap, storing heat, # °C indoors",
+ "Billigt men huset är redan varmt, # °C inne": "Cheap but the house is already warm, # °C indoors",
+ "Dyrt och huset har värme att ge av, # °C inne": "Expensive and the house has heat to spare, # °C indoors",
+ "Dyrt, # °C inne": "Expensive, # °C indoors",
+ "Följ rumsgivarna: när det är dyrt och huset har värme att ge av sänks börvärdet en grad under dyrt-temperaturen, och när det är billigt lagras värme med en grad över billigt-temperaturen tills huset är 0,5 °C under maxgränsen. Nära golvet höjs börvärdet alltid. Skugga loggar bara vad som skulle ha gjorts.": "Follow the room sensors: when power is expensive and the house has heat to spare, the setpoint is lowered one degree below the expensive temperature, and when it is cheap, heat is stored one degree above the cheap temperature until the house is 0.5 °C below the maximum. Close to the floor the setpoint is always raised. Shadow only logs what would have been done.",
+ "Bara ägaren kan ändra värmestyrningen": "Only the owner can change the heating control",
+ "Okänt läge": "Unknown mode",
+ "Skugga": "Shadow"
 }

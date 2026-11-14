@@ -2026,6 +2026,7 @@ while True:
                 'spa_should_heat_now': spa_should_heat_now, 'away_mode_active': away_mode_enabled,
                 'hw_probability': max_hw_prob, 'away_recovering': away_recovering,
                 'temp_cheap': cfg.get("temp_cheap", 22.0), 'temp_expensive': cfg.get("temp_expensive", 20.0),
+                'heat_feedback': _ew_settings.get("heat_feedback", "av"), 'heat_feedback_boost': float(_ew_settings.get("heat_feedback_boost", 1.0) or 1.0),
                 'outdoor_avg_5d': _cached_outdoor_avg_5d,  # FIX: saknades → is_summer var alltid False (dött sommarläge)
                 'outdoor_temp': outdoor_temp,              # FIX: saknades → Prio 9-watchdog antog alltid "kallt ute"
                 'heat_stop_outdoor': (pump_data.get('heat_stop_outdoor') if pump_data else None),  # pumpens egen värmestopp-tröskel (reg 19) → GPM samverkar i stället för hårdkodad gräns
