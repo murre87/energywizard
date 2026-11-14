@@ -20,6 +20,7 @@ import threading
 import time
 
 from drivers.heatpump import HeatPumpDriver
+from hot_water_observation import temperature
 
 log = logging.getLogger(__name__)
 _HOST = os.environ.get("NIBE_LOCAL_HOST", "")
@@ -245,6 +246,7 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
                 pass
         result.update(_raw_point_count=len(points), _received_at=datetime.now(timezone.utc).isoformat(),
                       _timestamp_basis="local_receipt")
+        result["water_temp_observation"] = temperature(result["water_temp"], result["_received_at"], "local_receipt")
         return result
 
     def _write(self, field, value):

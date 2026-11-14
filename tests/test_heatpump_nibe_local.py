@@ -69,6 +69,12 @@ def driver(**kw):
 def test_real_discovery_shape_uses_device_index_and_scales_by_metadata(heater):
     values = driver().read_sensors()
     assert values["outdoor_temp"] == -3.5 and values["water_temp"] == 50.4
+    from hot_water_observation import assess
+    observation = values["water_temp_observation"]
+    assert observation["value_c"] == 50.4
+    assert observation["timestamp_basis"] == "local_receipt"
+    assert assess(observation, now=observation["sample_at"], max_age_s=60)["state"] == "receipt_only"
+    assert not heater.writes
     assert values["forward_temp"] is None and values["compressor_power_kw"] is None
     assert values["_timestamp_basis"] == "local_receipt"
     assert heater.requests == [("GET", "/api/v1/devices"), ("GET", "/api/v1/devices/0/points")]
@@ -241,6 +247,22 @@ def test_builder_passes_explicit_config(heater):
                                            "connection": {"expected_product": PRODUCT},
                                            "points": {"room_target": binding()}}})
     assert d.set_room_temp(21)
+
+
+def test_selected_local_rest_never_falls_back_to_cloud_for_timestamp_evidence(heater, monkeypatch):
+    from drivers.heatpump_myuplink import MyUplinkHeatPumpDriver
+    monkeypatch.setattr(MyUplinkHeatPumpDriver, "_points",
+                        lambda *args: pytest.fail("Local REST must not read myUplink"))
+    d = build_heat_pump_driver({"heat_pump": {"enabled": True, "driver": "nibe_local",
+                              "connection": {"expected_product": PRODUCT},
+                              "entities": {"water_temp": "cloud-point"}}})
+    assert isinstance(d, nibe.NibeLocalHeatPumpDriver)
+    observation = d.read_state()["dhw_temp_observation"]
+    assert observation["value_c"] == 50.4 and observation["timestamp_basis"] == "local_receipt"
+    heater.product = "unexpected"
+    d._device = None
+    assert d.read_state()["dhw_temp_observation"]["value_c"] is None
+    assert not heater.writes
 
 
 class FakeHTTPS:
