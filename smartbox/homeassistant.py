@@ -105,6 +105,7 @@ def configure_power_meter(entities: dict | None):
       per fas:   voltage_l1..3 + current_l1..3            (t.ex. Tibber Pulse)
       netto:     power_w (+ power_w_invert: true om export är positiv) (+ current_l1..3 valfritt)
       import/export: import_w + export_w                   (t.ex. P1/HAN-mätare) (+ current_l1..3 valfritt)
+      active phase power: import_l{1,2,3}_w + export_l{1,2,3}_w (W/kW; optional with totals)
     Valfritt: hour_kwh = förbrukad energi hittills denna timme (effektvakten)."""
     POWER_METER.clear()
     POWER_METER.update({k: v for k, v in (entities or {}).items() if v not in (None, "")})
@@ -491,7 +492,8 @@ def _setting(key):
 def read_power_meter():
     """{'net_power_w': W (+ köper, - säljer), 'l1_a'/'l2_a'/'l3_a': A eller None} - None om mätaren
     inte är konfigurerad eller inte svarar. Utan power_meter: i configen letas en Tibber Pulse
-    upp automatiskt (en gång), så befintliga installationer fortsätter fungera."""
+    upp automatiskt (en gång), så befintliga installationer fortsätter fungera.
+    Configured active phase pairs also return signed l1_w/l2_w/l3_w (None if unavailable)."""
     e = POWER_METER
     if not e:
         if not _states_cache:
@@ -506,6 +508,14 @@ def read_power_meter():
         e = POWER_METER
     try:
         cur = [_get_numeric_state(e[k]) if e.get(k) else None for k in ("current_l1", "current_l2", "current_l3")]
+        phase_power = {}
+        for ph in (1, 2, 3):
+            imp_key, exp_key = f"import_l{ph}_w", f"export_l{ph}_w"
+            if e.get(imp_key) or e.get(exp_key):
+                imp = get_power_w(e[imp_key]) if e.get(imp_key) else None
+                exp = get_power_w(e[exp_key]) if e.get(exp_key) else None
+                # Missing/unavailable measurements must not become zero power.
+                phase_power[f"l{ph}_w"] = imp - exp if imp is not None and exp is not None else None
         if e.get("import_w") and e.get("export_w"):
             # Verklig köp- och säljeffekt går före U x I: fasströmmen (t.ex. Tibber Pulse) saknar ofta tecken, så
             # export syns inte, och U x I är skenbar effekt (issue #114).
@@ -513,6 +523,10 @@ def read_power_meter():
             if imp is None and exp is None:
                 return None
             net = (imp or 0.0) - (exp or 0.0)
+        elif not e.get("power_w") and not e.get("import_w") and phase_power:
+            if len(phase_power) != 3 or any(v is None for v in phase_power.values()):
+                return None
+            net = sum(phase_power.values())
         elif all(e.get(k) for k in ("voltage_l1", "voltage_l2", "voltage_l3", "current_l1", "current_l2", "current_l3")):
             volt = [_get_numeric_state(e[k]) for k in ("voltage_l1", "voltage_l2", "voltage_l3")]
             if None in volt or None in cur:
@@ -534,7 +548,7 @@ def read_power_meter():
             net = imp - (exp or 0.0)
         else:
             return None
-        return {"net_power_w": net, "l1_a": cur[0], "l2_a": cur[1], "l3_a": cur[2]}
+        return {"net_power_w": net, "l1_a": cur[0], "l2_a": cur[1], "l3_a": cur[2], **phase_power}
     except Exception as ex:
         print(f"❌ Fel vid läsning av elmätaren: {ex}")
         return None

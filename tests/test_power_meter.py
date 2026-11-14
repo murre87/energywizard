@@ -61,11 +61,15 @@ def test_esphome_p1_discovery_and_signed_power_with_phase_currents():
         mapping = discover_house(entities)["power_meter"]["entities"]
         assert mapping == dict(import_w=f"sensor.{prefix}momentary_active_import",
                                export_w=f"sensor.{prefix}momentary_active_export",
-                               **{f"current_l{ph}": f"sensor.{prefix}current_phase_{ph}" for ph in (1, 2, 3)})
+                               **{f"current_l{ph}": f"sensor.{prefix}current_phase_{ph}" for ph in (1, 2, 3)},
+                               **{f"{direction}_l{ph}_w": f"sensor.{prefix}momentary_active_{direction}_phase_{ph}"
+                                  for direction in ("import", "export") for ph in (1, 2, 3)})
         cache = {e["e"]: {"attributes": {"unit_of_measurement": e["u"]}} for e in entities}
         _with(mapping, {e["e"]: float(e["st"]) for e in entities})
         with patch.object(ha, "_get_numeric_state", _num), patch.object(ha, "_states_cache", cache):
-            assert ha.read_power_meter() == dict(net_power_w=-3000, l1_a=1, l2_a=2, l3_a=3)
+            # The meter's total wins even when the phase sum differs.
+            assert ha.read_power_meter() == dict(net_power_w=-3000, l1_a=1, l2_a=2, l3_a=3,
+                                                 l1_w=0, l2_w=0, l3_w=0)
         ha.configure_power_meter({})
 
 
@@ -78,6 +82,64 @@ def test_esphome_p1_never_pairs_devices_or_ambiguous_total_entities():
     entities.append(dict(entities[-1], e="sensor.duplicate_momentary_active_export"))
     result = discover_house(entities)["power_meter"]
     assert not result or "import_w" not in result["entities"]
+
+
+def test_esphome_p1_phase_only_discovery_and_reading():
+    entities = _esphome_p1("garage_")[:-2]
+    mapping = discover_house(entities)["power_meter"]
+    values = {e["e"]: float(e["st"]) for e in entities}
+    values.update({"sensor.garage_momentary_active_import_phase_1": 1.5,
+                   "sensor.garage_momentary_active_export_phase_1": 0,
+                   "sensor.garage_momentary_active_import_phase_2": 0,
+                   "sensor.garage_momentary_active_export_phase_2": 2,
+                   "sensor.garage_momentary_active_import_phase_3": 0,
+                   "sensor.garage_momentary_active_export_phase_3": 0})
+    cache = {e["e"]: {"attributes": {"unit_of_measurement": e["u"]}} for e in entities}
+    _with(mapping["entities"], values)
+    with patch.object(ha, "_get_numeric_state", _num), patch.object(ha, "_states_cache", cache):
+        assert ha.read_power_meter() == dict(net_power_w=-500, l1_a=1, l2_a=2, l3_a=3,
+                                             l1_w=1500, l2_w=-2000, l3_w=0)
+    ha.configure_power_meter({})
+
+
+def test_phase_only_requires_all_six_available_measurements():
+    mapping = {f"{direction}_l{ph}_w": f"s.{direction}{ph}"
+               for direction in ("import", "export") for ph in (1, 2, 3)}
+    for key, entity in mapping.items():
+        _with(mapping, {e: 0 for e in mapping.values() if e != entity})
+        with patch.object(ha, "_get_numeric_state", _num):
+            assert ha.read_power_meter() is None
+        _with({k: e for k, e in mapping.items() if k != key}, {e: 0 for e in mapping.values()})
+        with patch.object(ha, "_get_numeric_state", _num):
+            assert ha.read_power_meter() is None
+    ha.configure_power_meter({})
+
+
+def test_missing_optional_phase_power_keeps_total_and_currents():
+    _with({"import_w": "s.imp", "export_w": "s.exp", "current_l1": "s.a",
+           "import_l1_w": "s.phase_imp", "export_l1_w": "s.phase_exp"},
+          {"s.imp": 400, "s.exp": 0, "s.a": 3, "s.phase_imp": 0})
+    with patch.object(ha, "_get_numeric_state", _num):
+        assert ha.read_power_meter() == dict(net_power_w=400, l1_a=3, l2_a=None, l3_a=None, l1_w=None)
+    ha.configure_power_meter({})
+
+
+def test_phase_only_discovery_refuses_incomplete_or_cross_device_or_duplicate_phases():
+    for mode in ("missing", "other_device", "duplicate", "reactive", "wrong_unit"):
+        entities = _esphome_p1()[:-2]
+        target = next(e for e in entities if e["e"] == "sensor.momentary_active_export_phase_3")
+        if mode == "missing":
+            entities.remove(target)
+        elif mode == "other_device":
+            target["d"] = "other"
+        elif mode == "duplicate":
+            entities.append(dict(target, e="sensor.second_momentary_active_export_phase_3"))
+        elif mode == "reactive":
+            target["e"] = "sensor.momentary_reactive_export_phase_3"
+        else:
+            target["u"] = "kWh"
+        result = discover_house(entities)["power_meter"]
+        assert not result or "import_l1_w" not in result["entities"]
 
 
 def test_mataren_svarar_inte():

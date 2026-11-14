@@ -829,9 +829,9 @@ def discover_house(entities: list[dict] | None = None) -> dict:
             continue
         kind = "pulse" if _has(_candidate(e), re.compile("tibber", re.I)) else "smartmätare"
         grid_meters.append({"power_entity": e["e"], "maker": e.get("m"), "kind": kind})
-    # ESPHome p1reader exposes separate *total* active import/export sensors.
-    # Match the upstream names (also with a device prefix), never phase/reactive
-    # power, and never join entities belonging to different physical meters.
+    # ESPHome p1reader exposes total and per-phase active import/export sensors.
+    # Match upstream names (also with a device prefix), keeping phases separate
+    # from totals/reactive power and never joining different physical meters.
     p1 = None
     for candidate in power:
         dev = candidate.get("d")
@@ -846,8 +846,15 @@ def discover_house(entities: list[dict] | None = None) -> dict:
 
         imp = unique("momentary_active_import", {"W", "kW"})
         exp = unique("momentary_active_export", {"W", "kW"})
-        if imp and exp:
-            p1 = {"import_w": imp, "export_w": exp}
+        phases = {}
+        for ph in (1, 2, 3):
+            for direction in ("import", "export"):
+                entity = unique(rf"momentary_active_{direction}_phase_{ph}", {"W", "kW"})
+                if entity:
+                    phases[f"{direction}_l{ph}_w"] = entity
+        if (imp and exp) or len(phases) == 6:
+            p1 = {"import_w": imp, "export_w": exp} if imp and exp else {}
+            p1.update(phases)
             for ph in (1, 2, 3):
                 cur = unique(rf"current_phase_{ph}", {"A"})
                 if cur:
