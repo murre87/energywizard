@@ -1,6 +1,10 @@
 # Ändringar
 
 ## 1.2.92 (2026-11-14)
+- **Planens indata får ett kvalitetsbetyg** (#389): varje sparad batteriplan anger hur stor del av priserna som var
+  riktiga (inte framfyllda) och från vilken källa, om solprognosen kom från Home Assistant eller den egna
+  vädermodellen, om förbrukningen kom från den inlärda profilen, och om batteriets laddnivå var känd. Det rapporteras
+  bara och styr ingenting. Äldre sparade planer kan fortfarande spelas upp.
 - **Aviseringshistoriken tappar inte rader när databasen är överbelastad** (#387): raden väntar (högst 200, med
   händelsens ursprungliga tid) och sparas vid nästa tillfälle eller inom en minut. Inga dubbletter, och själva
   aviseringen skickas aldrig om.

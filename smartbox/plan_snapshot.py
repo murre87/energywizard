@@ -12,7 +12,10 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-SCHEMA = 1
+SCHEMA = 2          # 2: valfri input_quality (#389). Version 1 spelas fortfarande upp.
+REPLAYABLE = (1, 2)
+QUALITY_KEYS = {'prices': ('source', 'coverage', 'missing', 'horizon_h'), 'solar': ('source', 'coverage'),
+                'load': ('source', 'coverage'), 'soc': ('source', 'known', 'age_s')}
 MAX_BYTES = 2_000_000
 MAX_FILES = 96
 MAX_AGE_S = 7 * 86400
@@ -119,10 +122,32 @@ def normalized_result(result):
                                                    'wear_cost_sek', 'reversal_cost_sek')}}
 
 
-def build(slots, params, result, made_at):
+def normalize_quality(quality):
+    """#389: bara kända fält, ändliga tal, korta texter - aldrig rå konfiguration."""
+    out = {}
+    for group, keys in QUALITY_KEYS.items():
+        g = (quality or {}).get(group)
+        if not isinstance(g, dict):
+            continue
+        clean = {}
+        for k in keys:
+            v = g.get(k)
+            if isinstance(v, bool) or v is None:
+                clean[k] = v
+            elif isinstance(v, (int, float)):
+                clean[k] = number(v) if math.isfinite(float(v)) else None
+            else:
+                clean[k] = str(v)[:40]
+        out[group] = clean
+    return out
+
+
+def build(slots, params, result, made_at, quality=None):
     payload = {'schema_version': SCHEMA, 'planner_hash': planner_hash(),
                'made_at': timestamp(made_at), 'inputs': normalize_inputs(slots, params),
                'output': normalized_result(result)}
+    if quality:
+        payload['input_quality'] = normalize_quality(quality)
     # No environment/config dump: source hash identifies exact planning code.
     payload['plan_id'] = hashlib.sha256(canonical(payload).encode()).hexdigest()
     if len(canonical(payload).encode()) > MAX_BYTES:
@@ -132,7 +157,7 @@ def build(slots, params, result, made_at):
 
 def replay(payload):
     from battery_plan import optimize
-    if payload.get('schema_version') != SCHEMA or payload.get('planner_hash') != planner_hash():
+    if payload.get('schema_version') not in REPLAYABLE or payload.get('planner_hash') != planner_hash():
         raise ValueError('Snapshot schema/planner version does not match')
     content = {k: v for k, v in payload.items() if k != 'plan_id'}
     if hashlib.sha256(canonical(content).encode()).hexdigest() != payload.get('plan_id'):
@@ -182,13 +207,13 @@ def _run():
             _queue.task_done()
 
 
-def capture(slots, params, result, made_at):
+def capture(slots, params, result, made_at, quality=None):
     """Best-effort capture: never wait for disk, queue space or a stuck writer."""
     global _worker
     try:
         if os.environ.get('EW_PLAN_SNAPSHOTS', '1') == '0':
             return None
-        payload = build(slots, params, result, made_at)
+        payload = build(slots, params, result, made_at, quality)
         with _lock:
             if _worker is None:
                 _worker = threading.Thread(target=_run, name='plan-snapshots', daemon=True)

@@ -317,7 +317,7 @@ def test_postgres_persists_maintenance_flags_and_defers_impossible_plan(db, monk
     from sqlalchemy import create_engine
     from plan_brief import load_battery_rows
     monkeypatch.setattr(ew_settings, "PATH", str(tmp_path / "settings.json"))
-    monkeypatch.setattr(plan_snapshot, "capture", lambda *args: None)
+    monkeypatch.setattr(plan_snapshot, "capture", lambda *args, **kwargs: None)
     monkeypatch.setattr(learning, "predict_base_load", lambda *args: 0)
     monkeypatch.setattr(ha_solar_forecast, "power_at", lambda *args: None)
     monkeypatch.setattr(weather, "get_weather_at", lambda *args: (0, 0, 0, 0))

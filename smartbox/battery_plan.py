@@ -442,11 +442,15 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
 
     factor = settings.get("solar_factor") or {}          # inlärd rättning per timme (battery_learning.py)
 
+    src_count = {"solar_ha": 0, "solar_model": 0, "price_filled": 0, "load_profile": 0, "load_model": 0}   # #389
+
     def solar_at(ts):
         import ha_solar_forecast
         external = ha_solar_forecast.power_at(ts)
         if external is not None:
+            src_count["solar_ha"] += 1
             return external / 1000.0 * factor.get(ts.hour, 1.0)
+        src_count["solar_model"] += 1
         # Keep the existing hourly internal model for uncovered periods.
         h = ts.replace(minute=0)
         if h not in solar_cache:
@@ -471,8 +475,12 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
             p = quarters.get(t if quarter_prices else t.replace(minute=0))
         if p is None:
             break
+        if quarters.get(t) is None and quarters.get(t.replace(minute=0)) is None:
+            src_count["price_filled"] += 1              # framfyllt från förra kvarten
         last_p = p
-        raw_load = (settings.get("load_profile") or {}).get((t.weekday(), t.hour)) or learning.predict_base_load(t, base_profile)
+        _prof = (settings.get("load_profile") or {}).get((t.weekday(), t.hour))
+        src_count["load_profile" if _prof else "load_model"] += 1
+        raw_load = _prof or learning.predict_base_load(t, base_profile)
         raw_solar = solar_at(t)
         forecast.append((t, raw_load, raw_solar))          # prognosen som den är, före stil och utfallsrättning
         slots.append({"t": t, "buy": nordpool.full_buy_cost(p, t), "sell": nordpool.full_sell_income(p), "spot": p,
@@ -509,7 +517,23 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
         r = optimize(slots, **params)
     r["balance_deferred"] = deferred
     import plan_snapshot
-    r["plan_id"] = plan_snapshot.capture(slots, params, r, now)
+    n = len(slots)
+    try:
+        _psrc = nordpool.price_source()
+    except Exception:
+        _psrc = None
+    quality = {   # #389: hur färska och kompletta indata var - rapporteras bara, styr ingenting
+        "prices": {"source": _psrc, "coverage": round((n - src_count["price_filled"]) / n, 3), "missing": src_count["price_filled"],
+                   "horizon_h": round(n / 4.0, 2)},
+        "solar": {"source": "ha_forecast" if src_count["solar_ha"] and not src_count["solar_model"] else
+                  "weather_model" if not src_count["solar_ha"] else "mixed",
+                  "coverage": round(src_count["solar_ha"] / n, 3)},
+        "load": {"source": "profile" if src_count["load_profile"] == n else "model" if not src_count["load_profile"] else "mixed",
+                 "coverage": round(src_count["load_profile"] / n, 3)},
+        "soc": {"source": "battery", "known": soc_pct is not None, "age_s": settings.get("soc_age_s")},
+    }
+    r["input_quality"] = quality
+    r["plan_id"] = plan_snapshot.capture(slots, params, r, now, quality=quality)
     r["style"], r["allow_export"] = style, allow_export
     try:
         with engine.begin() as c:
