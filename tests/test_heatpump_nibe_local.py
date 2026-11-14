@@ -265,6 +265,16 @@ def test_selected_local_rest_never_falls_back_to_cloud_for_timestamp_evidence(he
     assert not heater.writes
 
 
+def test_dedicated_hot_water_power_requires_explicit_boundary_and_units(heater):
+    heater.points["123"] = point(123, 9001, 15, unit="kW")
+    mapping = {"register": 9001, "unit": "kW", "boundary": "hot_water_electrical"}
+    d = driver(points={"hot_water_power_w": mapping})
+    assert d.read_sensors()["hot_water_power_w"] == 1500
+    del mapping["boundary"]
+    assert d.read_sensors()["hot_water_power_w"] is None
+    assert not heater.writes
+
+
 class FakeHTTPS:
     def __init__(self, cert=b"certificate", status=200, payload=None):
         self.sock = self

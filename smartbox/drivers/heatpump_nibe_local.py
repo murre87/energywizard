@@ -30,7 +30,8 @@ _PASSWORD = os.environ.get("NIBE_LOCAL_PASSWORD", "")
 _TLS_PIN_SHA256 = os.environ.get("NIBE_LOCAL_TLS_PIN_SHA256", "")
 _FIELDS = ("indoor_temp", "outdoor_temp", "forward_temp", "return_temp", "water_temp",
            "degree_minutes", "compressor_running", "compressor_power_kw", "operating_mode",
-           "compressor_frequency_hz", "compressor_power_w", "heat_produced_kwh_1h", "electric_used_kwh_1h")
+           "compressor_frequency_hz", "compressor_power_w", "heat_produced_kwh_1h", "electric_used_kwh_1h",
+           "hot_water_power_w")
 # Mätvärden som visas på Värmepump-fliken (aldrig skrivbara). Registren är lästa ur en riktig S1255 (2026-11-06):
 # frekvens/el ur kompressorn, och pumpens egen energilogg för senaste timmen (producerad värme / använd el -> COP).
 _METRIC_REGISTERS = {"compressor_frequency_hz": {"register": 1046, "unit": "Hz"},
@@ -241,6 +242,14 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
                     value = None
                 elif field in _METRIC_REGISTERS and value < 0:
                     value = None
+                elif field == "hot_water_power_w":
+                    unit = bindings[field].get("unit")
+                    if bindings[field].get("boundary") != "hot_water_electrical" or unit not in {"W", "kW"} or value < 0:
+                        value = None
+                    elif unit == "kW":
+                        value *= 1000
+                    if value is not None and not math.isfinite(value):
+                        value = None
                 result[field] = value
             except LocalRestError:
                 pass

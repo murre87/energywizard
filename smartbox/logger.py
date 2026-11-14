@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import hot_water_power
 import threading
 import psycopg
 import pandas as pd
@@ -147,6 +148,10 @@ def init_log_db():
                         ADD COLUMN IF NOT EXISTS degree_minutes        NUMERIC,
                         ADD COLUMN IF NOT EXISTS compressor_frequency_hz NUMERIC,
                         ADD COLUMN IF NOT EXISTS compressor_power_w     NUMERIC,
+                        ADD COLUMN IF NOT EXISTS hot_water_power_w       NUMERIC,
+                        ADD COLUMN IF NOT EXISTS hot_water_power_sample_at DOUBLE PRECISION,
+                        ADD COLUMN IF NOT EXISTS hot_water_power_basis   TEXT,
+                        ADD COLUMN IF NOT EXISTS hot_water_power_source  TEXT,
                         ADD COLUMN IF NOT EXISTS heat_produced_kwh_1h  NUMERIC,
                         ADD COLUMN IF NOT EXISTS electric_used_kwh_1h   NUMERIC,
                         ADD COLUMN IF NOT EXISTS circ_pump_speed       NUMERIC,
@@ -362,6 +367,7 @@ def log_status(
             "hc_forward_temp": p.get("hc_forward_temp"),
             "compressor_frequency_hz": p.get("compressor_frequency_hz"),
             "compressor_power_w": p.get("compressor_power_w"),
+            **hot_water_power.log_fields(p),
             "heat_produced_kwh_1h": p.get("heat_produced_kwh_1h"),
             "electric_used_kwh_1h": p.get("electric_used_kwh_1h"),
             "brine_in_temp": p.get("brine_in_temp"),
