@@ -368,3 +368,5 @@ html:not([data-classic]) .ljquick .night { border-color:var(--line); color:var(-
 /* #394: Ladda nu - välj mål */
 .cn-tg { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-top:12px; }
 .cn-tg .mini { width:100%; min-height:44px; }
+/* #385: varför bilen får mindre ström än vi bad om */
+.limnote { color: var(--warn, #f0a04b); margin-top: 6px; }

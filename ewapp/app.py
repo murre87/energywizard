@@ -543,7 +543,8 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
                     "dest_home": None if d_dest is None else d_dest < 1.5, "dest_km_from_home": None if d_dest is None else round(d_dest), "car_km_from_home": None if d_car is None else round(d_car)}
         except Exception:
             away = None
-    return {"key": key, "name": c["name"], "charge_now_target": charge_now_target or None, "soc": None if soc is None else round(soc), "soc_stale": soc_stale, "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
+    return {"key": key, "name": c["name"], "charge_now_target": charge_now_target or None,
+            "limit_note": (ov.get(f"{key}_limit_note") or None) if charging else None,     # #385 "soc": None if soc is None else round(soc), "soc_stale": soc_stale, "status": status, "plugged": plugged, "home": home, "charging": charging, "power_kw": round(power_kw, 1),
             "mode": mode, "amps": amps, "phases": phases, "eta": eta, "away": away, "online": (val(st, c["online"]) or "off") == "on", "default_phases": c["phases"],
             # Klimatet är igång när man kör - det är inte "förvärmning". Bara när bilen står hemma och inte är i körläge.
             "driving": driving(st, c),

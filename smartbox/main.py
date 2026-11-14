@@ -38,6 +38,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import charger_limit # #385: förklara när laddboxen ger bilen mindre än vi bad om
 import charge_now    # #394: "Ladda nu till X %" som avslutas av sig själv
 import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätningen
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
@@ -2274,8 +2275,20 @@ while True:
                         if ev_amps[car_id] > 0 and charger_data.get("status") in ["awaiting_start", "paused", "off"]:
                             charger_turn_on(charger_id)
                         _check_ev_stall(car_id, ev_amps[car_id], charger_data, charger_id, ev_phase_switch_active[car_id], now)
+                    try:                    # #385: varför bilen får mindre än vi bad om (visas i appen)
+                        _ln = charger_limit.explain(last_sent_ev_limit.get(car_id), charger_data) or ""
+                        if _ln != (all_overrides.get(f"{car_id}_limit_note") or ""):
+                            logger.set_override(f"{car_id}_limit_note", _ln)
+                            all_overrides[f"{car_id}_limit_note"] = _ln
+                            if _ln:
+                                print(f"🔌 {(CAR_SPECS.get(car_id) or {}).get('name') or car_id}: {_ln}")
+                    except Exception as _lne:
+                        print(f"⚠️ Förklaring av laddboxens gräns ({car_id}): {_lne}")
                 else:
                     last_sent_ev_limit[car_id] = None
+                    if all_overrides.get(f"{car_id}_limit_note"):
+                        logger.set_override(f"{car_id}_limit_note", "")
+                        all_overrides[f"{car_id}_limit_note"] = ""
                 try:
                     _sib = any(
                         ((car_charger_data.get(_o) or {}).get("power_kw") or 0) > 0.5

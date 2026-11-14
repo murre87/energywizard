@@ -82,6 +82,7 @@ evs:
         session_kwh: sensor.carport_energi_laddningssession
         lifetime_kwh: sensor.carport_livstidsforbrukning
         status: sensor.carport_status
+        circuit_limit: sensor.carport_dynamisk_kretsbegransning   # #385: lastbalanseringens gräns (Equalizer)
         online: binary_sensor.carport_online
 
 heat_pump:

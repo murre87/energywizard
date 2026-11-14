@@ -2471,5 +2471,14 @@
   "{name}: kabeln drogs ur - Ladda nu avslutades": "{name}: kabel byl odpojen - Nabíjení teď skončilo",
   "{name}: Ladda nu avslutades efter 24 timmar - planen tar över": "{name}: Nabíjení teď skončilo po 24 hodinách - převezme plán",
   "Ladda nu klart": "Nabíjení teď hotovo",
-  "Ladda {name} nu": "Nabít {name} teď"
+  "Ladda {name} nu": "Nabít {name} teď",
+  "Laddboxen begränsar till # A: lastbalansering": "Nabíječka omezuje na # A: vyvažování zátěže",
+  "Laddboxen begränsar till # A: laddboxens maxgräns": "Nabíječka omezuje na # A: maximum nabíječky",
+  "Laddboxen begränsar till # A: laddboxens schema": "Nabíječka omezuje na # A: rozvrh nabíječky",
+  "Laddboxen begränsar till # A: bilen": "Nabíječka omezuje na # A: auto",
+  "Laddboxen begränsar till # A: laddboxens gräns": "Nabíječka omezuje na # A: limit nabíječky",
+  "EnergyWizard bad om # A": "EnergyWizard žádal # A",
+  "Lastbalanseringen tillåter # A": "Vyvažování zátěže povoluje # A",
+  "Laddboxens krets är på # A": "Okruh nabíječky má # A",
+  "Laddboxen ger bilen # A av # A, orsaken är okänd": "Nabíječka dává autu # A z # A, příčina je neznámá"
 }

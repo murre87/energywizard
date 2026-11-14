@@ -425,6 +425,8 @@ def _read_easee_charger(entities: dict, charger_id: str | None = None):
             "dynamic_limit_a": result.get("dynamic_limit"),
             "output_limit_a":  result.get("output_limit"),
             "max_limit_a":     result.get("max_limit"),
+            "circuit_limit_a": result.get("circuit_limit"),          # #385: lastbalanseringens kretsgräns (Equalizer)
+            "circuit_rated_a": _get_numeric_attribute(entities["status"], "circuit_ratedCurrent") if entities.get("status") else None,
             "session_kwh":     result.get("session_kwh"),
             "lifetime_kwh":    result.get("lifetime_kwh"),
             "status":          result.get("status"),

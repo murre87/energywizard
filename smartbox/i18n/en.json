@@ -2471,5 +2471,14 @@
  "{name}: kabeln drogs ur - Ladda nu avslutades": "{name}: the cable was unplugged - Charge now ended",
  "{name}: Ladda nu avslutades efter 24 timmar - planen tar över": "{name}: Charge now ended after 24 hours - the plan takes over",
  "Ladda nu klart": "Charge now done",
- "Ladda {name} nu": "Charge {name} now"
+ "Ladda {name} nu": "Charge {name} now",
+ "Laddboxen begränsar till # A: lastbalansering": "The charger limits to # A: load balancing",
+ "Laddboxen begränsar till # A: laddboxens maxgräns": "The charger limits to # A: the charger's maximum",
+ "Laddboxen begränsar till # A: laddboxens schema": "The charger limits to # A: the charger's schedule",
+ "Laddboxen begränsar till # A: bilen": "The charger limits to # A: the car",
+ "Laddboxen begränsar till # A: laddboxens gräns": "The charger limits to # A: the charger's limit",
+ "EnergyWizard bad om # A": "EnergyWizard asked for # A",
+ "Lastbalanseringen tillåter # A": "Load balancing allows # A",
+ "Laddboxens krets är på # A": "The charger's circuit is # A",
+ "Laddboxen ger bilen # A av # A, orsaken är okänd": "The charger gives the car # A of # A, the cause is unknown"
 }

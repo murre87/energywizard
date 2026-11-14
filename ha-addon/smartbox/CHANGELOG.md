@@ -1,5 +1,12 @@
 # Ändringar
 
+## 1.2.84 (2026-11-14)
+- **Appen förklarar när laddboxen ger bilen mindre ström än EnergyWizard bad om** (#385), t.ex. "Laddboxen
+  begränsar till 12 A: lastbalansering. EnergyWizard bad om 16 A." Förklaringen bygger bara på laddboxens egna
+  värden: erbjuden ström, lastbalanseringens kretsgräns (Easee Equalizer) eller kretsens märkström. Annars står det
+  att orsaken är okänd. Styrningen och säkringsgränserna ändras inte. Guiden hittar nu Easees "dynamisk
+  kretsbegränsning".
+
 ## 1.2.83 (2026-11-13)
 - **"Ladda nu till X %"** (#394): "Ladda nu" frågar efter mål (40, 60, 80, 100 % eller "Tills jag stoppar").
   Med ett mål slutar laddningen av sig själv när bilen når målet, när kabeln dras ur eller efter 24 timmar, och

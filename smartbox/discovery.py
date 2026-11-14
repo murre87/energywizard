@@ -130,6 +130,7 @@ def _easee_mapping(ents: list, status_e: dict) -> dict:
         "dynamic_limit": pick("sensor", r"dynamisk.?laddbox|dynamisk.?laddar|dynamic.?charger"),
         "output_limit": pick("sensor", r"total.?begr|output.?limit"),
         "max_limit": pick("sensor", r"max.?laddbox|max.?laddar|max.?charger"),
+        "circuit_limit": pick("sensor", r"dynamisk.?krets|dynamic.?circuit"),      # #385
         "reason_no_current": pick("sensor", r"anledning|reason"),
         "online": pick("binary_sensor", r"online"),
     }
