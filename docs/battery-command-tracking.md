@@ -24,6 +24,14 @@ stay unconfirmed rather than being diagnosed as command failure. Policy paramete
 are explicit in Tracker and should be validated per integration before expansion.
 Shadow mode never records a physical command as accepted.
 
+Ferroamp FTW power uses the host MQTT receipt time of the oldest contributing
+ESO power payload, or the EnergyHub payload for fallback power. Repeated polls
+preserve that time. Retained messages or contributors without a receipt time
+leave power freshness unknown. Receipt time describes host arrival, not a device
+measurement clock; broker/network delay and incomplete ESO coverage remain
+limitations. This adds observational evidence only, without qualifying control,
+enabling recovery or changing the FTW control allowlist.
+
 Owner-only SQLite evidence is written via a 64-event bounded daemon queue to
 `/data/battery-commands.sqlite3`. Set `EW_BATTERY_COMMAND_DB` to change the location
 or `EW_BATTERY_COMMAND_TRACKING=0` to disable disk capture. At most 5,000 events and
