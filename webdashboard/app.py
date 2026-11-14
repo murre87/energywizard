@@ -313,6 +313,24 @@ async def api_setup_ha(request: Request):
 
 
 # ---------- Batteriets planering: stil och försäljning (valt i webben) ----------
+@app.get("/api/heat-feedback")
+async def api_heat_feedback():
+    """Rumsåterkoppling för värmepumpen (gpm.py Prio 5b): av / skugga / på."""
+    return {"mode": ew_settings.load().get("heat_feedback") or "av"}
+
+
+@app.post("/api/heat-feedback")
+async def api_heat_feedback_save(request: Request):
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"detail": "Bara ägaren kan ändra värmestyrningen"}, status_code=403)
+    mode = (await request.json()).get("mode")
+    if mode not in ("av", "skugga", "på"):
+        return JSONResponse({"detail": "Okänt läge"}, status_code=400)
+    ew_settings.update(heat_feedback=mode)
+    return {"ok": True, "mode": mode}
+
+
 @app.get("/api/battery-plan-settings")
 async def api_battery_plan_settings():
     import battery_plan

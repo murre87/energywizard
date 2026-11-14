@@ -1753,9 +1753,15 @@ async function renderVarmepump() {
       <div class="numfield" style="margin-top:10px">Billigt: <input type="number" id="tempcheap" step="0.5" min="16" max="26" value="${d.temp_cheap != null ? d.temp_cheap : ""}"> °C
         Dyrt: <input type="number" id="tempexpensive" step="0.5" min="14" max="24" value="${d.temp_expensive != null ? d.temp_expensive : ""}"> °C
         <button class="icobtn" id="savetempbtn">Spara</button></div>
+      <div class="note" style="margin-top:12px">Följ rumsgivarna: när det är dyrt och huset har värme att ge av sänks börvärdet en grad under dyrt-temperaturen, och när det är billigt lagras värme med en grad över billigt-temperaturen tills huset är 0,5 °C under maxgränsen. Nära golvet höjs börvärdet alltid. Skugga loggar bara vad som skulle ha gjorts.</div>
+      <div class="seg" id="hfseg" style="margin-top:6px">${[["av", "Av"], ["skugga", "Skugga"], ["på", "På"]].map(([k, l]) => `<button data-hf="${k}">${l}</button>`).join("")}</div>
     </div>`;
   document.querySelectorAll("#heatseg button").forEach(b => b.onclick = () => postAction("api/home-action/heat", { value: b.dataset.m }).then(renderVarmepump));
   document.querySelectorAll("#hotwaterseg button").forEach(b => b.onclick = () => postAction("api/home-action/hotwater", { value: b.dataset.m }).then(renderVarmepump));
+  api("api/heat-feedback").then((r) => document.querySelectorAll("#hfseg button").forEach((b) => b.classList.toggle("on", b.dataset.hf === r.mode))).catch(() => {});
+  document.querySelectorAll("#hfseg button").forEach((b) => b.onclick = async () => {
+    try { await postJSON("api/heat-feedback", { mode: b.dataset.hf }); document.querySelectorAll("#hfseg button").forEach((x) => x.classList.toggle("on", x === b)); toast("Sparat - gäller från nästa beslut (inom 15 min)"); }
+    catch (e) { toast(e.message); } });
   document.getElementById("savetempbtn").onclick = async () => {
     await postAction("api/settings-action", { key: "temp_cheap", value: parseFloat(document.getElementById("tempcheap").value) });
     await postAction("api/settings-action", { key: "temp_expensive", value: parseFloat(document.getElementById("tempexpensive").value) });
