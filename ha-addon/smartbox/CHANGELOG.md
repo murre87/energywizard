@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.90 (2026-11-14)
+- **Besparing jämfört med batteriet i självförbrukningsläge** (#398): för den som har husbatteri visar
+  besparingsrutan i appen vad styrningen gav utöver ett batteri i växelriktarens vanliga självförbrukningsläge, t.ex.
+  "+12 kr mot självförbrukning". Det räknas på samma uppmätta kvartar, med samma batterigränser och verkningsgrad som
+  planeraren. Kräver `battery.capacity_kwh` i installationen.
+
 ## 1.2.89 (2026-11-14)
 - **Varning innan bilen missar sitt mål** (#390): när bilen inte hinner till målet (schemat, "klar senast" eller
   morgongolvet) ens med full effekt kommer en avisering direkt, och bilkortet visar t.ex. "Hinner inte 100 % till

@@ -195,6 +195,12 @@ function svLine() {                                       // besparingen på en 
   return `<section class="card svline"><div><h4>Sparat genom smart tajmning</h4><div class="v" style="color:${pos ? "var(--acc)" : "var(--bad)"}">${p.saved_kr > 0 ? "+" : p.saved_kr < 0 ? "−" : ""}${f1(Math.abs(p.saved_kr), 0)}<small> ${moneyUnit()}${p.pct != null ? ` (${p.pct > 0 ? "+" : ""}${f1(p.pct, 0)} %)` : ""}</small></div></div>
     <div class="seg">${SVP.map(([k, l]) => `<button data-a="svp" data-v="${k}" class="${k === svPeriod ? "on" : ""}">${l}</button>`).join("")}</div></section>`;
 }
+function svBattery() {                                   // #398: vad styrningen gav utöver batteriet i självförbrukningsläge
+  const b = SV && SV.battery_vs_selfuse && SV.battery_vs_selfuse[svPeriod];
+  if (!b) return "";
+  const s = b.saved;
+  return `${s > 0 ? "+" : s < 0 ? "−" : ""}${f1(Math.abs(s), 0)} ${moneyUnit()} mot självförbrukning`;
+}
 function planNow() {                                   // vad görs nu och varför (per enhet, ur motorns beslut) + nästa steg i planen
   const now = (EN && EN.now) || [], nxt = PL ? (PL.items || []).find((i) => !i.active) : null;
   if (!now.length && !nxt) return PL ? `<section class="card plannow" data-a="nowsheet"><div class="note">${(PL.headline_parts || [PL.headline]).map(part => `<span>${esc(part)}</span>`).join("")}</div></section>` : "";
@@ -268,7 +274,7 @@ function quickGrid(s, g, net, flowShown) {             // flowShown: nät och so
     const ks = SVP.map(([k]) => k), i = Math.max(0, ks.indexOf(svPeriod)), p = SV.periods[svPeriod] || SV.periods.week, nxt = ks[(i + 1) % ks.length];
     const lbl = (SVP.find(([k]) => k === svPeriod) || [, ""])[1];
     tiles.push(qt(`data-a="svp" data-v="${nxt}"`, `Sparat · ${lbl}`, `<span style="color:${p.saved_kr >= 0 ? "var(--acc)" : "var(--bad)"}">${p.saved_kr > 0 ? "+" : p.saved_kr < 0 ? "−" : ""}${f1(Math.abs(p.saved_kr), 0)}</span><small> ${moneyUnit()}</small>`,
-      p.pct != null ? `${p.pct > 0 ? "+" : ""}${f1(p.pct, 0)} % billigare` : ""));
+      svBattery() || (p.pct != null ? `${p.pct > 0 ? "+" : ""}${f1(p.pct, 0)} % billigare` : "")));
   }
   if (EN && EN.today_kwh != null) tiles.push(qt('data-a="tab" data-v="historik"', "Idag", `${f1(EN.today_kwh, 0)}<small> kWh</small>`, "förbrukat hittills"));
   return `<div class="qgrid">${tiles.join("")}</div>`;

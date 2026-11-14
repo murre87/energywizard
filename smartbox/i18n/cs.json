@@ -2540,5 +2540,12 @@
   "God kväll, gäst!": "Dobrý večer, host!",
   "Hinner inte # % till #:#: behöver # kWh, hinner ladda ungefär # kWh med # kW": "Nestihne # % do #:#: potřebuje # kWh, stihne nabít asi # kWh při # kW",
   "Väntat: cirka # %": "Očekáváno: asi # %",
-  "{name} hinner inte målet": "{name} nestihne cíl"
+  "{name} hinner inte målet": "{name} nestihne cíl",
+  "+# kr mot självförbrukning": "+# kr oproti vlastní spotřebě",
+  "−# kr mot självförbrukning": "−# kr oproti vlastní spotřebě",
+  "# kr mot självförbrukning": "# kr oproti vlastní spotřebě",
+  "+# € mot självförbrukning": "+# € oproti vlastní spotřebě",
+  "−# € mot självförbrukning": "−# € oproti vlastní spotřebě",
+  "# € mot självförbrukning": "# € oproti vlastní spotřebě",
+  "{amount} mot sj\u00e4lvf\u00f6rbrukning": "{amount} oproti vlastní spotřebě"
 }

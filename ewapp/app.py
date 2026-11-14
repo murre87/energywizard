@@ -1133,7 +1133,16 @@ def savings_api(request: Request):
     today = dt.datetime.now(TZ).date().isoformat()
     with ENGINE.connect() as c:
         rows = savings.daily_rows(c, days=40)
-    return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today)}
+        battery = None
+        try:                                       # #398: mot batteriet i självförbrukningsläge (bara med husbatteri)
+            bcfg = HC.battery_settings(HC.load_house_config(HOUSE_CONFIG_PATH))
+            if bcfg.get("control") != "av":
+                import battery_baseline
+                battery = battery_baseline.periods(c, bcfg, dt.datetime.now(TZ).date(), TZ)
+        except Exception as e:
+            print(f"⚠️ Jämförelse mot självförbrukning: {e}")
+            c.rollback()
+    return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today), "battery_vs_selfuse": battery}
 
 
 @app.get("/api/plan")
