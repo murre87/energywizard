@@ -58,6 +58,17 @@ def _run(c):
     return asyncio.run(c)
 
 
+def test_p1_phase_power_mapping_survives_generated_yaml(env):
+    import yaml
+    from house_config import power_meter_entities
+    wd, *_ = env
+    entities = {f"{direction}_l{ph}_w": f"sensor.momentary_active_{direction}_phase_{ph}"
+                for direction in ("import", "export") for ph in (1, 2, 3)}
+    entities.update({f"current_l{ph}": f"sensor.current_phase_{ph}" for ph in (1, 2, 3)})
+    cfg = yaml.safe_load(wd._build_house_config_yaml({"power_meter": {"driver": "power_w", "entities": entities}}))
+    assert power_meter_entities(cfg) == entities
+
+
 def test_ny_installation_visar_vad_som_saknas(env):
     wd, *_ = env
     st = _run(wd.api_setup_status(_Req()))

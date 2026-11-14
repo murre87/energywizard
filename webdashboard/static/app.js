@@ -2336,6 +2336,8 @@ async function runDiscovery(ev, cached) {
   // #271: "Använd" / "effektsensorn" / Tibber-delarna i egna noder, värdet utanför.
   const useMeter = (pm) => pm.driver === "tibber_pulse"
     ? `<span>Använd</span> Tibber Pulse (${[pm.entities.import_w ? "<span>köp- och säljeffekt</span>" : "", pm.entities.current_l1 ? "<span>ström per fas</span>" : ""].filter(Boolean).join(" + ")})`
+    : pm.entities.import_w || pm.entities.import_l1_w
+    ? `<span>Använd</span> <span>köp- och säljeffekt</span>: ${esc(pm.entities.import_w || [1, 2, 3].map(ph => pm.entities[`import_l${ph}_w`]).filter(Boolean).join(", "))} / ${esc(pm.entities.export_w || [1, 2, 3].map(ph => pm.entities[`export_l${ph}_w`]).filter(Boolean).join(", "))}${pm.entities.current_l1 ? " · <span>ström per fas</span>" : ""}`
     : `<span>Använd</span> <span>effektsensorn</span> ${esc(pm.entities.power_w)}`;
   html += `<div class="card" style="margin-bottom:16px"><h2>⚡ Elmätare / Tibber Pulse</h2>
     <div class="note">Krävs för effektvakten, säkringsskyddet och solladdningen. Bäst är en mätare med ström per fas (t.ex. Tibber Pulse); en smartmätare (HAN/P1) med bara effekt fungerar också.</div>

@@ -50,6 +50,21 @@ const text = (html,tr) => html.replace(/<[^>]*>/g,'\0').split('\0').map(decode).
 const web = fs.readFileSync('webdashboard/static/app.js','utf8');
 const mobile = fs.readFileSync('ewapp/static/app.js','utf8');
 function checkScreenshotCards(lang,tr) {
+  const meterCtx=vm.createContext({esc});
+  vm.runInContext(web.slice(web.indexOf('  const useMeter ='),web.indexOf('  html +=',web.indexOf('  const useMeter =')))+'\nthis.useMeter = useMeter;',meterCtx);
+  for(const phases of [false,true]){
+    const entities=phases ? Object.fromEntries(['import','export'].flatMap(d=>[1,2,3].map(ph=>[`${d}_l${ph}_w`,`sensor.${d}_${ph}`])))
+      : {import_w:'sensor.import',export_w:'sensor.export'};
+    entities.current_l1='sensor.current_1';
+    const html=meterCtx.useMeter({driver:'power_w',entities});
+    const rendered=text(html,tr);
+    assert(!rendered.includes('undefined'));
+    assert(rendered.includes(phases?'sensor.import_3':'sensor.import'));
+    assert(rendered.includes(phases?'sensor.export_3':'sensor.export'));
+    assert(rendered.includes({sv:'köp- och säljeffekt',en:'import and export power',cs:'příkon a výkon dodávky'}[lang]));
+    assert(rendered.includes({sv:'ström per fas',en:'current per phase',cs:'proud po fázích'}[lang]));
+  }
+  assert(meterCtx.useMeter({driver:'power_w',entities:{import_w:'<img>',export_w:'sensor.export'}}).includes('&lt;img&gt;'));
   const parts=['Just nu: ','Jämn komfort hela dygnet','. Härnäst ','imorgon 00:00–imorgon 24:00',': ','Jämn komfort hela dygnet','.'];
   const plan={headline:parts.join(''),headline_parts:parts,items:[],note:''};
   const ctx=vm.createContext({window:{EWPlanView:true},esc,PL:plan,EN:{now:[]},PC:null,
