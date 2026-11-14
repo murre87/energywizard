@@ -81,6 +81,7 @@ local sso_ts  = 0
 -- stays the authoritative reading until it ages out.
 local last_ehub_soc    = nil
 local last_ehub_soc_ts = 0
+local last_ehub_soc_received_at = nil
 local EHUB_SOC_STALE_MS = 60000  -- ~6× the observed publish interval
 
 -- Treat cached topic data as stale beyond this age. EnergyHub
@@ -488,6 +489,7 @@ function driver_poll()
                         if n > 1 then n = n / 100 end
                         last_ehub_soc    = n
                         last_ehub_soc_ts = now
+                        last_ehub_soc_received_at = tonumber(msg.received_at)
                     end
                 end
             elseif msg.topic == "extapi/data/eso" then
@@ -529,6 +531,7 @@ function driver_poll()
         ehub_data = nil
         last_ehub_soc    = nil
         last_ehub_soc_ts = 0
+        last_ehub_soc_received_at = nil
     end
     -- Evict per-ESO entries individually so one silent ESO does not
     -- drag the others' contribution out of the aggregate. The freshest
@@ -665,6 +668,7 @@ function driver_poll()
         local v_sum, v_n   = 0, 0
         local a_sum, a_n   = 0, 0
         local soc_sum, soc_n = 0, 0
+        local soc_sample_at, soc_time_unknown = nil, false
         local soc_wsum, cap_sum = 0, 0  -- capacity-weighted SoC accumulators
         local udc_sum, udc_n = 0, 0
         local wprod_sum, wprod_n = 0, 0
@@ -707,6 +711,12 @@ function driver_poll()
 
             local soc = tonumber(extract_val(d, "soc"))
             if soc then
+                local stamp = eso_received_at[id]
+                if stamp then
+                    soc_sample_at = math.min(soc_sample_at or stamp, stamp)
+                else
+                    soc_time_unknown = true
+                end
                 if soc > 1 then soc = soc / 100 end
                 module_socs[tostring(id)] = {
                     soc_pct = soc * 100,
@@ -831,10 +841,13 @@ function driver_poll()
             end
             if soc_ehub then
                 battery.soc = soc_ehub
+                battery.soc_sample_at = last_ehub_soc_received_at
             elseif soc_weighted then
                 battery.soc = soc_weighted
+                battery.soc_sample_at = not soc_time_unknown and soc_sample_at or nil
             elseif soc_eso_mean then
                 battery.soc = soc_eso_mean
+                battery.soc_sample_at = not soc_time_unknown and soc_sample_at or nil
             end
 
             if wprod_n > 0 then battery.discharge_wh = mj_to_wh(wprod_sum) end

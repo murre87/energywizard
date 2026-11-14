@@ -2129,7 +2129,8 @@ while True:
                                 from database_engine import engine as _peng
                                 _battery["plan"] = battery_plan.plan_from_db(_peng, now, battery_state.get("soc_pct"),
                                                                              dict(battery_learning.apply(battery_cfg, _battery["model"]), balance_request=_balance),
-                                                                             dynamic_base_load_profile, battery_driver.supported_intents())
+                                                                             dynamic_base_load_profile, battery_driver.supported_intents(),
+                                                                             soc_evidence=battery_state)
                                 _battery["plan_at"] = now
                             except Exception as _pe:
                                 print(f"⚠️ Batteriplanen hoppade över: {_pe}")

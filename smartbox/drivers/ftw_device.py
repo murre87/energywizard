@@ -179,6 +179,8 @@ class FtwBatteryDriver(BatteryDriver):
         cap = b.get("capacity_wh")
         return {"soc_pct": soc, "power_w": b.get("w", b.get("W")), "mode": None,
                 "power_sample_at": b.get("power_sample_at"),
+                "soc_sample_at": b.get("soc_sample_at") if getattr(self, "_name", None) == "ferroamp" else None,
+                "soc_source": "ferroamp_mqtt_received" if getattr(self, "_name", None) == "ferroamp" else None,
                 "modules": b.get("modules") or {},
                 "capacity_kwh": self.capacity_kwh or (cap / 1000.0 if isinstance(cap, (int, float)) and cap > 0 else None)}
 

@@ -39,6 +39,8 @@ class FerroampBatteryDriver(BatteryDriver):
                 return state
             soc = read_float(client, 6016, unit)
             state["soc_pct"] = soc if soc is not None and 0 <= soc <= 100 else None
+            state["soc_sample_at"] = time.time() if state["soc_pct"] is not None else None
+            state["soc_source"] = "modbus_received"
             power = read_float(client, 6100, unit)
             state["power_w"] = -power * 1000 if power is not None else None
             state["power_sample_at"] = time.time() if power is not None else None

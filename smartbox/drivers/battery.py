@@ -9,6 +9,28 @@ till det batteriets integration kallar sina lägen; en avsikt utan mappning stö
 används aldrig av battery_control.py.
 """
 from abc import ABC, abstractmethod
+import math
+
+
+def soc_input_quality(soc_pct, evidence, now):
+    """Diagnostic provenance only; never grants control or changes planner inputs."""
+    result = {"source": "battery", "known": soc_pct is not None, "age_s": None}
+    if not isinstance(evidence, dict):
+        return result
+    source = evidence.get("soc_source")
+    if not isinstance(source, str) or source not in {"ha_reported", "ha_updated", "ferroamp_mqtt_received", "modbus_received"}:
+        return result
+    try:
+        value, stamp = evidence.get("soc_pct"), evidence.get("soc_sample_at")
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+               for v in (value, soc_pct, stamp, now)):
+            return result
+        if value != soc_pct or not 0 <= value <= 100 or not 0 < stamp <= now:
+            return result
+        result.update(source=source, age_s=now - stamp)
+    except (TypeError, ValueError, OverflowError):
+        pass
+    return result
 
 
 class BatteryDriver(ABC):
@@ -20,7 +42,9 @@ class BatteryDriver(ABC):
     def read_state(self) -> dict:
         """{'soc_pct': float|None, 'power_w': float|None (+ = laddar, - = laddar ur),
         'capacity_kwh': float|None, 'mode': str|None,
-        'power_sample_at': float|None (UTC epoch of source measurement, never cache-read time)}. Alla nycklar valfria."""
+        'power_sample_at': float|None (UTC epoch of source measurement/receipt, never cache-read time),
+        'soc_sample_at': float|None, 'soc_source': str|None (SOC timestamp origin; see soc_input_quality).
+        Alla nycklar valfria. Receipt/report time is not a device measurement clock."""
         raise NotImplementedError
 
     @abstractmethod
