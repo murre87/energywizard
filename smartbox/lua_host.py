@@ -208,7 +208,11 @@ class LuaDriver:
             u, pw = self._cfg_raw.get("username"), self._cfg_raw.get("password")
             if u:
                 c.username_pw_set(str(u), str(pw or ""))
-            c.on_message = lambda _c, _u, m: self._mqtt_buf.append((m.topic, m.payload.decode("utf-8", "replace")))
+            c.on_message = lambda _c, _u, m: self._mqtt_buf.append({
+                "topic": m.topic, "payload": m.payload.decode("utf-8", "replace"),
+                # Retained broker state is not a newly measured sample.
+                "received_at": None if m.retain else time.time(),
+            })
             port = int(self._cfg_raw.get("mqtt_port") or (self._mb_args[1] if self._mb_args[1] != 502 else 1883))
             c.connect(self._mb_args[0], port, keepalive=30)
             c.loop_start()
@@ -224,7 +228,7 @@ class LuaDriver:
 
     def _mqtt_messages(self):
         buf, self._mqtt_buf = self._mqtt_buf, []
-        return self.L.table_from([{"topic": t, "payload": p} for t, p in buf], recursive=True)
+        return self.L.table_from(buf, recursive=True)
 
     def _mqtt_publish(self, topic, payload):
         if not self.allow_write:
