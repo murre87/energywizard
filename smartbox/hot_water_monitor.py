@@ -93,6 +93,13 @@ def stored_prices(now):
     return result
 
 
+def read(connection, now=None):
+    import time
+    from sqlalchemy import text
+    row = connection.execute(text("SELECT mode FROM overrides WHERE device=:device"), {"device": DEVICE}).first()
+    return decode(row[0] if row else None, time.time() if now is None else now)
+
+
 def load_state():
     import ew_settings
     return ew_settings.get(DEMAND_KEY, {})
