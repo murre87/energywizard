@@ -2,6 +2,8 @@ import json
 import math
 import os
 import hot_water_power
+import energy_source_evidence
+from psycopg.types.json import Jsonb
 import threading
 import psycopg
 import pandas as pd
@@ -152,6 +154,7 @@ def init_log_db():
                         ADD COLUMN IF NOT EXISTS hot_water_power_sample_at DOUBLE PRECISION,
                         ADD COLUMN IF NOT EXISTS hot_water_power_basis   TEXT,
                         ADD COLUMN IF NOT EXISTS hot_water_power_source  TEXT,
+                        ADD COLUMN IF NOT EXISTS energy_source_evidence  JSONB,
                         ADD COLUMN IF NOT EXISTS heat_produced_kwh_1h  NUMERIC,
                         ADD COLUMN IF NOT EXISTS electric_used_kwh_1h   NUMERIC,
                         ADD COLUMN IF NOT EXISTS circ_pump_speed       NUMERIC,
@@ -312,11 +315,13 @@ def log_status(
     expected_energy_wh: float = None,
     current_target_limit: float = None,
     predicted_base_load_kw: float = None,
-    allowed_kwh_now: float = None
+    allowed_kwh_now: float = None,
+    energy_evidence: dict = None
 ):
     try:
         now = datetime.now(SWE_TZ)
         p   = pump     or {}
+        raw_evidence = energy_source_evidence.log_value(energy_evidence)
         s   = solar    or {}
         t   = ha_temps or {}
         e   = ev       or {}
@@ -368,6 +373,7 @@ def log_status(
             "compressor_frequency_hz": p.get("compressor_frequency_hz"),
             "compressor_power_w": p.get("compressor_power_w"),
             **hot_water_power.log_fields(p),
+            "energy_source_evidence": Jsonb(raw_evidence) if raw_evidence is not None else None,
             "heat_produced_kwh_1h": p.get("heat_produced_kwh_1h"),
             "electric_used_kwh_1h": p.get("electric_used_kwh_1h"),
             "brine_in_temp": p.get("brine_in_temp"),

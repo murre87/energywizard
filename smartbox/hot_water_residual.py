@@ -55,7 +55,13 @@ def reconstruct(samples, contract, *, max_age_s=90, max_skew_s=5, max_gap_s=90,
     prepared = []
     for t, _, sample in ordered:
         reason, stamps = None, []
+        context = sample.get("source_context")
         try:
+            if (context is not None and (not isinstance(context, str) or len(context) != 64
+                    or any(c not in "0123456789abcdef" for c in context))):
+                raise ValueError("Invalid source context")
+            if sample.get("boundary") not in {None, "ac_household"}:
+                raise ValueError("Contradictory source boundary")
             values, sample_bases = [], []
             for watts, date, basis in CHANNELS:
                 values.append(_finite(sample.get(watts)))
@@ -84,15 +90,18 @@ def reconstruct(samples, contract, *, max_age_s=90, max_skew_s=5, max_gap_s=90,
             reason = "missing_or_invalid_measurement"
         if reason:
             invalid[reason] += 1
-            prepared.append((t, None, None))
+            prepared.append((t, None, None, context))
         else:
             prepared.append((t, {"timestamp": datetime.fromtimestamp(t, timezone.utc).isoformat(), "grid_w": values[0], "pv_w": values[1],
-                                  "battery_w": values[2], "controlled_w": [values[3]]}, min(stamps)))
+                                  "battery_w": values[2], "controlled_w": [values[3]]}, min(stamps), context))
     sums = defaultdict(lambda: [0., 0.])
     accepted = 0
-    for (start, a, oldest), (end, b, _) in zip(prepared, prepared[1:]):
+    for (start, a, oldest, context_a), (end, b, _, context_b) in zip(prepared, prepared[1:]):
         if a is None or b is None:
             rejected["invalid_endpoint"] += 1
+            continue
+        if context_a != context_b:
+            rejected["source_mapping_changed"] += 1
             continue
         if end-start > gap:
             rejected["sample_gap"] += 1

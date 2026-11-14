@@ -45,6 +45,7 @@ import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätnin
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import hot_water_monitor  # Default-off advisory shadow monitor; no device writes
 import hot_water_power  # Optional dedicated electrical-load evidence, cache/read-only
+import energy_source_evidence  # Optional raw source snapshot, separate from corrected balance
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_balance
@@ -2680,7 +2681,9 @@ while True:
                 peak_shaving_active=peak_shaving_active, force_heating_active=force_heating_active,
                 watchdog_trips=watchdog_trips, predicted_cooling_rate=predicted_cooling_rate,
                 expected_energy_wh=expected_energy_wh, current_target_limit=current_target_limit,
-                predicted_base_load_kw=dynamic_predicted_base_load_kw, allowed_kwh_now=allowed_kwh_now
+                predicted_base_load_kw=dynamic_predicted_base_load_kw, allowed_kwh_now=allowed_kwh_now,
+                energy_evidence=energy_source_evidence.capture(house_cfg, homeassistant._states_cache,
+                                                              pump_data or {}, now=time.time())
             )
 
             last_minute = current_minute
