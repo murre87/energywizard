@@ -1,5 +1,9 @@
 # Ändringar
 
+## 1.2.93 (2026-11-14)
+- Översättningar: när två textmallar passar väljs nu den mest specifika (mest fast text) i stället för den som
+  råkar stå först i katalogen. Det gav t.ex. "objednáno paus" i felsökningsvyn i stället för "objednáno pauza".
+
 ## 1.2.92 (2026-11-14)
 - **Planens indata får ett kvalitetsbetyg** (#389): varje sparad batteriplan anger hur stor del av priserna som var
   riktiga (inte framfyllda) och från vilken källa, om solprognosen kom från Home Assistant eller den egna

@@ -89,8 +89,10 @@
         if ([...new Set(names)].sort().join("|") !== [...new Set(targetNames)].sort().join("|")) continue;
         let pattern = "^", at = 0;
         for (const p of parts) { pattern += escape(key.slice(at, p.index)) + "(.+?)"; at = p.index + p[0].length; }
-        templates.push([new RegExp(pattern + escape(key.slice(at)) + "$", "u"), names, value]);
+        templates.push([new RegExp(pattern + escape(key.slice(at)) + "$", "u"), names, value, key.replace(token, "").length]);
       }
+      // Mest fast text först: en specifik mall går före en allmän som också matchar (stabil sortering, samma som i18n_py)
+      templates.sort((a, b) => b[3] - a[3]);
       templateCache.set(dict, templates);
     }
     if (core.length > 1000) return null;

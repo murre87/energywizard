@@ -158,7 +158,10 @@ def _named_lookup(core, d):
             for p in parts:
                 pattern += re.escape(key[at:p.start()]) + "(.+?)"
                 at = p.end()
-            templates.append((re.compile(pattern + re.escape(key[at:]) + "$"), names, value))
+            templates.append((re.compile(pattern + re.escape(key[at:]) + "$"), names, value, len(NAMED.sub("", key))))
+        # Mest fast text först: "beställt paus, uppmätt {a}" ska gå före "beställt {o}, uppmätt {a}" (stabil sortering)
+        templates.sort(key=lambda t: -t[3])
+        templates = [t[:3] for t in templates]
         _named_cache.update(dict=d, templates=templates)
     if len(core) > 1000:
         return None
