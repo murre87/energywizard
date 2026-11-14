@@ -66,10 +66,16 @@ complete permitted price window.
 Sanitized status is published to the existing `overrides` table as
 `hot_water_shadow_status`. `decode` rejects malformed, future or older-than-90s
 reports. Publication failure therefore becomes unknown, not permanently healthy.
-This PR supplies the status plumbing, not a user-facing card/API. A later owner
-status view must use this decoder rather than treating an old raw row as current.
+The owner-only `GET /api/hot-water-shadow-status` uses this decoder and exposes
+only validated status, never raw configuration or exceptions. The Settings card
+is hidden when the monitor is disabled or access is denied. When configured, it
+shows the advisory state, proposed start/end/deadline and estimated electrical
+energy with English/Czech translations. It refreshes every 30 seconds while open;
+failed refreshes clear the previous proposal and can be retried manually. No
+enable/start/stop controls are offered. All displays explicitly distinguish this
+proposal from physical heater control or an applied battery reservation.
 
-Remaining work: owner UI/API, qualified real timed-boost/release and reconciliation,
+Remaining work: qualified real timed-boost/release and reconciliation,
 actual runtime comfort/cycle behavior and measured residual-baseline integration.
 The live installation, physical heater and actual energy delivery were not tested
 or changed; PostgreSQL and persistence checks use isolated synthetic data.

@@ -313,6 +313,24 @@ async def api_setup_ha(request: Request):
 
 
 # ---------- Batteriets planering: stil och försäljning (valt i webben) ----------
+@app.get("/api/heat-feedback")
+async def api_heat_feedback():
+    """Rumsåterkoppling för värmepumpen (gpm.py Prio 5b): av / skugga / på."""
+    return {"mode": ew_settings.load().get("heat_feedback") or "av"}
+
+
+@app.post("/api/heat-feedback")
+async def api_heat_feedback_save(request: Request):
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"detail": "Bara ägaren kan ändra värmestyrningen"}, status_code=403)
+    mode = (await request.json()).get("mode")
+    if mode not in ("av", "skugga", "på"):
+        return JSONResponse({"detail": "Okänt läge"}, status_code=400)
+    ew_settings.update(heat_feedback=mode)
+    return {"ok": True, "mode": mode}
+
+
 @app.get("/api/battery-plan-settings")
 async def api_battery_plan_settings():
     import battery_plan
@@ -628,6 +646,28 @@ def api_snapshot_status(request: Request):
             return {'ok':True,'status':snapshot_status.read(connection)}
     except Exception:
         return {'ok':True,'status':{'state':'unknown','fresh':False}}
+
+
+@app.get("/api/hot-water-shadow-status")
+def api_hot_water_shadow_status(request: Request):
+    if AUTH.session(request)[0] != "owner":
+        return JSONResponse({"detail": "Forbidden"}, status_code=403)
+    import hot_water_monitor
+    import house_config
+    unknown = {"state": "unknown", "fresh": False, "control_ready": False}
+    try:
+        hp = house_config.load_house_config(HOUSE_CONFIG_FILE).get("heat_pump") or {}
+        enabled = hp.get("enabled") is True and (hp.get("hot_water_shadow") or {}).get("enabled") is True
+    except Exception:
+        return {"ok": True, "enabled": None, "status": unknown}
+    if not enabled:
+        return {"ok": True, "enabled": False, "status": unknown}
+    try:
+        with ENGINE.connect() as connection:
+            status = hot_water_monitor.read(connection)
+        return {"ok": True, "enabled": True, "status": status}
+    except Exception:
+        return {"ok": True, "enabled": True, "status": unknown}
 
 
 @app.get("/api/control-journal")

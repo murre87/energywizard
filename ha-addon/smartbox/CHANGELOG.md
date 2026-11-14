@@ -1,5 +1,14 @@
 # Ändringar
 
+## 1.2.95 (2026-11-14)
+- **Värmepumpen kan följa rumsgivarna** (valfritt, Värmepump → Måltemperatur → "Följ rumsgivarna": Av / Skugga /
+  På). För pumpar utan egen innegivare, som Thermia via Husdata, avgör värmekurvan temperaturen. Med börvärdet 20 °C
+  blev det cirka 21,6–21,9 °C inne, och kompressorn värmde under dyra timmar fast huset hade värme att ge av. Med
+  återkopplingen väljs börvärdet efter hur varmt det faktiskt är: dyrt och varmt hus ger en grad under
+  dyrt-temperaturen, nära golvet höjs det alltid, och billigt lagrar värme med en grad över billigt-temperaturen tills
+  huset är 0,5 °C under maxgränsen. Över maxgränsen tar det befintliga stoppet över. Backtest mars–november: cirka
+  270 kr för ett hus, med golvet hållet (lägst 19,8 °C, kort) och mycket mindre tid över 22 °C. Av som standard.
+
 ## 1.2.94 (2026-11-14)
 - **Rättat: bilarnas laddnivå visades som "–" i appen sedan 1.2.84**, fast Home Assistant hade värdet. En
   kommentar hamnade mitt på raden som skickar bilens läge till appen, så laddnivå, status, kabel, hemma/borta och

@@ -1279,6 +1279,53 @@ async function mountSnapshotStatus() {
   if (body.isConnected) body.innerHTML = snapshotStatusHtml(status);
 }
 
+function hotWaterStatusHtml(status) {
+  const tr = text => window.I18N ? I18N.tr(text) : text;
+  const labels = {
+    disabled:"Rådgivande varmvattenplanering är avstängd",requires_shadow:"Väntar på skuggläge",
+    precedence_blocked:"Manuell styrning, bortaläge eller hygienkörning har företräde",
+    unsupported_driver:"Värmepumpsdrivrutinen stöds inte av rådgivningen",
+    sensor_role_unqualified:"Varmvattengivarens roll är inte verifierad",
+    observation_unavailable:"Varmvattentemperaturen saknas eller är inaktuell",
+    policy_changed:"Planeringspolicyn har ändrats och behöver granskas",clock_moved_backwards:"Motorns klocka har gått bakåt",
+    target_already_observed:"Varmvattnet har redan nått måltemperaturen",deadline_missed:"Varmvattnets tidsgräns har passerats",
+    interval_conflict:"Minsta tid mellan körningar ryms inte före tidsgränsen",proposed:"Föreslaget värmefönster",
+    schedule_unavailable:"Inget komplett prisfönster före tidsgränsen",unavailable:"Rådgivande varmvattenstatus är inte tillgänglig",
+    unknown:"Okänd eller inaktuell status"
+  };
+  const fresh = status && status.fresh && Number.isFinite(status.reported_at) &&
+    Date.now() / 1000 - status.reported_at >= 0 && Date.now() / 1000 - status.reported_at <= 90;
+  const state = fresh && Object.hasOwn(labels, status.state) ? status.state : "unknown";
+  const date = value => {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? "–" : d.toLocaleString((window.I18N && I18N.lang) || "sv-SE");
+  };
+  return `<div><b>${esc(tr(labels[state]))}</b></div>
+    ${state === "proposed" ? `<div class="note"><span>${esc(tr("Föreslagen start"))}</span>: ${esc(date(status.start))}<br>
+    <span>${esc(tr("Föreslaget slut"))}</span>: ${esc(date(status.end))}<br>
+    <span>${esc(tr("Senast klart"))}</span>: ${esc(date(status.deadline))}<br>
+    <span>${esc(tr("Beräknad elenergi"))}</span>: ${esc(Number.isFinite(status.energy_kwh) ? status.energy_kwh.toLocaleString((window.I18N && I18N.lang) || "sv-SE", {maximumFractionDigits:2}) : "–")} kWh</div>` : ""}
+    <div class="note">${esc(tr("Endast ett förslag. Värmepumpen styrs inte och ingen batterireservation har lagts till."))}</div>`;
+}
+
+let hotWaterStatusTimer = null;
+async function mountHotWaterStatus() {
+  clearTimeout(hotWaterStatusTimer);
+  const card = document.getElementById("hotwaterstatuscard"), body = document.getElementById("hotwaterstatusbody");
+  if (!card || !body) return;
+  if (!card.hidden) body.innerHTML = hotWaterStatusHtml(null);
+  let data;
+  try { data = await api("api/hot-water-shadow-status"); }
+  catch (_) { if (body.isConnected) body.innerHTML = hotWaterStatusHtml(null); return; }
+  if (!body.isConnected || document.getElementById("hotwaterstatusbody") !== body) return;
+  card.hidden = data.enabled === false;
+  if (!card.hidden) body.innerHTML = hotWaterStatusHtml(data.status);
+  clearTimeout(hotWaterStatusTimer);
+  hotWaterStatusTimer = setTimeout(() => {
+    if (document.getElementById("hotwaterstatusbody") === body && body.isConnected) mountHotWaterStatus();
+  }, 30000);
+}
+
 async function mountMqtt() {
   let d;
   try { d = await api("api/mqtt-settings"); } catch (e) { return; }
@@ -1753,9 +1800,15 @@ async function renderVarmepump() {
       <div class="numfield" style="margin-top:10px">Billigt: <input type="number" id="tempcheap" step="0.5" min="16" max="26" value="${d.temp_cheap != null ? d.temp_cheap : ""}"> °C
         Dyrt: <input type="number" id="tempexpensive" step="0.5" min="14" max="24" value="${d.temp_expensive != null ? d.temp_expensive : ""}"> °C
         <button class="icobtn" id="savetempbtn">Spara</button></div>
+      <div class="note" style="margin-top:12px">Följ rumsgivarna: när det är dyrt och huset har värme att ge av sänks börvärdet en grad under dyrt-temperaturen, och när det är billigt lagras värme med en grad över billigt-temperaturen tills huset är 0,5 °C under maxgränsen. Nära golvet höjs börvärdet alltid. Skugga loggar bara vad som skulle ha gjorts.</div>
+      <div class="seg" id="hfseg" style="margin-top:6px">${[["av", "Av"], ["skugga", "Skugga"], ["på", "På"]].map(([k, l]) => `<button data-hf="${k}">${l}</button>`).join("")}</div>
     </div>`;
   document.querySelectorAll("#heatseg button").forEach(b => b.onclick = () => postAction("api/home-action/heat", { value: b.dataset.m }).then(renderVarmepump));
   document.querySelectorAll("#hotwaterseg button").forEach(b => b.onclick = () => postAction("api/home-action/hotwater", { value: b.dataset.m }).then(renderVarmepump));
+  api("api/heat-feedback").then((r) => document.querySelectorAll("#hfseg button").forEach((b) => b.classList.toggle("on", b.dataset.hf === r.mode))).catch(() => {});
+  document.querySelectorAll("#hfseg button").forEach((b) => b.onclick = async () => {
+    try { await postJSON("api/heat-feedback", { mode: b.dataset.hf }); document.querySelectorAll("#hfseg button").forEach((x) => x.classList.toggle("on", x === b)); toast("Sparat - gäller från nästa beslut (inom 15 min)"); }
+    catch (e) { toast(e.message); } });
   document.getElementById("savetempbtn").onclick = async () => {
     await postAction("api/settings-action", { key: "temp_cheap", value: parseFloat(document.getElementById("tempcheap").value) });
     await postAction("api/settings-action", { key: "temp_expensive", value: parseFloat(document.getElementById("tempexpensive").value) });
@@ -2014,6 +2067,11 @@ async function renderInstallningar() {
       <div id="snapshotstatusbody" class="note">Laddar…</div>
       <button class="icobtn" id="snapshotstatusrefresh" style="margin-top:8px">Uppdatera status</button>
     </div>
+    <div class="card" style="margin-bottom:16px" id="hotwaterstatuscard" hidden>
+      <h2>Varmvatten – rådgivande plan</h2>
+      <div id="hotwaterstatusbody" class="note">Laddar…</div>
+      <button class="icobtn" id="hotwaterstatusrefresh" style="margin-top:8px">Uppdatera status</button>
+    </div>
     <div class="card" style="margin-bottom:16px" id="sensorcard" hidden>
       <div style="font-size:1.1rem;font-weight:700">🏠 Givare inne och ute</div>
       <div class="note" style="margin-top:4px">Välj vilka temperaturgivare som visar husets innetemperatur (medianen används när du har tre eller fler) och vilken som sitter ute. Förslagen är markerade ⭐.</div>
@@ -2084,6 +2142,8 @@ async function renderInstallningar() {
   mountMqtt();
   mountSnapshotStatus();
   document.getElementById("snapshotstatusrefresh").onclick = mountSnapshotStatus;
+  mountHotWaterStatus();
+  document.getElementById("hotwaterstatusrefresh").onclick = mountHotWaterStatus;
   if (window.I18N && I18N.lang !== "sv") {
     const mb = document.getElementById("missingbtn");
     mb.hidden = false; mb.onclick = () => I18N.downloadMissing();
