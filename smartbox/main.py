@@ -2119,6 +2119,21 @@ while True:
                                 print(f"⚠️ Batteriplanen hoppade över: {_pe}")
                                 _battery["plan"] = None
                     _bplan = _battery["plan"] if battery_cfg["control"] == "styr" else None
+                    # #396: "Toppa nu till X %" - klart vid målet eller efter maxtiden, sedan tar planen över
+                    try:
+                        _tu_t = int(str(all_overrides.get("battery_topup_target") or "0") or 0)
+                    except ValueError:
+                        _tu_t = 0
+                    _tu_soc = battery_state.get("soc_pct")
+                    if _tu_t and (battery_cfg["control"] != "styr" or (_tu_soc is not None and _tu_soc >= min(_tu_t, battery_cfg.get("max_soc", 100)))
+                                  or (timed_override.until(all_overrides, "battery_topup") or 0) <= time.time()):
+                        if _tu_soc is not None and _tu_soc >= _tu_t:
+                            print(f"🔋 Batteriet är toppat till {_tu_t} % - planen tar över.")
+                            notifier.send_emil("🔋 Batteriet är toppat", f"Husbatteriet har nått {_tu_t} %. Planen tar över.")
+                        for _k in ("battery_topup_target", "battery_topup_until"):
+                            logger.set_override(_k, "")
+                            all_overrides[_k] = ""
+                        _tu_t = 0
                     _bdec = battery_control.decide({
                         "soc": battery_state.get("soc_pct"), "price": current_price, "avg_net_w": avg_net,
                         "currency_symbol": nordpool.cost_settings()["symbol"],
@@ -2135,6 +2150,7 @@ while True:
                         "balance_hold_now": (_bplan or {}).get("balance_hold_now") if _balance["request"] else False,
                         "learned_note": _battery_note(_battery["model"], (_bplan or {}).get("live_charge_note")),
                         "fuse_charge_cap_w": _battery_fuse_cap_w(battery_state.get("power_w")),
+                        "topup_target": _tu_t or None,
                     }, battery_cfg, battery_driver.supported_intents())
                     gpm_actions["log"].append(f"🔋 (BATTERI): {_bdec['reason']}")
                     battery_driver.set_balancing(_bdec.get("rule") == "balance")

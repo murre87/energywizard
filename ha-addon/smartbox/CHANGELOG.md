@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.87 (2026-11-14)
+- **"Toppa husbatteriet nu till X %"** (#396): tryck på batteriet i flödet. När EnergyWizard styr batteriet finns
+  knapparna 60, 80 och 100 %. Batteriet laddar direkt, alltid inom säkringens utrymme, tills målet nås eller efter
+  6 timmar. Sedan tar planen över, med en avisering. Säkerhetsreglerna (gammal data, överlastad säkring,
+  effekttak) går före. Utan styrning visar rutan laddnivån och var styrningen slås på.
+
 ## 1.2.86 (2026-11-14)
 - **Varmvatten "Till" med tid** (#397): appen frågar hur länge (30 min, 1, 2, 4 eller 6 h, eller "Tills jag
   ändrar"), och varmvattnet går tillbaka till Auto av sig själv när tiden gått ut. Rutan visar "Auto om 1 h 20 min".

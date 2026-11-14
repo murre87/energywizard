@@ -778,6 +778,31 @@ def car_command(car: str, kind: str, body: dict | None = None) -> dict | None:
     return None
 
 
+def battery_control_mode() -> str:
+    """Hur batteriet används enligt installationen: styr / samarbete / av (#396)."""
+    try:
+        return HC.battery_settings(HC.load_house_config(HOUSE_CONFIG_PATH))["control"]
+    except Exception:
+        return "av"
+
+
+@app.post("/api/battery/topup")
+async def battery_topup(request: Request):
+    """#396: "Toppa husbatteriet nu till X %" (0 = avbryt). Motorn laddar inom säkringen tills målet eller 6 h."""
+    if _role(request) in (None, "guest"):
+        raise HTTPException(403, "Inte tillåtet")
+    body = await request.json()
+    target = intval(body.get("target"))
+    if target and not 10 <= target <= 100:
+        raise HTTPException(400, "Målet ska vara 10–100 %")
+    if target and battery_control_mode() != "styr":
+        raise HTTPException(409, "EnergyWizard styr inte batteriet - välj Styr under batteriet i installationen")
+    logact(request, f"Batteri: toppa till {target} %" if target else "Batteri: avbryt toppning")
+    set_override("battery_topup_target", str(target) if target else "")
+    set_override("battery_topup_until", str(int(time.time() + 6 * 3600)) if target else "")
+    return {"ok": True, "msg": f"Toppar batteriet till {target} % - startar inom en minut" if target else "Toppningen avbruten - planen tar över"}
+
+
 @app.post("/api/car/{car}/action")
 async def action(car: str, request: Request):
     if car in CARS:
@@ -1444,7 +1469,8 @@ def energy():
             "grid": {"net_w": net_now(), "price": pr.get("now"), "level": pr.get("level")},
             "peaks": month_peaks(), "today_kwh": num(st, "sensor.smartbox_forbrukning_idag"), "saving_today": num(st, "sensor.smartbox_besparing_idag"), "decision": val(st, "sensor.smartbox_beslut"),
             "solar_ev_kwh": num(st, "sensor.smartbox_elbil_solel"), "insights": safe_insights(st, ov, pr), "log": val(st, "sensor.smartbox_beslut"),
-            "alerts": control_alerts(ov), "house": house, "battery": battery}
+            "alerts": control_alerts(ov), "house": house,
+            "battery": battery and {**battery, "control": battery_control_mode(), "topup_target": intval(ov.get("battery_topup_target")) or None}}
 
 
 def control_alerts(ov: dict) -> list:

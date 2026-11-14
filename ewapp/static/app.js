@@ -41,7 +41,7 @@ function showLogin(msg) {
   $("#lf").onsubmit = async (e) => { e.preventDefault(); try { await api("login", { user: $("#un").value, password: $("#pw").value }); start(); } catch (er) { showLogin(er.message); } };
 }
 const ER = () => (ROLE === "owner" && VIEWAS) ? VIEWAS : ROLE;                    // effektiv roll: ägaren kan förhandsgranska Elins vy och gästläget
-const CAN = { family: ["theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "clim", "climclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
+const CAN = { family: ["battery", "theme", "ser", "refreshsoc", "installapp", "tab", "swap", "power", "start", "stop", "auto", "heat_on", "heat_off", "access", "cardata", "lights", "trip", "sch", "schcar", "schtime", "schclock", "clim", "climclock", "rooms", "greet", "log", "health", "settings", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"],
               guest: ["theme", "ser", "tab", "health", "settings", "swap", "schcar", "cardata", "rooms", "greet", "log", "report", "hp", "hr", "bigchart", "bigrange", "planall", "planview", "histview", "solarsheet", "insights", "peaks", "closesheet", "nowsheet"] };
 const can = (a) => ER() === "owner" || (ROLE === "owner" && a === "viewas") || (CAN[ER()] || []).includes(a);   // ägaren kan alltid byta tillbaka från förhandsvisningen
 const TABS = { owner: ["hem", "bil", "hus", "plan", "historik"], family: ["hem", "bil", "plan"], guest: ["hem", "bil", "hus", "plan", "historik"] };
@@ -284,7 +284,7 @@ function carsRow() {                                        // bilarnas laddniv�
 // ---- "Just nu" (2026-11-07, Emil: framsidan ska tydligt visa vad som sker just nu, som webbens Översikt) ----
 // Källorna till vänster (sol, nät, batteri), huset i mitten, det som drar el till höger. Varje ruta: stor siffra och
 // ett statusord. Prickarna rör sig åt det håll elen går. Bara det huset har (live_flow.py).
-const FL_TAB = { sol: ["solarsheet"], nat: ["insights"], batteri: ["insights"], varmepump: ["tab", "hus"], varmvatten: ["tab", "hus"], spabad: ["tab", "hus"] };
+const FL_TAB = { sol: ["solarsheet"], nat: ["insights"], batteri: ["battery"], varmepump: ["tab", "hus"], varmvatten: ["tab", "hus"], spabad: ["tab", "hus"] };
 function flowCard() {                    // delad med webbens Översikt (smartbox/static/liveflow.js) - samma bild och regler
   if (!FL || !FL.ok || !FL.nodes || !window.EWLiveFlow) return "";
   const attrs = (n) => { const t = n.key.startsWith("ev_") ? ["tab", "bil"] : (FL_TAB[n.key] || ["tab", "hus"]); return `data-a="${t[0]}"${t[1] ? ` data-v="${t[1]}"` : ""}`; };
@@ -581,6 +581,19 @@ async function hardReload() {
 }
 let doneShortcut = false, grAt = 0;
 // #394: "Ladda nu" frågar efter mål - laddningen avslutas av sig själv vid målet, urdragen kabel eller efter 24 h
+// #396: husbatteriet - "Toppa nu till X %" när EnergyWizard styr batteriet
+function batterySheet() {
+  const bt = (EN && EN.battery) || {}, soc = bt.soc, styr = bt.control === "styr" && can("battery");
+  const tg = [60, 80, 100].filter((t) => soc == null || t > soc);
+  const now = soc == null ? "Laddnivån är okänd just nu." : `Batteriet har ${soc} %${bt.w != null && Math.abs(bt.w) > 30 ? (bt.w > 0 ? `, laddar ${f1(bt.w / 1000)} kW` : `, laddar ur ${f1(-bt.w / 1000)} kW`) : ""}.`;
+  sheet(`<h3>Husbatteriet</h3><div class="note">${now}</div>
+    ${bt.topup_target ? `<div class="note" style="margin-top:6px">Toppar till ${bt.topup_target} %. Sedan tar planen över.</div><button class="mini" data-x="cancel" style="width:100%;margin-top:10px">Avbryt toppning</button>`
+      : styr && soc != null && tg.length ? `<div class="note" style="margin-top:6px">Toppa nu: laddar direkt, inom säkringen, tills målet. Bra före ett oväder eller en dyr kväll.</div><div class="cn-tg">${tg.map((t) => `<button class="mini" data-x="${t}">Toppa till ${t} %</button>`).join("")}</div>`
+      : styr ? "" : `<div class="note" style="margin-top:6px">EnergyWizard läser batteriet men styr det inte. Det ändras under batteriet i installationen.</div>`}
+    <button class="mini" data-x="no" style="width:100%;margin-top:8px">Stäng</button>`);
+  $("#sheet").onclick = async (e) => { const b = e.target.closest("[data-x]"); if (!b) { if (e.target.id === "sheet") closeSheet(); return; } closeSheet(); if (b.dataset.x === "no") return;
+    buzz(); try { const r = await api("battery/topup", { target: b.dataset.x === "cancel" ? 0 : +b.dataset.x }); toast(r.msg); EN = await api("energy"); render(); } catch (er) { toast(er.message); } };
+}
 // #397: varmvatten "Till" med tid - går tillbaka till Auto av sig själv
 function hwLeft(until) { const m = Math.max(0, Math.round((until * 1000 - Date.now()) / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; }
 function hotwaterSheet() {
@@ -828,6 +841,7 @@ document.addEventListener("click", async (e) => {
   if (a === "health") return healthSheet();
   if (a === "access") return accessSheet(c);
   if (a === "cardata") return carDataSheet(c);
+  if (a === "battery") return batterySheet();
   if (a === "home" && b.dataset.k === "hotwater" && v === "on") return hotwaterSheet();     // #397: välj hur länge
   if (a === "home") { buzz(); try { const r = await api("home/" + b.dataset.k, { value: v }); toast(r.msg); H = await api("home"); render(); } catch (er) { toast(er.message); } return; }
   if (a === "spabath") { spaBathSheet(); return; }

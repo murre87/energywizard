@@ -17,6 +17,7 @@ Reglerna, i prioritetsordning (första som gäller vinner):
   1. Gammal data (batteriet eller elmätaren svarar inte)  -> auto  (växelriktaren tar över)
   2. Säkringen överbelastad / över 1,2 x                   -> ladda ur (om över reservnivån)
   3. Effekttaket nått och huset köper el                   -> ladda ur (om över reservnivån)
+  3b. "Toppa nu till X %" (appen, #396)                   -> ladda tills målet (inom säkringen)
   4. Minuspris                                             -> ladda (även från nätet), upp till max
   5. Elbilen laddar från nätet                             -> håll (töm inte batteriet i bilen)
   6. Elbilen solladdar och batteriet är över prioritetsnivån -> vila (överskottet till bilen)
@@ -133,6 +134,9 @@ def decide(s, cfg, supported=frozenset({"auto"})):
     if s.get("peak_reached") and (s.get("avg_net_w") or 0) > 100 and above_reserve:
         return out("discharge", "peak", f"Effekttaket är nått - batteriet täcker toppen ({soc:.0f} %).", pmax)
     price = s.get("price")
+    topup = s.get("topup_target")
+    if topup and soc < min(float(topup), max_soc):           # #396: "Toppa nu till X %" (säkringstaket gäller)
+        return out("charge", "topup", f"Toppar batteriet till {float(topup):.0f} %, {soc:.0f} % nu.", pmax)
     if price is not None and price < 0 and soc < max_soc:
         return out("charge", "negative", f"Minuspris ({price:.2f} {symbol}/kWh) - laddar batteriet från nätet.", pmax)
     if s.get("ev_charging_grid"):
@@ -185,5 +189,7 @@ def should_apply(new, last, last_change_at, now, min_change_minutes=5.0):
         if a is not None and b is not None and abs(a - b) < max(POWER_DEADBAND_W, abs(b) * 0.10):
             return False
     if new.get("rule") in SAFETY_RULES or last.get("rule") in SAFETY_RULES:
+        return True
+    if new.get("rule") == "topup" and last.get("rule") != "topup":     # #396: användarens "Toppa nu" startar direkt
         return True
     return (now - last_change_at) >= max(MIN_CHANGE_INTERVAL, timedelta(minutes=min_change_minutes))
