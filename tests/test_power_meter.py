@@ -42,6 +42,44 @@ def test_import_export_p1():
     assert r["net_power_w"] == -3000 and r["l1_a"] == -13 and r["l2_a"] is None
 
 
+def _esphome_p1(prefix="", device="p1"):
+    def sensor(name, unit, value):
+        return dict(e=f"sensor.{prefix}{name}", n=name.replace("_", " ").title(),
+                    d=device, dn="ESP P1 reader", m="ESPHome", u=unit,
+                    dc="current" if unit == "A" else "power", st=str(value))
+    return ([sensor(f"current_phase_{ph}", "A", ph) for ph in (1, 2, 3)]
+            + [sensor(f"momentary_active_{direction}_phase_{ph}", "kW", 99)
+               for direction in ("import", "export") for ph in (1, 2, 3)]
+            + [sensor("momentary_reactive_import", "kvar", 99),
+               sensor("momentary_active_import", "kW", 0.2),
+               sensor("momentary_active_export", "kW", 3.2)])
+
+
+def test_esphome_p1_discovery_and_signed_power_with_phase_currents():
+    for prefix in ("", "garage_"):
+        entities = _esphome_p1(prefix)
+        mapping = discover_house(entities)["power_meter"]["entities"]
+        assert mapping == dict(import_w=f"sensor.{prefix}momentary_active_import",
+                               export_w=f"sensor.{prefix}momentary_active_export",
+                               **{f"current_l{ph}": f"sensor.{prefix}current_phase_{ph}" for ph in (1, 2, 3)})
+        cache = {e["e"]: {"attributes": {"unit_of_measurement": e["u"]}} for e in entities}
+        _with(mapping, {e["e"]: float(e["st"]) for e in entities})
+        with patch.object(ha, "_get_numeric_state", _num), patch.object(ha, "_states_cache", cache):
+            assert ha.read_power_meter() == dict(net_power_w=-3000, l1_a=1, l2_a=2, l3_a=3)
+        ha.configure_power_meter({})
+
+
+def test_esphome_p1_never_pairs_devices_or_ambiguous_total_entities():
+    entities = _esphome_p1()
+    entities[-1]["d"] = "other"
+    result = discover_house(entities)["power_meter"]
+    assert not result or "import_w" not in result["entities"]
+    entities = _esphome_p1()
+    entities.append(dict(entities[-1], e="sensor.duplicate_momentary_active_export"))
+    result = discover_house(entities)["power_meter"]
+    assert not result or "import_w" not in result["entities"]
+
+
 def test_mataren_svarar_inte():
     _with({"power_w": "s.p"}, {})
     with patch.object(ha, "_get_numeric_state", _num):
