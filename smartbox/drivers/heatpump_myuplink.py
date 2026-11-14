@@ -231,6 +231,9 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
             pid = self._entities.get(key)
             if pid and pid in by_id:
                 self._writable[key] = bool(by_id[pid].get("writable"))
+        from hot_water_observation import temperature
+        water = by_id.get(str(self._entities.get("water_temp")), {})
+        out["water_temp_observation"] = temperature(out.get("water_temp"), water.get("timestamp"), "source")
         return out
 
     def _write_point(self, write_key: str, value) -> bool:

@@ -51,6 +51,10 @@ class HaEntitiesHeatPumpDriver(HeatPumpDriver):
         out["compressor_running"] = compressor_running(self._e.get("compressor"), self._num("compressor"),
                                                        lambda: homeassistant._get_raw_state(self._e["compressor"]))
         out["compressor_power_kw"] = None
+        from hot_water_observation import temperature
+        raw = homeassistant._states_cache.get(self._e.get("water_temp")) or {}
+        out["water_temp_observation"] = temperature(
+            out.get("water_temp"), raw.get("last_reported") or raw.get("last_updated"), "ha_report")
         return out
 
     def set_room_temp(self, target_c: float) -> bool:

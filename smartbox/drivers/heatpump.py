@@ -8,6 +8,7 @@ separat, senare tillägg (Fas 5) - egen Modbus-/API-karta, isolerad från den h�
 """
 import time
 from abc import ABC, abstractmethod
+from hot_water_observation import temperature
 
 # Matter-lika lägen (Thermostat-klustrets SystemMode + varmvatten). Drivrutiner översätter till/från sina egna koder.
 MODES = ("off", "heat", "cool", "auto", "dhw", "heat_dhw", "cool_dhw", "auto_dhw")
@@ -47,6 +48,7 @@ class HeatPumpDriver(ABC):
               "energy_kwh": None, "fault": None, "heat_output_w": None, "cop": None, "defrosting": None,
               "dhw_temp": s.get("water_temp"), "forward_temp": s.get("forward_temp"), "return_temp": s.get("return_temp")}
         st.update(self._state_extra(s))
+        st["dhw_temp_observation"] = s.get("water_temp_observation") or temperature(s.get("water_temp"))
         st["curve_offset"] = self._curve_offset
         st["paused_until"] = self._paused_until
         return st
