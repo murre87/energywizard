@@ -2577,5 +2577,13 @@
   "Följ rumsgivarna: när det är dyrt och huset har värme att ge av sänks börvärdet en grad under dyrt-temperaturen, och när det är billigt lagras värme med en grad över billigt-temperaturen tills huset är 0,5 °C under maxgränsen. Nära golvet höjs börvärdet alltid. Skugga loggar bara vad som skulle ha gjorts.": "Řídit podle čidel v místnostech: když je elektřina drahá a dům má teplo navíc, požadovaná teplota se sníží o stupeň pod drahou teplotu, a když je levná, ukládá se teplo o stupeň nad levnou teplotou, dokud dům není 0,5 °C pod maximem. Blízko minima se požadovaná teplota vždy zvýší. Stínový režim jen zaznamenává, co by se udělalo.",
   "Bara ägaren kan ändra värmestyrningen": "Řízení vytápění může měnit jen vlastník",
   "Okänt läge": "Neznámý režim",
-  "Skugga": "Stín"
+  "Skugga": "Stín",
+  "Börvärde lägst:": "Nejnižší požadovaná teplota:",
+  "Börvärde lägst": "Nejnižší požadovaná teplota",
+  "högst:": "nejvyšší:",
+  "högst": "nejvyšší",
+  "Tomt = standard (en grad under dyrt-temperaturen och en över billigt-temperaturen). Tillåtet 15–25 °C. Innetemperaturen hålls ändå mellan golvet och maxgränsen.": "Prázdné = výchozí (o stupeň pod drahou teplotou a o stupeň nad levnou). Povoleno 15–25 °C. Vnitřní teplota se i tak drží mezi minimem a maximem.",
+  "Börvärdet ska vara ett tal": "Požadovaná teplota musí být číslo",
+  "Börvärdet ska vara 15–25 °C": "Požadovaná teplota musí být 15–25 °C",
+  "Lägsta börvärdet kan inte vara högre än högsta": "Nejnižší požadovaná teplota nemůže být vyšší než nejvyšší"
 }

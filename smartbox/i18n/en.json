@@ -2577,5 +2577,13 @@
  "Följ rumsgivarna: när det är dyrt och huset har värme att ge av sänks börvärdet en grad under dyrt-temperaturen, och när det är billigt lagras värme med en grad över billigt-temperaturen tills huset är 0,5 °C under maxgränsen. Nära golvet höjs börvärdet alltid. Skugga loggar bara vad som skulle ha gjorts.": "Follow the room sensors: when power is expensive and the house has heat to spare, the setpoint is lowered one degree below the expensive temperature, and when it is cheap, heat is stored one degree above the cheap temperature until the house is 0.5 °C below the maximum. Close to the floor the setpoint is always raised. Shadow only logs what would have been done.",
  "Bara ägaren kan ändra värmestyrningen": "Only the owner can change the heating control",
  "Okänt läge": "Unknown mode",
- "Skugga": "Shadow"
+ "Skugga": "Shadow",
+ "Börvärde lägst:": "Lowest setpoint:",
+ "Börvärde lägst": "Lowest setpoint",
+ "högst:": "highest:",
+ "högst": "highest",
+ "Tomt = standard (en grad under dyrt-temperaturen och en över billigt-temperaturen). Tillåtet 15–25 °C. Innetemperaturen hålls ändå mellan golvet och maxgränsen.": "Empty = default (one degree below the expensive temperature and one above the cheap temperature). Allowed 15–25 °C. The indoor temperature is still kept between the floor and the maximum.",
+ "Börvärdet ska vara ett tal": "The setpoint must be a number",
+ "Börvärdet ska vara 15–25 °C": "The setpoint must be 15–25 °C",
+ "Lägsta börvärdet kan inte vara högre än högsta": "The lowest setpoint cannot be higher than the highest"
 }

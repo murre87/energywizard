@@ -1,5 +1,10 @@
 # Ändringar
 
+## 1.2.96 (2026-11-14)
+- **Rumsåterkopplingen: börvärdets intervall är en inställning** (Värmepump → Måltemperatur, "Börvärde lägst" och
+  "högst", 15–25 °C). Tomt ger standard: en grad under dyrt-temperaturen och en grad över billigt-temperaturen.
+  Golvvakten och maxgränsen gäller som förut, så innetemperaturen hålls mellan dem.
+
 ## 1.2.95 (2026-11-14)
 - **Värmepumpen kan följa rumsgivarna** (valfritt, Värmepump → Måltemperatur → "Följ rumsgivarna": Av / Skugga /
   På). För pumpar utan egen innegivare, som Thermia via Husdata, avgör värmekurvan temperaturen. Med börvärdet 20 °C

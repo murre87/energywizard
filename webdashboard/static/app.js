@@ -1755,10 +1755,18 @@ async function renderVarmepump() {
         <button class="icobtn" id="savetempbtn">Spara</button></div>
       <div class="note" style="margin-top:12px">Följ rumsgivarna: när det är dyrt och huset har värme att ge av sänks börvärdet en grad under dyrt-temperaturen, och när det är billigt lagras värme med en grad över billigt-temperaturen tills huset är 0,5 °C under maxgränsen. Nära golvet höjs börvärdet alltid. Skugga loggar bara vad som skulle ha gjorts.</div>
       <div class="seg" id="hfseg" style="margin-top:6px">${[["av", "Av"], ["skugga", "Skugga"], ["på", "På"]].map(([k, l]) => `<button data-hf="${k}">${l}</button>`).join("")}</div>
+      <div class="numfield" style="margin-top:8px">Börvärde lägst: <input type="number" id="hfmin" step="0.5" min="15" max="25" placeholder="${d.temp_expensive != null ? d.temp_expensive - 1 : 19}"> °C
+        högst: <input type="number" id="hfmax" step="0.5" min="15" max="25" placeholder="${d.temp_cheap != null ? d.temp_cheap + 1 : 23}"> °C
+        <button class="icobtn" id="hfsave">Spara</button></div>
+      <div class="note">Tomt = standard (en grad under dyrt-temperaturen och en över billigt-temperaturen). Tillåtet 15–25 °C. Innetemperaturen hålls ändå mellan golvet och maxgränsen.</div>
     </div>`;
   document.querySelectorAll("#heatseg button").forEach(b => b.onclick = () => postAction("api/home-action/heat", { value: b.dataset.m }).then(renderVarmepump));
   document.querySelectorAll("#hotwaterseg button").forEach(b => b.onclick = () => postAction("api/home-action/hotwater", { value: b.dataset.m }).then(renderVarmepump));
-  api("api/heat-feedback").then((r) => document.querySelectorAll("#hfseg button").forEach((b) => b.classList.toggle("on", b.dataset.hf === r.mode))).catch(() => {});
+  api("api/heat-feedback").then((r) => { document.querySelectorAll("#hfseg button").forEach((b) => b.classList.toggle("on", b.dataset.hf === r.mode));
+    if (r.min_sp != null) document.getElementById("hfmin").value = r.min_sp; if (r.max_sp != null) document.getElementById("hfmax").value = r.max_sp; }).catch(() => {});
+  document.getElementById("hfsave").onclick = async () => {
+    try { await postJSON("api/heat-feedback", { min_sp: document.getElementById("hfmin").value, max_sp: document.getElementById("hfmax").value }); toast("Sparat - gäller från nästa beslut (inom 15 min)"); }
+    catch (e) { toast(e.message); } };
   document.querySelectorAll("#hfseg button").forEach((b) => b.onclick = async () => {
     try { await postJSON("api/heat-feedback", { mode: b.dataset.hf }); document.querySelectorAll("#hfseg button").forEach((x) => x.classList.toggle("on", x === b)); toast("Sparat - gäller från nästa beslut (inom 15 min)"); }
     catch (e) { toast(e.message); } });
