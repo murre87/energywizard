@@ -2480,5 +2480,6 @@
   "EnergyWizard bad om # A": "EnergyWizard žádal # A",
   "Lastbalanseringen tillåter # A": "Vyvažování zátěže povoluje # A",
   "Laddboxens krets är på # A": "Okruh nabíječky má # A",
-  "Laddboxen ger bilen # A av # A, orsaken är okänd": "Nabíječka dává autu # A z # A, příčina je neznámá"
+  "Laddboxen ger bilen # A av # A, orsaken är okänd": "Nabíječka dává autu # A z # A, příčina je neznámá",
+  "Huvudbil: {name}": "Hlavní auto: {name}"
 }

@@ -1,5 +1,12 @@
 # Ändringar
 
+## 1.2.85 (2026-11-14)
+- **Appen: "Just nu"-raderna försvann och flödet krympte** i den nya stilen. Hemskärmen krymper innehållet steg
+  för steg när det inte får plats, men det sista steget togs aldrig bort igen. Hade sidan en gång varit för full
+  (till exempel medan data laddades) doldes raderna om vad som görs nu, och flödesdiagrammet blev en liten ruta med
+  tomma sidor tills appen laddades om.
+- Översatt: "Huvudbil: …" för alla bilnamn (förut bara "Nissan" och "Tesla").
+
 ## 1.2.84 (2026-11-14)
 - **Appen förklarar när laddboxen ger bilen mindre ström än EnergyWizard bad om** (#385), t.ex. "Laddboxen
   begränsar till 12 A: lastbalansering. EnergyWizard bad om 16 A." Förklaringen bygger bara på laddboxens egna

@@ -565,7 +565,7 @@ function overflows(pg) {
 function fit() {                                           // krymper innehållet steg för steg tills inget sticker ut eller överlappar (stora typsnitt, små skärmar)
   const pg = document.querySelector(".page"); if (!pg) return;
   const st = pg.scrollTop;                                 // omräkningen får inte nollställa scrollen
-  pg.classList.remove("t1", "t2", "t3", "t4", "tscroll");
+  pg.classList.remove("t1", "t2", "t3", "t4", "t5", "tscroll");   // t5 också: annars satt den kvar och dolde "Just nu"-raderna
   for (let l = 1; l <= 5 && overflows(pg); l++) pg.classList.add("t" + l);     // t5: hemskärmens extra steg för stor text
   if (overflows(pg)) pg.classList.add("tscroll");          // sista utvägen: scrolla hellre än att kort överlappar eller göms
   if (st) pg.scrollTop = st;

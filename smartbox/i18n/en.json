@@ -2480,5 +2480,6 @@
  "EnergyWizard bad om # A": "EnergyWizard asked for # A",
  "Lastbalanseringen tillåter # A": "Load balancing allows # A",
  "Laddboxens krets är på # A": "The charger's circuit is # A",
- "Laddboxen ger bilen # A av # A, orsaken är okänd": "The charger gives the car # A of # A, the cause is unknown"
+ "Laddboxen ger bilen # A av # A, orsaken är okänd": "The charger gives the car # A of # A, the cause is unknown",
+ "Huvudbil: {name}": "Main car: {name}"
 }
