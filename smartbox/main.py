@@ -43,6 +43,7 @@ import charger_limit # #385: förklara när laddboxen ger bilen mindre än vi ba
 import charge_now    # #394: "Ladda nu till X %" som avslutas av sig själv
 import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätningen
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
+import hot_water_monitor  # Default-off advisory shadow monitor; no device writes
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_balance
@@ -315,6 +316,7 @@ indoor_temp          = None  # FIX: för-initieras så pumpen offline vid uppsta
 last_sent_temp           = None
 last_sent_water          = None
 water_sp = water_setpoints.WaterSetpoints()
+_hot_water_monitor = hot_water_monitor.Monitor()
 last_sent_spa_target     = None
 last_sent_spa_eco        = None
 last_sent_operating_mode = None
@@ -2071,6 +2073,11 @@ while True:
                 })
             
             gpm_actions = gpm_engine.evaluate(gpm_state)
+            if ((house_cfg.get("heat_pump") or {}).get("hot_water_shadow") or {}).get("enabled") is True:
+                _hot_water_monitor.submit(house_cfg, pump_data, now=now.timestamp(), shadow=shadow.active(),
+                    manual=all_overrides.get("hotwater", "auto") != "auto", away=bool(away_mode_enabled),
+                    hygiene=days_since_leg >= leg_max_days or (days_since_leg >= leg_max_days - 2
+                        and ((current_price is not None and current_price < 0) or avg_net < -2000)))
             try:
                 _persist_solar_state(getattr(gpm_engine, 'ev_solar_charge_active', False), getattr(gpm_engine, 'ev_solar_target_amps', 0), getattr(gpm_engine, 'ev_solar_target_phases', 0), now)
             except Exception as _e:

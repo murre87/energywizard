@@ -668,6 +668,28 @@ def api_snapshot_status(request: Request):
         return {'ok':True,'status':{'state':'unknown','fresh':False}}
 
 
+@app.get("/api/hot-water-shadow-status")
+def api_hot_water_shadow_status(request: Request):
+    if AUTH.session(request)[0] != "owner":
+        return JSONResponse({"detail": "Forbidden"}, status_code=403)
+    import hot_water_monitor
+    import house_config
+    unknown = {"state": "unknown", "fresh": False, "control_ready": False}
+    try:
+        hp = house_config.load_house_config(HOUSE_CONFIG_FILE).get("heat_pump") or {}
+        enabled = hp.get("enabled") is True and (hp.get("hot_water_shadow") or {}).get("enabled") is True
+    except Exception:
+        return {"ok": True, "enabled": None, "status": unknown}
+    if not enabled:
+        return {"ok": True, "enabled": False, "status": unknown}
+    try:
+        with ENGINE.connect() as connection:
+            status = hot_water_monitor.read(connection)
+        return {"ok": True, "enabled": True, "status": status}
+    except Exception:
+        return {"ok": True, "enabled": True, "status": unknown}
+
+
 @app.get("/api/control-journal")
 def api_control_journal(back: int = 1):
     """Höll vi planen? Per enhet för ett dygn (0 = idag, 1 = igår), smartbox/control_journal.py - samma i appen och webben."""

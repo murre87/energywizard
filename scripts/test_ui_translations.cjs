@@ -57,7 +57,7 @@ function checkScreenshotCards(lang,tr) {
   ctx.moneyUnit=()=>ctx.symbol;
   vm.runInContext(web.slice(web.indexOf('function decisionHeadlineHtml('),web.indexOf('async function mountPlan(')),ctx);
   vm.runInContext(web.slice(web.indexOf('function savingsCardHtml('),web.indexOf('// Kostnad per dag')),ctx);
-  ctx.I18N=ctx.window.I18N={lang};
+  ctx.I18N=ctx.window.I18N={lang,tr};
   vm.runInContext(web.slice(web.indexOf('function snapshotStatusHtml('),web.indexOf('async function mountSnapshotStatus(')),ctx);
   for(const state of ['disabled','waiting','queued','saving','failed','saved','unknown']){
     const html=ctx.snapshotStatusHtml({state,fresh:state!=='unknown',failed:4,dropped:2,last_saved_at:null,raw_error:'must-not-leak'});
@@ -68,6 +68,27 @@ function checkScreenshotCards(lang,tr) {
   }
   const stale=ctx.snapshotStatusHtml({state:'saved',fresh:false,failed:99,dropped:99});
   assert(!stale.includes('99'));
+  const hotSource=web.slice(web.indexOf('function hotWaterStatusHtml('),web.indexOf('let hotWaterStatusTimer'));
+  vm.runInContext(hotSource,ctx);
+  const labels=vm.runInContext('('+hotSource.match(/const labels = (\{[\s\S]*?\n  \});/)[1]+')',ctx);
+  const now=Date.now()/1000;
+  for(const [state,label] of Object.entries(labels)){
+    const html=ctx.hotWaterStatusHtml({state,fresh:true,reported_at:now,start:'2026-11-14T10:00:00Z',
+      end:'2026-11-14T10:15:00Z',deadline:'2026-11-14T11:00:00Z',energy_kwh:.5,raw_error:'must-not-leak'});
+    assert(html.includes(esc(tr(label))),`${lang}: hot water ${state}`);
+    assert(!html.includes('must-not-leak'));
+    if(lang!=='sv')assert.notEqual(tr(label),label,`${lang}: untranslated hot water state`);
+  }
+  for(const label of ['Varmvatten – rådgivande plan','Föreslagen start','Föreslaget slut','Senast klart','Beräknad elenergi',
+    'Endast ett förslag. Värmepumpen styrs inte och ingen batterireservation har lagts till.']){
+    if(lang!=='sv')assert.notEqual(tr(label),label,`${lang}: untranslated hot water label`);
+  }
+  for(const reported_at of [now-91,now+10]){
+    const html=ctx.hotWaterStatusHtml({state:'proposed',fresh:true,reported_at,energy_kwh:99});
+    assert(!html.includes('99')&&!html.includes(esc(tr('Föreslagen start'))));
+  }
+  const unsafe=ctx.hotWaterStatusHtml({state:'<img src=x>',fresh:true,reported_at:now});
+  assert(!unsafe.includes('<img'));
   vm.runInContext(mobile.slice(mobile.indexOf('function planNow('),mobile.indexOf('async function roomsSheet(')),ctx);
   vm.runInContext(mobile.slice(mobile.indexOf('function planList()'),mobile.indexOf('function pagePlan()')),ctx);
   const expected={sv:plan.headline,en:'Right now: Even comfort all day. Next tomorrow 00:00–tomorrow 24:00: Even comfort all day.',
