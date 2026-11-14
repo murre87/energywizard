@@ -63,8 +63,15 @@ class ShadowCycle:
                 "control_ready": False}
 
     def arm(self, proposal, *, now, target_c, max_runtime_s, max_age_s,
-            transport, local_rest_enabled, allow_receipt=False):
-        if self.storage_error or self.state:
+            transport, local_rest_enabled, allow_receipt=False, context_id=None):
+        if context_id is not None and (not isinstance(context_id, str) or len(context_id) != 64
+                                       or any(c not in "0123456789abcdef" for c in context_id)):
+            raise ValueError("Invalid cycle context fingerprint")
+        if self.storage_error:
+            return self._status()
+        if self.state:
+            if self.state["phase"] != "interrupted" and context_id != self.state.get("context_id"):
+                return self._transition("interrupted", "plan_context_changed")
             return self._status()
         now, target_c, runtime, age = map(_number, (now, target_c, max_runtime_s, max_age_s))
         if (proposal.get("state") != "proposed" or transport not in TRANSPORTS
@@ -76,10 +83,13 @@ class ShadowCycle:
         start, end, deadline = (_stamp(proposal[k]) for k in ("start", "end", "deadline"))
         if not now <= start < end <= deadline or deadline - now > 36 * 3600:
             raise ValueError("Invalid or expired cycle window")
-        self._store({"schema": 1, "mode": "shadow", "phase": "planned", "cycle_id": str(uuid4()),
+        state = {"schema": 1, "mode": "shadow", "phase": "planned", "cycle_id": str(uuid4()),
                      "start": start, "end": end, "deadline": deadline, "target_c": target_c,
                      "max_runtime_s": runtime, "max_age_s": age, "transport": transport,
-                     "allow_receipt": allow_receipt, "last_at": now})
+                     "allow_receipt": allow_receipt, "last_at": now}
+        if context_id is not None:
+            state["context_id"] = context_id
+        self._store(state)
         return self._status()
 
     def _transition(self, phase, reason, **fields):
