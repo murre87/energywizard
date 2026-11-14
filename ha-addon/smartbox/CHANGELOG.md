@@ -1,5 +1,9 @@
 # Ändringar
 
+## 1.2.88 (2026-11-14)
+- Översatt: hälsningen överst i appen ("God morgon, Emil") och "Data 16 h gammal" på bilkortet stod på svenska i
+  tjeckisk vy (och delvis i engelsk).
+
 ## 1.2.87 (2026-11-14)
 - **"Toppa husbatteriet nu till X %"** (#396): tryck på batteriet i flödet. När EnergyWizard styr batteriet finns
   knapparna 60, 80 och 100 %. Batteriet laddar direkt, alltid inom säkringens utrymme, tills målet nås eller efter
