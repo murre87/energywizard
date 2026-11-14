@@ -316,7 +316,8 @@ async def api_setup_ha(request: Request):
 @app.get("/api/heat-feedback")
 async def api_heat_feedback():
     """Rumsåterkoppling för värmepumpen (gpm.py Prio 5b): av / skugga / på."""
-    return {"mode": ew_settings.load().get("heat_feedback") or "av"}
+    st = ew_settings.load()
+    return {"mode": st.get("heat_feedback") or "av", "min_sp": st.get("heat_feedback_min_sp"), "max_sp": st.get("heat_feedback_max_sp")}
 
 
 @app.post("/api/heat-feedback")
@@ -324,11 +325,30 @@ async def api_heat_feedback_save(request: Request):
     role, _ = AUTH.session(request)
     if role != "owner":
         return JSONResponse({"detail": "Bara ägaren kan ändra värmestyrningen"}, status_code=403)
-    mode = (await request.json()).get("mode")
-    if mode not in ("av", "skugga", "på"):
-        return JSONResponse({"detail": "Okänt läge"}, status_code=400)
-    ew_settings.update(heat_feedback=mode)
-    return {"ok": True, "mode": mode}
+    body = await request.json()
+    upd = {}
+    if "mode" in body:
+        if body["mode"] not in ("av", "skugga", "på"):
+            return JSONResponse({"detail": "Okänt läge"}, status_code=400)
+        upd["heat_feedback"] = body["mode"]
+    for k in ("min_sp", "max_sp"):                       # börvärdets intervall, 15-25 °C (tomt = standard)
+        if k in body:
+            v = body[k]
+            if v in (None, ""):
+                upd[f"heat_feedback_{k}"] = None
+                continue
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                return JSONResponse({"detail": "Börvärdet ska vara ett tal"}, status_code=400)
+            if not 15.0 <= v <= 25.0:
+                return JSONResponse({"detail": "Börvärdet ska vara 15–25 °C"}, status_code=400)
+            upd[f"heat_feedback_{k}"] = v
+    lo, hi = upd.get("heat_feedback_min_sp", ew_settings.get("heat_feedback_min_sp")), upd.get("heat_feedback_max_sp", ew_settings.get("heat_feedback_max_sp"))
+    if lo is not None and hi is not None and lo > hi:
+        return JSONResponse({"detail": "Lägsta börvärdet kan inte vara högre än högsta"}, status_code=400)
+    ew_settings.update(**upd)
+    return {"ok": True, **upd}
 
 
 @app.get("/api/battery-plan-settings")

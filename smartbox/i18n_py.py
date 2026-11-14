@@ -208,6 +208,15 @@ def tr(s: str, lang: str | None = None) -> str:
     r = _lookup(core, d)
     if r is not None:
         return lead + r + trail
+    # En avslutande parentes som hör till texten ("Gråzon (1.39 kr).") ska följa med vid uppslaget
+    need = core.count("(") - core.count(")")
+    if need > 0 and trail.count(")") >= need:
+        cut = 0
+        for _ in range(need):
+            cut = trail.index(")", cut) + 1
+        r = _lookup(core + trail[:cut].replace(" ", ""), d)
+        if r is not None:
+            return lead + r + trail[cut:]
     if lang == "en":
         for rx, fn in RULES_EN:
             m = rx.match(core)

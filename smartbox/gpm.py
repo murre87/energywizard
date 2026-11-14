@@ -1019,14 +1019,19 @@ class GlobalPriorityManager:
                 and not any("Kraftigt solöverskott" in l for l in actions["log"][-2:])):
             fb_floor = float(state.get('temp_expensive', 20.0))
             fb_boost = float(state.get('heat_feedback_boost', 1.0))
+            # Börvärdets intervall (inställning, 15-25 °C): lägst när det är dyrt och varmt, högst när det lagras billigt
+            fb_lo = state.get('heat_feedback_min_sp')
+            fb_hi = state.get('heat_feedback_max_sp')
+            fb_lo = min(max(float(fb_lo), 15.0), 25.0) if fb_lo is not None else fb_floor - 1.0
+            fb_hi = min(max(float(fb_hi), 15.0), 25.0) if fb_hi is not None else float(state.get('temp_cheap', 22.0)) + fb_boost
             if indoor_temp < fb_floor + 0.4:
                 fb_sp, fb_why = fb_floor + 1.0, f"Nära golvet, {indoor_temp:.1f} °C inne"
             elif actions["pump_mode"] == "CHEAP" and indoor_temp < indoor_max - 0.5:
-                fb_sp, fb_why = float(state.get('temp_cheap', 22.0)) + fb_boost, f"Billigt, lagrar värme, {indoor_temp:.1f} °C inne"
+                fb_sp, fb_why = fb_hi, f"Billigt, lagrar värme, {indoor_temp:.1f} °C inne"
             elif actions["pump_mode"] == "CHEAP":
                 fb_sp, fb_why = fb_floor, f"Billigt men huset är redan varmt, {indoor_temp:.1f} °C inne"
             elif indoor_temp >= fb_floor + 0.5:
-                fb_sp, fb_why = fb_floor - 1.0, f"Dyrt och huset har värme att ge av, {indoor_temp:.1f} °C inne"
+                fb_sp, fb_why = fb_lo, f"Dyrt och huset har värme att ge av, {indoor_temp:.1f} °C inne"
             else:
                 fb_sp, fb_why = fb_floor, f"Dyrt, {indoor_temp:.1f} °C inne"
             if fb_mode == "på":

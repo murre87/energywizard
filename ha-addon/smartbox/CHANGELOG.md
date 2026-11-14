@@ -1,5 +1,19 @@
 # Ändringar
 
+## 1.2.97 (2026-11-14)
+- **Svenska kvar i engelsk och tjeckisk vy:** genomgång av appen, webben och motorns meddelanden. Cirka 65 texter
+  saknade översättning, bland annat "Gråzon", "Laddat", "Veckan", "imorgon", "Alla delar" och "Elpris dygnet".
+  Alla finns nu på engelska och tjeckiska.
+- Översättningen behåller nu en avslutande parentes som hör till texten ("Gråzon (1,39 kr).") i både appen och
+  motorn. Förut föll sådana texter tillbaka till svenska.
+- **Nytt test:** varje synlig svensk text i appen och webben måste finnas på engelska och tjeckiska, annars stoppas
+  ändringen.
+
+## 1.2.96 (2026-11-14)
+- **Rumsåterkopplingen: börvärdets intervall är en inställning** (Värmepump → Måltemperatur, "Börvärde lägst" och
+  "högst", 15–25 °C). Tomt ger standard: en grad under dyrt-temperaturen och en grad över billigt-temperaturen.
+  Golvvakten och maxgränsen gäller som förut, så innetemperaturen hålls mellan dem.
+
 ## 1.2.95 (2026-11-14)
 - **Värmepumpen kan följa rumsgivarna** (valfritt, Värmepump → Måltemperatur → "Följ rumsgivarna": Av / Skugga /
   På). För pumpar utan egen innegivare, som Thermia via Husdata, avgör värmekurvan temperaturen. Med börvärdet 20 °C

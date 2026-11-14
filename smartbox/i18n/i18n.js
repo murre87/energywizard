@@ -127,6 +127,14 @@
     if (r !== null) return lead + r + (rest.match(/\s*$/) || [""])[0];
     r = lookup(core);
     if (r !== null) return lead + r + trail;
+    // en avslutande parentes som hör till texten ("Gråzon (1.39 kr).") ska följa med vid uppslaget (samma som i18n_py)
+    const need = (core.match(/\(/g) || []).length - (core.match(/\)/g) || []).length;
+    if (need > 0 && (trail.match(/\)/g) || []).length >= need) {
+      let cut = 0;
+      for (let i = 0; i < need; i++) cut = trail.indexOf(")", cut) + 1;
+      r = lookup(core + trail.slice(0, cut).replace(/ /g, ""));
+      if (r !== null) return lead + r + trail.slice(cut);
+    }
     // flera meningar eller delar: översätt var för sig
     for (const sep of [/(?<=[.!?]) (?=[A-ZÅÄÖ])/, / · /, / – /, / - /]) {
       const parts = core.split(sep);

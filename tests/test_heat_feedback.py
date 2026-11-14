@@ -59,3 +59,22 @@ def test_av_som_förut_och_kallt_hus_går_före():
     assert not log
     a, log = run(18.5, 2.0)
     assert not log and a["pump_target_temp"] == 22.0      # Prio 5: kallt inne, tvingar värme
+
+
+def test_intervall_från_inställningen():
+    a, _ = run(21.6, 2.0, heat_feedback_min_sp=16.0, heat_feedback_max_sp=24.0)
+    assert a["pump_target_temp"] == 16.0
+    a, _ = run(21.0, 0.2, heat_feedback_min_sp=16.0, heat_feedback_max_sp=24.0)
+    assert a["pump_target_temp"] == 24.0
+
+
+def test_intervallet_begränsas_till_15_25():
+    a, _ = run(21.6, 2.0, heat_feedback_min_sp=10.0)
+    assert a["pump_target_temp"] == 15.0
+    a, _ = run(21.0, 0.2, heat_feedback_max_sp=30.0)
+    assert a["pump_target_temp"] == 25.0
+
+
+def test_golvvakten_gäller_även_med_intervall():
+    a, _ = run(20.3, 2.0, heat_feedback_min_sp=15.0, heat_feedback_max_sp=25.0)
+    assert a["pump_target_temp"] == 21.0
