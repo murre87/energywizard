@@ -56,6 +56,8 @@ local sso_data = nil
 -- single-ESO firmware / sims keep behaving identically.
 local eso_data_by_id = {}  -- id -> payload table
 local eso_ts_by_id   = {}  -- id -> last arrival ms
+local eso_received_at = {} -- EW MQTT receipt seconds, not poll time
+local ehub_received_at = nil
 
 -- Last-arrival timestamp per topic (host.millis()). The EnergyHub
 -- normally publishes ehub at ~1 Hz; if it goes silent (power off,
@@ -473,6 +475,7 @@ function driver_poll()
         if ok and data then
             if msg.topic == "extapi/data/ehub" then
                 ehub_data = data; ehub_ts = now
+                ehub_received_at = tonumber(msg.received_at)
                 -- Latch ehub.soc whenever it's present (it's only emitted
                 -- on a slow cadence, ~1 in 9 messages on the firmware we
                 -- tested). Once latched, it stays the authoritative SoC
@@ -491,6 +494,7 @@ function driver_poll()
                 local eid = eso_id_of(data)
                 eso_data_by_id[eid] = data
                 eso_ts_by_id[eid]   = now
+                eso_received_at[eid] = tonumber(msg.received_at)
             elseif msg.topic == "extapi/data/sso" then
                 sso_data = data; sso_ts = now
             elseif msg.topic == "extapi/control/response" then
@@ -534,6 +538,7 @@ function driver_poll()
         if (now - ts) > STALE_AFTER_MS then
             eso_data_by_id[eid] = nil
             eso_ts_by_id[eid]   = nil
+            eso_received_at[eid] = nil
         elseif ts > eso_ts then
             eso_ts = ts
         end
@@ -655,6 +660,8 @@ function driver_poll()
         -- battery's lifetime production/consumption reflects all units.
         local pbat_sum = 0
         local pbat_has_any = false
+        local power_sample_at = nil
+        local power_time_unknown = false
         local v_sum, v_n   = 0, 0
         local a_sum, a_n   = 0, 0
         local soc_sum, soc_n = 0, 0
@@ -687,6 +694,12 @@ function driver_poll()
             if u and i then
                 pbat_sum = pbat_sum + (u * i)
                 pbat_has_any = true
+                local stamp = eso_received_at[id]
+                if stamp then
+                    power_sample_at = math.min(power_sample_at or stamp, stamp)
+                else
+                    power_time_unknown = true
+                end
                 eso_pbat[#eso_pbat + 1] = u * i  -- +discharge / -charge (per-ESO)
             end
             if u then v_sum = v_sum + u; v_n = v_n + 1 end
@@ -748,12 +761,13 @@ function driver_poll()
             -- rounded through ehub's aggregate. Ferroamp convention:
             -- positive pbat = discharging, negate for site convention
             -- (positive = charging).
-            battery = { w = -pbat_sum }
+            battery = { w = -pbat_sum,
+                power_sample_at = not power_time_unknown and power_sample_at or nil }
         elseif ehub_data then
             -- No live per-ESO measurement: fall back to ehub.pbat
             -- (also positive = discharging on Ferroamp's side).
             local ehub_pbat = tonumber(extract_val(ehub_data, "pbat"))
-            if ehub_pbat then battery = { w = -ehub_pbat } end
+            if ehub_pbat then battery = { w = -ehub_pbat, power_sample_at = ehub_received_at } end
         end
 
         -- Per-ESO delivery detector: count how many units actually delivered
