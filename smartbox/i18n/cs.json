@@ -2537,5 +2537,8 @@
   "Hej, du!": "Ahoj!",
   "Hej, gäst!": "Ahoj, host!",
   "God kväll, du!": "Dobrý večer!",
-  "God kväll, gäst!": "Dobrý večer, host!"
+  "God kväll, gäst!": "Dobrý večer, host!",
+  "Hinner inte # % till #:#: behöver # kWh, hinner ladda ungefär # kWh med # kW": "Nestihne # % do #:#: potřebuje # kWh, stihne nabít asi # kWh při # kW",
+  "Väntat: cirka # %": "Očekáváno: asi # %",
+  "{name} hinner inte målet": "{name} nestihne cíl"
 }

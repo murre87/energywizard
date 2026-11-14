@@ -472,6 +472,7 @@ def _log_charger_status_if_changed(car_id, charger_data):
 
 import ev_hold as _ev_hold_mod
 import ev_missed as _ev_missed_mod
+_goal_risk_alerted = {}   # #390: bil -> mål (klar-tid) som det redan aviserats om
 import ev_in_meter
 _EV_METER = {"in": None, "at": 0.0}
 try:
@@ -588,6 +589,7 @@ def _check_missed_charge(car_id, soc, plugged_in, now_dt):
         minutes_stalled=float(w.get("stall_min") or 0),
         sibling_name=sibling,
         sibling_got_power=bool(w.get("sibling_power")),
+        charger_note=(globals().get("all_overrides") or {}).get(f"{car_id}_limit_note") or None,
     )
     name = _EV_NAMES.get(car_id, car_id.capitalize())
     print(f"🚨 Missad laddning: {car_id} under morgonmålet. {why}")
@@ -2306,6 +2308,26 @@ while True:
                                 print(f"🔌 {(CAR_SPECS.get(car_id) or {}).get('name') or car_id}: {_ln}")
                     except Exception as _lne:
                         print(f"⚠️ Förklaring av laddboxens gräns ({car_id}): {_lne}")
+                    try:                    # #390: målet i fara - varna innan det är för sent (visas i appen, en avisering per mål)
+                        _sp = CAR_SPECS.get(car_id) or {}
+                        _cdp = globals().get("car_data_for_plan") or {}
+                        _bkwh = float(_sp.get("battery_kwh") or decisions.DEFAULT_BATTERY_KWH)
+                        _t_dt, _t_soc, _kwh, _ = decisions.get_car_plan_details(now, car_id, ev_schedule, car_soc.get(car_id), _bkwh,
+                                                                              _cdp.get(f"{car_id}_ready_by"), _cdp.get(f"{car_id}_ready_soc"))
+                        _ph = charger_data.get("phases") if str(charger_data.get("phases")) in ("1", "3") else _sp.get("phases")
+                        _risk = _ev_missed_mod.goal_at_risk(car_soc.get(car_id), _t_soc, _t_dt, now, _bkwh,
+                                                            _ev_missed_mod.effective_kw(_sp.get("max_a"), 3 if str(_ph) in ("3", "auto") else 1, charger_data))
+                        _rt = _risk[0] if _risk else ""
+                        if _rt != (all_overrides.get(f"{car_id}_goal_risk") or ""):
+                            logger.set_override(f"{car_id}_goal_risk", _rt)
+                            all_overrides[f"{car_id}_goal_risk"] = _rt
+                        if _risk and _goal_risk_alerted.get(car_id) != _t_dt:
+                            _goal_risk_alerted[car_id] = _t_dt
+                            _gname = _sp.get("name") or car_id
+                            print(f"⏰ {_gname}: {_rt}")
+                            notifier.send_emil(f"⏰ {_gname} hinner inte målet", _rt, {"tag": f"goal_risk_{car_id}"}, key="elbil")
+                    except Exception as _gre:
+                        print(f"⚠️ Kontroll av laddmålet ({car_id}): {_gre}")
                 else:
                     last_sent_ev_limit[car_id] = None
                     if all_overrides.get(f"{car_id}_limit_note"):

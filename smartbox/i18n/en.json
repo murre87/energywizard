@@ -2537,5 +2537,8 @@
  "Hej, du!": "Hello!",
  "Hej, gäst!": "Hello, guest!",
  "God kväll, du!": "Good evening!",
- "God kväll, gäst!": "Good evening, guest!"
+ "God kväll, gäst!": "Good evening, guest!",
+ "Hinner inte # % till #:#: behöver # kWh, hinner ladda ungefär # kWh med # kW": "Will not reach # % by #:#: needs # kWh, can charge about # kWh at # kW",
+ "Väntat: cirka # %": "Expected: about # %",
+ "{name} hinner inte målet": "{name} will not reach the target"
 }

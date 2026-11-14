@@ -1,5 +1,13 @@
 # Ändringar
 
+## 1.2.89 (2026-11-14)
+- **Varning innan bilen missar sitt mål** (#390): när bilen inte hinner till målet (schemat, "klar senast" eller
+  morgongolvet) ens med full effekt kommer en avisering direkt, och bilkortet visar t.ex. "Hinner inte 100 % till
+  07:00: behöver 50 kWh, hinner ladda ungefär 20 kWh med 3,7 kW. Väntat: cirka 66 %." Effekten räknas med
+  laddboxens egna gränser (lastbalansering, kretsens märkström). Förut kom bara en varning för morgongolvet kl 04:30
+  och en notis i efterhand.
+- Notisen om missad laddning tar med laddboxens begränsning när den förklarar varför.
+
 ## 1.2.88 (2026-11-14)
 - Översatt: hälsningen överst i appen ("God morgon, Emil") och "Data 16 h gammal" på bilkortet stod på svenska i
   tjeckisk vy (och delvis i engelsk).
