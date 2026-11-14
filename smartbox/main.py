@@ -44,6 +44,7 @@ import charge_now    # #394: "Ladda nu till X %" som avslutas av sig själv
 import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätningen
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import hot_water_monitor  # Default-off advisory shadow monitor; no device writes
+import hot_water_power  # Optional dedicated electrical-load evidence, cache/read-only
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
 import battery_plan      # Batteriets dygnsplan (steg 3): ladda billigt, ladda ur dyrt
 import battery_balance
@@ -1172,6 +1173,9 @@ while True:
                     asyncio.to_thread(nordpool.get_price_info, cfg["cheap_hours_count"])
                 )
             pump_data, price_tuple = asyncio.run(fetch_heavy_data())
+            if pump_data:
+                pump_data = dict(pump_data, **hot_water_power.read(house_cfg.get("heat_pump") or {},
+                                                                pump_data, homeassistant._states_cache))
             current_price, dynamic_limit, strategy, all_prices = price_tuple
             # Explicit nonessential devices only; never switch from yesterday's
             # fallback profile or a missing current interval. Prices use the
