@@ -398,11 +398,12 @@ def _charge_samples(engine, now):
     return [(float(t), float(p)) for t, p in rows if t is not None and p is not None]
 
 
-def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
+def plan_from_db(engine, now, soc_pct, settings, base_profile, supported, *, soc_evidence=None):
     """Bygger kvartarna från nu till slutet av kända elpriser och kör optimize(). Sparar planen i
     battery_plan_slots. Returnerar resultatet + 'action_now' för pågående kvart."""
     from datetime import timedelta
     from sqlalchemy import text
+    from drivers.battery import soc_input_quality
     import learning
     import nordpool
     import weather
@@ -530,7 +531,7 @@ def plan_from_db(engine, now, soc_pct, settings, base_profile, supported):
                   "coverage": round(src_count["solar_ha"] / n, 3)},
         "load": {"source": "profile" if src_count["load_profile"] == n else "model" if not src_count["load_profile"] else "mixed",
                  "coverage": round(src_count["load_profile"] / n, 3)},
-        "soc": {"source": "battery", "known": soc_pct is not None, "age_s": settings.get("soc_age_s")},
+        "soc": soc_input_quality(soc_pct, soc_evidence, now.timestamp()),
     }
     r["input_quality"] = quality
     r["plan_id"] = plan_snapshot.capture(slots, params, r, now, quality=quality)

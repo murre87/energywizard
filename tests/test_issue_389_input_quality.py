@@ -44,6 +44,17 @@ def test_icke_ändliga_tal_blir_okända():
     assert q["prices"]["coverage"] is None and q["prices"]["missing"] == 1
 
 
+def test_dated_soc_is_snapshotted_without_changing_optimizer_result():
+    from drivers.battery import soc_input_quality
+    slots, params, result, now = example()
+    quality = soc_input_quality(50, {"soc_pct": 50, "soc_sample_at": now.timestamp() - 45,
+                                   "soc_source": "ferroamp_mqtt_received"}, now.timestamp())
+    snapshot = S.build(slots, params, result, now, quality={"soc": quality})
+    assert snapshot["input_quality"]["soc"] == dict(source="ferroamp_mqtt_received", known=True, age_s=45)
+    assert snapshot["output"] == S.build(slots, params, result, now)["output"]
+    assert S.replay(snapshot)["matches"]
+
+
 def test_planen_räknar_fram_kvaliteten():
     src = open(os.path.join(os.path.dirname(__file__), "..", "smartbox", "battery_plan.py"), encoding="utf-8").read()
     assert 'r["input_quality"] = quality' in src and "plan_snapshot.capture(slots, params, r, now, quality=quality)" in src

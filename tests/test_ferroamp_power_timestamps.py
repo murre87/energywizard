@@ -94,3 +94,37 @@ def test_mqtt_callback_dates_arrival_before_poll_and_excludes_retained(monkeypat
     for retained in (False, True):
         client.on_message(None, None, SimpleNamespace(topic="extapi/data/eso", payload=b"{}", retain=retained))
     assert [m["received_at"] for m in driver._mqtt_buf] == [1001, None]
+
+
+def test_soc_latch_keeps_its_receipt_when_new_ehub_has_only_power(replay):
+    driver, tick = replay
+    state = poll(driver, [packet("ehub", {"pbat": {"val": 0}, "soc": {"val": 50}}, 1001)])
+    assert state["soc"] == .5 and state["soc_sample_at"] == 1001
+    tick[0] += 10000
+    state = poll(driver, [packet("ehub", {"pbat": {"val": -500}}, 1011)])
+    assert state["power_sample_at"] == 1011 and state["soc_sample_at"] == 1001
+    assert poll(driver, [])["soc_sample_at"] == 1001
+    state = poll(driver, [packet("ehub", {"pbat": {"val": 0}, "soc": {"val": 50}})])
+    assert state.get("soc_sample_at") is None  # An undated/retained SOC replaces its old receipt.
+
+
+def test_eso_soc_aggregate_uses_oldest_soc_contributor_and_unknown_is_not_zero(replay):
+    driver, tick = replay
+    def soc_packet(name, value, stamp):
+        return packet("eso", {"id": {"val": name}, "soc": {"val": value},
+                              "ubat": {"val": 50}, "ibat": {"val": 0}}, stamp)
+    state = poll(driver, [soc_packet("a", 20, 1001), soc_packet("b", 80, 1005)])
+    assert state["soc"] == .5 and state["soc_sample_at"] == 1001
+    tick[0] += 10000
+    assert poll(driver, [soc_packet("b", 80, 1015)])["soc_sample_at"] == 1001
+    state = poll(driver, [soc_packet("a", 20, None)])
+    assert state["soc"] == .5 and state.get("soc_sample_at") is None
+    assert poll(driver, [soc_packet("a", 20, 1016)])["soc_sample_at"] == 1015
+    adapter = FtwBatteryDriver.__new__(FtwBatteryDriver)
+    adapter._name, adapter.capacity_kwh = "ferroamp", 10
+    adapter._dev = SimpleNamespace(emits=driver.emits, fresh=lambda: True)
+    state = adapter.read_state()
+    assert state["soc_pct"] == 50 and state["soc_sample_at"] == 1015
+    assert state["soc_source"] == "ferroamp_mqtt_received"
+    adapter._dev.fresh = lambda: False
+    assert adapter.read_state().get("soc_sample_at") is None

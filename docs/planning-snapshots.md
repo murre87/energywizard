@@ -26,6 +26,27 @@ is not a guarantee of numeric portability between arbitrary Python environments.
 This supports planning diagnostics, not reproduction of every runtime error.
 It does not alter optimizer decisions, device commands or savings definitions.
 
+## Battery SOC provenance
+
+New runtime captures pass the battery reading used to build the plan into SOC
+quality diagnostics. `age_s` uses its original timestamp at planning time; repeated
+cache reads do not reset it. `source` identifies `ha_reported`, `ha_updated`,
+`ferroamp_mqtt_received`, or `modbus_received`. HA report/update timestamps and host
+MQTT/Modbus receipt times are not proof of the battery's device measurement time.
+Broker delay, integration caching and hardware polling can add unknown latency.
+
+Generic HA aggregates require valid dated values from every configured SOC bank;
+their oldest timestamp and weaker update basis are reported. Existing partial-bank
+SOC calculation is preserved, but its age remains unknown. Ferroamp FTW dates the
+actual SOC source: a latched EnergyHub SOC keeps its own receipt through unrelated
+power updates; ESO fallback uses the oldest SOC contributor. Undated/retained MQTT
+data do not acquire receipt times. Other FTW drivers remain undated.
+
+Absent, mismatched, invalid or future evidence leaves age unknown. The legacy
+`soc_age_s` settings key is no longer used as evidence. These fields are diagnostic
+only: optimizer decisions, device commands, freshness/control gates and snapshot
+schema/replay contracts are unchanged. No physical control qualification is implied.
+
 ## Storage status
 
 The owner can open Settings → Planning snapshots in the web UI and refresh its

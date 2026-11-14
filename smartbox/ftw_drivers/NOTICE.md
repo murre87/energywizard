@@ -18,6 +18,7 @@ påstod att Sourceful gett sitt OK. Det var en övertolkning av ett vänligt sva
 
 | Fil | Datum | Ändring | Commit |
 |---|---|---|---|
+| `ferroamp.lua` | 2026-11-14 | EnergyWizard: preserve aggregate SOC receipt time independently of power; latched EnergyHub SOC keeps its own receipt and ESO aggregates use the oldest contributing receipt. No control changes. | |
 | `ferroamp.lua` | 2026-11-14 | EnergyWizard: propagate oldest contributing MQTT receipt time for battery power; cached polls and unknown/retained receipts never acquire new timestamps. | |
 | `ferroamp.lua` | 2026-11-13 | EnergyWizard #343: source-dated per-ESO SOC telemetry and explicit scheduled-maintenance charge context above the normal 95% dispatch margin. Default dispatch and BMS protection remain unchanged. | |
 | `deye-svk.lua` | 2026-11-09 | Skydd mot nil-SoC vid misslyckad poll i energiheadroom-beräkningen (samma skydd som i `50-125k-svk*.lua`). Av lazgeo, #215. Skickad till källan: [srcfl/device-drivers#224](https://github.com/srcfl/device-drivers/pull/224). | `101713e` |

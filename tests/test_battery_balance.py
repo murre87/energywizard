@@ -334,7 +334,9 @@ def test_postgres_persists_maintenance_flags_and_defers_impossible_plan(db, monk
                 "efficiency": 1, "cycle_cost": 0,
                 "balance_request": {"request": True, "target_soc": 100, "hold_slots": 1, "deadline_slots": 6}}
     try:
-        result = battery_plan.plan_from_db(engine, now, 50, settings, {}, {"auto", "charge", "hold"})
+        result = battery_plan.plan_from_db(engine, now, 50, settings, {}, {"auto", "charge", "hold"},
+            soc_evidence={"soc_pct": 50, "soc_sample_at": now.timestamp() - 30, "soc_source": "ha_reported"})
+        assert result["input_quality"]["soc"] == {"source": "ha_reported", "known": True, "age_s": 30}
         assert not result["balance_deferred"]
         with engine.connect() as conn:
             saved = load_battery_rows(conn)

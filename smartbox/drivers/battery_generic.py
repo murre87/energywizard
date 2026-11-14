@@ -102,6 +102,36 @@ class GenericBatteryDriver(BatteryDriver):
         vals = [v for v in vals if v is not None]
         return sum(vals) if vals else None
 
+    def _soc_evidence(self, soc):
+        """Date the same configured SOC aggregate, conservatively requiring every bank."""
+        from datetime import datetime
+        stamps, values, sources = [], [], []
+        weights = self._e.get("bank_kwh") or []
+        try:
+            for i, entity in enumerate(self._as_list(self._e.get("soc"))):
+                raw = homeassistant._states_cache.get(entity) or {}
+                value = float(raw.get("state"))
+                if not math.isfinite(value) or not 0 <= value <= 100:
+                    return None, None
+                field = "last_reported" if raw.get("last_reported") else "last_updated"
+                stamp = datetime.fromisoformat(raw[field].replace("Z", "+00:00"))
+                if stamp.utcoffset() is None:
+                    return None, None
+                stamps.append(stamp.timestamp())
+                sources.append("ha_reported" if field == "last_reported" else "ha_updated")
+                weight = float(weights[i]) if i < len(weights) and weights[i] else 1.0
+                if not math.isfinite(weight) or weight <= 0:
+                    return None, None
+                values.append((value, weight))
+            if not values:
+                return None, None
+            observed = values[0][0] if len(values) == 1 else round(sum(v * w for v, w in values) / sum(w for _, w in values), 1)
+            if observed != soc:
+                return None, None
+            return min(stamps), "ha_updated" if "ha_updated" in sources else "ha_reported"
+        except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
+            return None, None
+
     @property
     def _invert(self) -> bool:
         if self._invert_cfg is not None:
@@ -115,6 +145,7 @@ class GenericBatteryDriver(BatteryDriver):
     def read_state(self) -> dict:
         mode_e = self._e.get("mode_select")
         soc = self._soc()
+        soc_sample_at, soc_source = self._soc_evidence(soc)
         power = self._sum("power")
         keys = ("power",)
         if power is not None and self._invert:
@@ -144,6 +175,8 @@ class GenericBatteryDriver(BatteryDriver):
             power_sample_at = None
         return {
             "soc_pct": soc,
+            "soc_sample_at": soc_sample_at,
+            "soc_source": soc_source,
             "power_w": power,
             "power_sample_at": power_sample_at,
             "capacity_kwh": self.capacity_kwh,
