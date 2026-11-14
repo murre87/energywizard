@@ -42,6 +42,30 @@ def _remaining(proposal, state, forecast, contract, now):
 
 
 def evaluate(data, cycle):
+    """Replay either an explicit request or an explicit anchored comfort policy."""
+    if "comfort_policy" not in data:
+        return _evaluate(data, cycle)
+    from hot_water_demand import derive
+    if "request" in data:
+        raise ValueError("Supply a request or comfort policy, not both")
+    if data.get("temperature_role_verified") is not True:
+        raise ValueError("Explicit temperature-role qualification required")
+    comfort, lifecycle = data["comfort_policy"], data["policy"]
+    for key in ("target_c", "max_age_s", "allow_receipt"):
+        if comfort[key] != lifecycle.get(key, False if key == "allow_receipt" else None):
+            raise ValueError("Comfort and lifecycle evidence policies must match")
+    if lifecycle["local_rest_enabled"] and lifecycle["transport"] != "nibe_local":
+        raise ValueError("Enabled local REST must remain preferred")
+    saved, demand = derive(data.get("demand_state", {}), data["observation"], now=data["now"],
+                           policy=comfort, last_trigger_at=data.get("last_trigger_at"))
+    if demand["request"] is None:
+        return {"simulation_only": True, "control_ready": False, "state": demand["state"],
+                "demand": demand, "demand_state": saved, "forecast": None, "frames": []}
+    result = _evaluate({**data, "request": demand["request"]}, cycle)
+    return {**result, "demand": demand, "demand_state": saved}
+
+
+def _evaluate(data, cycle):
     """Compose proposal, simulated lifecycle and residual-load reservation.
 
     `cycle` is a ShadowCycle with caller-owned simulation storage. Every
