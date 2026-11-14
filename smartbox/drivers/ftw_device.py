@@ -84,6 +84,10 @@ class FtwDevice:
         return self.ok_at is not None and time.time() - self.ok_at < max_age
 
     def command(self, action, power_w=0, balance=False):
+        import shadow
+        if shadow.active():
+            shadow.record(f"FTW {self.name}", f"{action} {power_w} W" + (" (balance)" if balance else ""))
+            return True
         with self._cmd_lock:
             context = {"source": "energywizard", "duration_ms": 120000}
             if balance:
@@ -91,6 +95,10 @@ class FtwDevice:
             return self.drv.command(action, power_w, context)
 
     def default_mode(self):
+        import shadow
+        if shadow.active():
+            shadow.record(f"FTW {self.name}", "default mode")
+            return True
         with self._cmd_lock:
             f = self.drv.L.globals().driver_default_mode
             return bool(f()) if f is not None else False
@@ -199,7 +207,10 @@ class FtwBatteryDriver(BatteryDriver):
             ok = self._dev.command("battery", 0)
         else:
             return False
-        self._last = (intent, p) if ok else None
+        import shadow
+        # Simulated requests must not become keepalive authority when shadow
+        # mode is later disabled; a fresh controller decision is required.
+        self._last = (intent, p) if ok and not shadow.active() else None
         return bool(ok)
 
     def refresh(self, now: float | None = None) -> bool:
