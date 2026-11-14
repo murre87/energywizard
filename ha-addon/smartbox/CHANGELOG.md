@@ -1,5 +1,10 @@
 # Ändringar
 
+## 1.2.94 (2026-11-14)
+- **Rättat: bilarnas laddnivå visades som "–" i appen sedan 1.2.84**, fast Home Assistant hade värdet. En
+  kommentar hamnade mitt på raden som skickar bilens läge till appen, så laddnivå, status, kabel, hemma/borta och
+  laddning föll bort. Ett nytt test kontrollerar att alla fälten skickas.
+
 ## 1.2.93 (2026-11-14)
 - Översättningar: när två textmallar passar väljs nu den mest specifika (mest fast text) i stället för den som
   råkar stå först i katalogen. Det gav t.ex. "objednáno paus" i felsökningsvyn i stället för "objednáno pauza".
