@@ -2564,5 +2564,7 @@
   "beställt {o}": "objednáno {o}",
   "best\u00e4llt paus": "objednáno pauza",
   "beställt paus, uppmätt {a}": "objednáno pauza, změřeno {a}",
-  "Lägre ström": "Nižší proud"
+  "Lägre ström": "Nižší proud",
+  "Aviseringshistoriken: # väntande rader sparade": "Historie oznámení: uloženo # čekajících řádků",
+  "Aviseringshistoriken: {err} - {n} rader väntar och sparas senare": "Historie oznámení: {err} - {n} řádků čeká a uloží se později"
 }

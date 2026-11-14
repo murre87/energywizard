@@ -10,8 +10,17 @@ Tabellen notify_log hålls i 60 dygn. Egen kort anslutning (används både i mot
 stoppa själva aviseringen.
 """
 import os
+import uuid
+from collections import deque
+from datetime import datetime, timezone
 
 KEEP_DAYS = 60
+# #387: rader som inte kunde sparas (databasen överbelastad/nere) väntar här och sparas vid nästa tillfälle, med
+# händelsens ursprungliga tid. Begränsad (äldsta faller bort), utan dubbletter (event_id), och själva aviseringen
+# skickas aldrig om - det är bara historikraden som sparas igen.
+PENDING_MAX = 200
+_pending = deque(maxlen=PENDING_MAX)
+_dropped = {"n": 0}
 STATUS_TEXT = {"sent": "Skickad", "failed": "Misslyckades", "muted": "Avstängd kategori", "none": "Ingen mottagare"}
 
 _SCHEMA = """CREATE TABLE IF NOT EXISTS notify_log (
@@ -30,20 +39,51 @@ def _category(key, title):
         return None
 
 
-def add(title, message, status, recipient=None, key=None, detail=None, src="motorn"):
+def _connect():
+    import psycopg
+    return psycopg.connect(host=os.environ.get("POSTGRES_HOST", "postgres-smartbox"), user=os.environ["POSTGRES_USER"],
+                           password=os.environ["POSTGRES_PASSWORD"], dbname=os.environ["POSTGRES_DB"], connect_timeout=5)
+
+
+def _write(c, rows):
+    c.execute(_SCHEMA)
+    c.execute("ALTER TABLE notify_log ADD COLUMN IF NOT EXISTS event_id TEXT")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS notify_log_event_id ON notify_log (event_id)")
+    for r in rows:
+        c.execute("INSERT INTO notify_log (ts, src, category, title, message, recipient, status, detail, event_id) "
+                  "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (event_id) DO NOTHING",
+                  (r["ts"], r["src"], r["category"], r["title"], r["message"], r["recipient"], r["status"], r["detail"], r["event_id"]))
+
+
+def add(title, message, status, recipient=None, key=None, detail=None, src="motorn", connect=None):
+    row = {"ts": datetime.now(timezone.utc), "src": src, "category": _category(key, title), "title": str(title or "")[:200],
+           "message": str(message or "")[:1000], "recipient": (recipient or "").removeprefix("notify.") or None,
+           "status": status, "detail": (str(detail)[:300] if detail else None), "event_id": uuid.uuid4().hex}
+    if len(_pending) == _pending.maxlen:
+        _dropped["n"] += 1
+    _pending.append(row)
+    flush(connect)
+
+
+def flush(connect=None):
+    """Spara väntande rader (äldst först). Lyckas det inte ligger de kvar till nästa försök. Returnerar antal sparade."""
+    if not _pending:
+        return 0
+    rows = list(_pending)
     try:
-        import psycopg
-        with psycopg.connect(host=os.environ.get("POSTGRES_HOST", "postgres-smartbox"), user=os.environ["POSTGRES_USER"],
-                             password=os.environ["POSTGRES_PASSWORD"], dbname=os.environ["POSTGRES_DB"], connect_timeout=5) as c:
-            c.execute(_SCHEMA)
-            c.execute("INSERT INTO notify_log (src, category, title, message, recipient, status, detail) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                      (src, _category(key, title), str(title or "")[:200], str(message or "")[:1000],
-                       (recipient or "").removeprefix("notify.") or None, status, (str(detail)[:300] if detail else None)))
-            _n["writes"] += 1
-            if _n["writes"] % 50 == 1:
+        with (connect or _connect)() as c:
+            _write(c, rows)
+            _n["writes"] += len(rows)
+            if _n["writes"] % 50 < len(rows) or _n["writes"] <= len(rows):
                 c.execute(f"DELETE FROM notify_log WHERE ts < NOW() - INTERVAL '{KEEP_DAYS} days'")
+        for _ in rows:
+            _pending.popleft()
+        if len(rows) > 1:
+            print(f"🗂️ Aviseringshistoriken: {len(rows)} väntande rader sparade.")
+        return len(rows)
     except Exception as e:
-        print(f"⚠️ Aviseringshistoriken: {type(e).__name__}: {e}")
+        print(f"⚠️ Aviseringshistoriken: {type(e).__name__} - {len(_pending)} rader väntar och sparas senare.")
+        return 0
 
 
 def short_error(e) -> str:

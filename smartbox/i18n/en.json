@@ -2564,5 +2564,7 @@
  "beställt {o}": "ordered {o}",
  "best\u00e4llt paus": "ordered pause",
  "beställt paus, uppmätt {a}": "ordered pause, measured {a}",
- "Lägre ström": "Lower current"
+ "Lägre ström": "Lower current",
+ "Aviseringshistoriken: # väntande rader sparade": "Notification history: # pending rows saved",
+ "Aviseringshistoriken: {err} - {n} rader väntar och sparas senare": "Notification history: {err} - {n} rows are waiting and will be saved later"
 }

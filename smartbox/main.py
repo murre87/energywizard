@@ -2397,6 +2397,11 @@ while True:
 
             # Höll vi planen? (control_journal.py) - inget i skuggläge, där beställs ingenting
             if not shadow.active():
+                try:                                   # #387: aviseringsrader som inte kunde sparas tidigare
+                    import notify_log
+                    notify_log.flush()
+                except Exception:
+                    pass
                 control_journal.record(logger.get_db, _journal[-12:], time.time())
             _journal.clear()
 

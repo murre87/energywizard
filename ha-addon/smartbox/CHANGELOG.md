@@ -1,5 +1,10 @@
 # Ändringar
 
+## 1.2.92 (2026-11-14)
+- **Aviseringshistoriken tappar inte rader när databasen är överbelastad** (#387): raden väntar (högst 200, med
+  händelsens ursprungliga tid) och sparas vid nästa tillfälle eller inom en minut. Inga dubbletter, och själva
+  aviseringen skickas aldrig om.
+
 ## 1.2.91 (2026-11-14)
 - **Felsökning per kvart på webben** (#386): under "Höll vi planen?" i Historik finns "Per kvart (felsökning)" med
   pris, vad varje enhet beställdes och vad den gjorde, hur många av kvartens minuter som loggades och mättes, och
