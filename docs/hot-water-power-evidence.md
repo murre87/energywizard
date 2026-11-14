@@ -54,9 +54,10 @@ operating-mode inference for a dedicated hot-water electrical measurement.
 An explicit boundary declaration is an operator input, not independent physical
 qualification. Validate the sensor's actual electrical boundary and source ages
 before using it to exclude demand from a baseline. Current runtime forecasts do
-not consume these new columns. Later signed grid/PV/battery/hot-water reconstruction
-must align timestamps, reject missing/stale/inconsistent signals, and prevent
-subtracting separately planned loads twice. Old unmetered history remains unqualified.
+not consume these new columns. The [offline residual reconstruction](hot-water-residual-load.md)
+requires separately captured grid/PV/battery source dates, aligns the signals,
+rejects stale/inconsistent evidence and prevents repeated hot-water exclusion.
+Old unmetered/undated history remains unqualified.
 
 All capture is read-only and optional. No installation configuration is enabled
 or modified by this change, and no physical meter/heater qualification is claimed.
