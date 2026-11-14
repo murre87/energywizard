@@ -2481,5 +2481,16 @@
   "Lastbalanseringen tillåter # A": "Vyvažování zátěže povoluje # A",
   "Laddboxens krets är på # A": "Okruh nabíječky má # A",
   "Laddboxen ger bilen # A av # A, orsaken är okänd": "Nabíječka dává autu # A z # A, příčina je neznámá",
-  "Huvudbil: {name}": "Hlavní auto: {name}"
+  "Huvudbil: {name}": "Hlavní auto: {name}",
+  "Varmvatten till": "Teplá voda zapnuta",
+  "Hur länge? Sedan går varmvattnet tillbaka till Auto.": "Jak dlouho? Potom se teplá voda vrátí na Auto.",
+  "Hur länge? Sedan går varmvattnet tillbaka till Auto": "Jak dlouho? Potom se teplá voda vrátí na Auto",
+  "Tills jag ändrar": "Dokud to nezměním",
+  "Auto om # h # min": "Auto za # h # min",
+  "Auto om # min": "Auto za # min",
+  "varmvatten i # h": "teplá voda na # h",
+  "varmvatten i # min": "teplá voda na # min",
+  "Varmvatten: tiden gick ut - tillbaka till Auto": "Teplá voda: čas vypršel - zpět na Auto",
+  "# h": "# h",
+  "# min": "# min"
 }

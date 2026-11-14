@@ -38,6 +38,7 @@ import guest_charge
 import capacity_tariff
 import ev_limits
 import car_log
+import timed_override  # #397: överstyrningar med tid går tillbaka till Auto
 import charger_limit # #385: förklara när laddboxen ger bilen mindre än vi bad om
 import charge_now    # #394: "Ladda nu till X %" som avslutas av sig själv
 import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätningen
@@ -975,6 +976,11 @@ while True:
                     print(f"⚠️ Sponsornotisen hoppades över: {_se}")
             cfg = settings.get_settings()
             all_overrides = logger.get_all_overrides()
+            if timed_override.expired(all_overrides, "hotwater", time.time()):     # #397: tiden gick ut -> Auto
+                logger.set_override("hotwater", "auto")
+                logger.set_override("hotwater_until", "")
+                all_overrides.update(hotwater="auto", hotwater_until="")
+                print("💧 Varmvatten: tiden gick ut - tillbaka till Auto.")
             ai_thoughts = []
 
             # Bilens värme från appen: följ upp tills bilen faktiskt värmer, annars säg till (car_climate_watch.py).

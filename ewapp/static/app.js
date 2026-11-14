@@ -167,7 +167,7 @@ function pageHus() {
   const pct = pw.limit_kw && pw.total_w != null ? Math.min(100, (pw.total_w / 1000 / pw.limit_kw) * 100) : 0;
   return `<div class="page"><div class="grid2">
   <section class="card tile"><h4>Värme inne <button class="link" data-a="rooms" style="padding:0 0 0 6px;font-size:.8rem">alla rum</button></h4><div class="v">${f1(h.inside)}<small> °C</small></div><div class="note">Mål ${f1(h.target)}° · ute ${f1(h.outside, 0)}° · pump ${h.pump_w != null ? Math.round(h.pump_w) : "–"} W</div>${seg("heat", h.mode, [["auto", "Auto"], ["on", "Varm"], ["off", "Sänkt"]])}</section>
-  <section class="card tile"><h4>Varmvatten</h4><div class="v">${f1(w.temp, 0)}<small> °C</small></div><div class="note">COP ${f1(h.cop)}</div>${seg("hotwater", w.mode, [["auto", "Auto"], ["on", "Till"], ["off", "Från"]])}</section>
+  <section class="card tile"><h4>Varmvatten</h4><div class="v">${f1(w.temp, 0)}<small> °C</small></div><div class="note">COP ${f1(h.cop)}${w.until ? ` · Auto om ${hwLeft(w.until)}` : ""}</div>${seg("hotwater", w.mode, [["auto", "Auto"], ["on", "Till"], ["off", "Från"]])}</section>
   <section class="card tile wide"><h4>Spabad</h4><div class="v">${f1(sp.temp)}<small> °C</small></div><div class="note">Mål ${f1(sp.target)}° · ${esc(sp.heater || "")}${sp.error && sp.error !== "None" ? ` · ${esc(sp.error)}` : ""}</div>
     <div class="tilelink"><button class="link" data-a="spaready" style="padding:0;font-size:.82rem">${sp.ready_at ? `Klart ${esc(sp.ready_at)} (${f1(sp.ready_temp)}°) – ändra` : "Ställ in: klart kl…"}</button>${ROLE !== "guest" ? ` · <button class="link" data-a="spabath" style="padding:0;font-size:.82rem">Badtider${(sp.bath_windows || []).some((w) => w.on) ? ` (${(sp.bath_windows || []).filter((w) => w.on).length})` : ""}</button>` : ""}</div><div class="seg"><button data-a="spa" data-k="spa_auto" data-v="1" class="${!sp.force_heat && !sp.eco ? "on" : ""}" title="Följer sitt eget schema, som Home Assistant styr">Auto</button><button data-a="spa" data-k="spa_heat" data-v="${sp.force_heat ? 0 : 1}" class="${sp.force_heat ? "on" : ""}">Värm nu</button><button data-a="spa" data-k="spa_eco" data-v="${sp.eco ? 0 : 1}" class="${sp.eco ? "on" : ""}">Eco</button></div></section>
   <section class="card tile wide"><div style="display:flex;justify-content:space-between;align-items:baseline"><h4>Effekt nu</h4><span class="note">${pw.peak ? `Effektvakt på · gräns ${f1(pw.limit_kw)} kW` : "Effektvakt av"}</span></div><div class="v">${pw.total_w != null ? f1(pw.total_w / 1000) : "–"}<small> kW</small></div>
@@ -581,6 +581,16 @@ async function hardReload() {
 }
 let doneShortcut = false, grAt = 0;
 // #394: "Ladda nu" frågar efter mål - laddningen avslutas av sig själv vid målet, urdragen kabel eller efter 24 h
+// #397: varmvatten "Till" med tid - går tillbaka till Auto av sig själv
+function hwLeft(until) { const m = Math.max(0, Math.round((until * 1000 - Date.now()) / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; }
+function hotwaterSheet() {
+  const opts = [[30, "30 min"], [60, "1 h"], [120, "2 h"], [240, "4 h"], [360, "6 h"]];
+  sheet(`<h3>Varmvatten till</h3><div class="note">Hur länge? Sedan går varmvattnet tillbaka till Auto.</div>
+    <div class="cn-tg">${opts.map(([m, l]) => `<button class="mini" data-x="${m}">${l}</button>`).join("")}</div>
+    <button class="mini" data-x="0" style="width:100%;margin-top:8px">Tills jag ändrar</button><button class="mini" data-x="no" style="width:100%;margin-top:8px">Avbryt</button>`);
+  $("#sheet").onclick = async (e) => { const b = e.target.closest("[data-x]"); if (!b) { if (e.target.id === "sheet") closeSheet(); return; } closeSheet(); if (b.dataset.x === "no") return;
+    buzz(); try { const r = await api("home/hotwater", { value: "on", minutes: +b.dataset.x || null }); toast(r.msg); H = await api("home"); render(); } catch (er) { toast(er.message); } };
+}
 function chargeNowSheet(key) {
   const c = S.cars.find((x) => x.key === key); if (!c) return;
   const soc = c.soc, tg = [40, 60, 80, 100].filter((t) => soc == null || t > soc);
@@ -818,6 +828,7 @@ document.addEventListener("click", async (e) => {
   if (a === "health") return healthSheet();
   if (a === "access") return accessSheet(c);
   if (a === "cardata") return carDataSheet(c);
+  if (a === "home" && b.dataset.k === "hotwater" && v === "on") return hotwaterSheet();     // #397: välj hur länge
   if (a === "home") { buzz(); try { const r = await api("home/" + b.dataset.k, { value: v }); toast(r.msg); H = await api("home"); render(); } catch (er) { toast(er.message); } return; }
   if (a === "spabath") { spaBathSheet(); return; }
   if (a === "spa") { buzz(); try { const r = await api("home/" + b.dataset.k, { value: v === "1" }); toast(r.msg); H = await api("home"); render(); } catch (er) { toast(er.message); } return; }

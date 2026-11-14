@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
 
 import homeassistant as H
+import timed_override   # #397: varmvatten "Till" med tid
 
 TZ = ZoneInfo("Europe/Stockholm")
 try:
@@ -929,7 +930,8 @@ def home():
     return {"ok": True,
             "heat": {"inside": num(st, "sensor.smartbox_inomhustemp"), "target": num(st, "sensor.smartbox_maltemperatur"), "outside": num(st, "sensor.smartbox_utetemperatur"), "mode": ov.get("heat", "auto"),
                      "pump_w": num(st, "sensor.smartbox_effekt_varmepump"), "price_mode": val(st, "sensor.smartbox_lage"), "cop": num(st, "sensor.smartbox_cop"), "temp_cheap": cfg.get("temp_cheap"), "temp_expensive": cfg.get("temp_expensive")},
-            "water": {"temp": num(st, "sensor.smartbox_varmvatten"), "mode": ov.get("hotwater", "auto")},
+            "water": {"temp": num(st, "sensor.smartbox_varmvatten"), "mode": ov.get("hotwater", "auto"),
+                      "until": intval(ov.get("hotwater_until")) or None if ov.get("hotwater") == "on" else None},
             "spa": {"bath_windows": _spa_bath_listing(), "temp": spa_temps(st)[0], "target": spa_temps(st)[1], "heater": spa_temps(st)[2],
                     "force_heat": bool(cfg.get("spa_force_heat")), "eco": ov.get("spa_force_eco") == "on",
                     "ready_at": (cfg["spa_target_datetime"].astimezone(TZ).strftime("%a %H:%M") if cfg.get("spa_schedule_enabled") and cfg.get("spa_target_datetime") else None), "ready_temp": cfg.get("spa_target_temp") if cfg.get("spa_schedule_enabled") else None, "power_w": num(st, "sensor.smartbox_effekt_spa"), "error": val(st, SPA_E["error"]) if SPA_E.get("error") else None},
@@ -947,7 +949,12 @@ async def home_action(what: str, request: Request):
         if v not in ("auto", "on", "off"):
             raise HTTPException(400, "Ogiltigt läge")
         set_override(what, v)
-        return {"ok": True, "msg": {"auto": "Auto", "on": "Tvingar PÅ", "off": "Tvingar FRÅN"}[v] + (" – värme" if what == "heat" else " – varmvatten")}
+        # #397: varmvatten "Till" med tid - motorn går tillbaka till Auto när tiden gått ut (timed_override.py)
+        mins = timed_override.minutes(body.get("minutes")) if what == "hotwater" and v == "on" else None
+        if what == "hotwater":
+            set_override("hotwater_until", str(int(time.time() + mins * 60)) if mins else "")
+        dur = "" if not mins else (f" i {mins // 60} h" if mins % 60 == 0 else f" i {mins} min")
+        return {"ok": True, "msg": {"auto": "Auto", "on": "Tvingar PÅ", "off": "Tvingar FRÅN"}[v] + (" – värme" if what == "heat" else " – varmvatten") + dur}
     if what == "spa_heat":
         with ENGINE.begin() as c:
             c.execute(text("UPDATE system_settings SET spa_force_heat = :v WHERE id = 1"), {"v": bool(v)})

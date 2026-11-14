@@ -1,5 +1,10 @@
 # Ändringar
 
+## 1.2.86 (2026-11-14)
+- **Varmvatten "Till" med tid** (#397): appen frågar hur länge (30 min, 1, 2, 4 eller 6 h, eller "Tills jag
+  ändrar"), och varmvattnet går tillbaka till Auto av sig själv när tiden gått ut. Rutan visar "Auto om 1 h 20 min".
+  Förut gällde "Till" tills man själv valde Auto igen.
+
 ## 1.2.85 (2026-11-14)
 - **Appen: "Just nu"-raderna försvann och flödet krympte** i den nya stilen. Hemskärmen krymper innehållet steg
   för steg när det inte får plats, men det sista steget togs aldrig bort igen. Hade sidan en gång varit för full

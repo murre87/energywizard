@@ -2481,5 +2481,16 @@
  "Lastbalanseringen tillåter # A": "Load balancing allows # A",
  "Laddboxens krets är på # A": "The charger's circuit is # A",
  "Laddboxen ger bilen # A av # A, orsaken är okänd": "The charger gives the car # A of # A, the cause is unknown",
- "Huvudbil: {name}": "Main car: {name}"
+ "Huvudbil: {name}": "Main car: {name}",
+ "Varmvatten till": "Hot water on",
+ "Hur länge? Sedan går varmvattnet tillbaka till Auto.": "How long? Then the hot water goes back to Auto.",
+ "Hur länge? Sedan går varmvattnet tillbaka till Auto": "How long? Then the hot water goes back to Auto",
+ "Tills jag ändrar": "Until I change it",
+ "Auto om # h # min": "Auto in # h # min",
+ "Auto om # min": "Auto in # min",
+ "varmvatten i # h": "hot water for # h",
+ "varmvatten i # min": "hot water for # min",
+ "Varmvatten: tiden gick ut - tillbaka till Auto": "Hot water: the time ran out - back to Auto",
+ "# h": "# h",
+ "# min": "# min"
 }
