@@ -230,6 +230,12 @@ class LuaDriver:
         if not self.allow_write:
             self._log(f"🔒 [{os.path.basename(self.path)}] MQTT publish till {topic} stoppad (läsläge)")
             return False
+        import shadow
+        if shadow.active():
+            # Poll/cleanup can publish outside FtwDevice.command. Do not expose
+            # payloads, topics or credentials in the shadow log.
+            shadow.record("FTW MQTT publish", os.path.basename(self.path))
+            return True
         try:
             return self._mqtt_client().publish(str(topic), str(payload)).rc == 0
         except Exception:

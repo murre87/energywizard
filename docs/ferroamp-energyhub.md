@@ -122,6 +122,23 @@ Mocked tests cover signed values, word order, write ordering, readback failures,
 limits, opt-in behavior, shadow mode, transport failures and registry wiring. They do not
 establish firmware compatibility, watchdog behavior, physical power or hardware timing.
 
+### FTW shadow-command boundary
+
+For `ftw.driver: ferroamp`, global shadow mode stops command and default-mode
+requests before entering Lua. MQTT publication is also intercepted independently,
+covering publication from polling/cleanup outside the main command entry point.
+Shadow logging excludes MQTT topics/payloads and configuration. Simulated battery
+requests do not become keepalive authority when shadow mode is later disabled;
+a fresh controller decision is required. Existing control opt-ins remain required.
+
+`tests/test_ferroamp_shadow.py` verifies these boundaries using in-memory sinks,
+including balancing, default/release, shadow transitions and command evidence
+that never claims physical application. No real broker or EnergyHub is contacted.
+The direct Modbus shadow path accepts charge/discharge/auto without creating a
+client; hold/idle remain unsupported. Passing a shadow request is not register
+readback or physical battery verification. Fresh post-send source telemetry and
+hardware commissioning remain necessary before enabling actual control.
+
 - [EnergyWizard inverter guide](https://murre87.github.io/energywizard/kunskapsbank/vaxelriktare.html)
 - [Ferroamp APIs](https://ferroamp.com/kundservice/api/)
 - [Ferroamp Modbus specification, current support attachment](https://support.ferroamp.com/helpdesk/attachments/47307478898)
