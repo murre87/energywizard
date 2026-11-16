@@ -2760,5 +2760,20 @@
   "Varje rad räknas från sin dag. Slutar tiden före starttiden gäller den till nästa dag: torsdag 22:00–15:00 = torsdag kväll till fredag 15:00.": "Každý řádek platí od svého dne. Pokud konec předchází začátku, pokračuje do dalšího dne: čtvrtek 22:00–15:00 = čtvrtek večer až pátek 15:00.",
   "ML-styrt varmvatten": "Teplá voda řízená ML",
   "Startvärdet väljs efter era inlärda varmvattenvanor och elpriset: pumpen väntar på dyra timmar när ingen tappning väntas och fyller tanken på de billigaste timmarna före nästa troliga tappning. Skugga loggar bara vad som skulle ha gjorts.": "Počáteční hodnota se volí podle naučených zvyků s teplou vodou a ceny elektřiny: čerpadlo v drahých hodinách čeká, když se neočekává odběr, a nádrž plní v nejlevnějších hodinách před dalším pravděpodobným odběrem. Stín jen zaznamená, co by se udělalo.",
-  "Prio #.# (VARMVATTEN, ML): Start # °C - {why}.": "Prio #.# (TEPLÁ VODA, ML): Start # °C - {why}."
+  "Prio #.# (VARMVATTEN, ML): Start # °C - {why}.": "Prio #.# (TEPLÁ VODA, ML): Start # °C - {why}.",
+  "Varmvattenstyrning": "Řízení teplé vody",
+  "Varmvattenstyrningen saknar verifierat ägarskap eller är i skuggläge": "Řízení teplé vody nemá ověřené převzetí řízení nebo je ve stínovém režimu",
+  "Varmvattenboost är schemalagd": "Zvýšený ohřev vody je naplánován",
+  "Varmvattenboost är aktiv": "Zvýšený ohřev vody je aktivní",
+  "Väntar på bekräftelse av varmvattenstart": "Čeká se na potvrzení zahájení ohřevu vody",
+  "Väntar på bekräftelse av avslutad varmvattenboost": "Čeká se na potvrzení ukončení zvýšeného ohřevu vody",
+  "Operatörsåterställning krävs efter en oavslutad varmvattenkörning": "Po nedokončeném ohřevu vody je nutná obnova obsluhou",
+  "Varmvattenstyrningen har avbrutits och behöver granskas": "Řízení teplé vody bylo přerušeno a vyžaduje kontrolu",
+  "Varmvattenstyrningen kan inte spara sitt tillstånd": "Řízení teplé vody nemůže uložit svůj stav",
+  "Varmvattenkörningen är avslutad": "Ohřev vody byl ukončen",
+  "Varmvattenstyrningens status är inte tillgänglig": "Stav řízení teplé vody není dostupný",
+  "Varmvattenstart väntar på elutrymme och färska mätvärden": "Zahájení ohřevu vody čeká na elektrickou rezervu a aktuální měření",
+  "Väntar på ett varmvattenfönster": "Čeká se na časové okno pro ohřev vody",
+  "Planerad start": "Plánovaný začátek",
+  "Booststyrningen ersätter ordinarie varmvattenplanering. Manuell styrning och hygienkörning har företräde.": "Řízení zvýšeného ohřevu nahrazuje běžné plánování teplé vody. Ruční řízení a hygienické cykly mají přednost."
 }
