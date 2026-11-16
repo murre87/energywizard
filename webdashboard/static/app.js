@@ -1406,6 +1406,54 @@ async function mountHotWaterStatus() {
   }, 30000);
 }
 
+function hotWaterControlHtml(status) {
+  const tr = text => window.I18N ? I18N.tr(text) : text;
+  const labels = {
+    disabled:"Avstängd", control_blocked:"Varmvattenstyrningen saknar verifierat ägarskap eller är i skuggläge",
+    planned:"Varmvattenboost är schemalagd", active:"Varmvattenboost är aktiv",
+    start_pending:"Väntar på bekräftelse av varmvattenstart",
+    release_pending:"Väntar på bekräftelse av avslutad varmvattenboost",
+    recovery_required:"Operatörsåterställning krävs efter en oavslutad varmvattenkörning",
+    interrupted:"Varmvattenstyrningen har avbrutits och behöver granskas",
+    storage_error:"Varmvattenstyrningen kan inte spara sitt tillstånd",
+    complete:"Varmvattenkörningen är avslutad", unavailable:"Varmvattenstyrningens status är inte tillgänglig",
+    guard_blocked:"Varmvattenstart väntar på elutrymme och färska mätvärden",
+    precedence_blocked:"Manuell styrning, bortaläge eller hygienkörning har företräde",
+    observation_unavailable:"Varmvattentemperaturen saknas eller är inaktuell",
+    target_already_observed:"Varmvattnet har redan nått måltemperaturen",
+    deadline_missed:"Varmvattnets tidsgräns har passerats",
+    interval_conflict:"Minsta tid mellan körningar ryms inte före tidsgränsen",
+    policy_changed:"Planeringspolicyn har ändrats och behöver granskas",
+    clock_moved_backwards:"Motorns klocka har gått bakåt",
+    comfort_due:"Väntar på ett varmvattenfönster", age_window:"Väntar på ett varmvattenfönster",
+    schedule_unavailable:"Inget komplett prisfönster före tidsgränsen", unknown:"Okänd eller inaktuell status"
+  };
+  const age = status ? Date.now()/1000 - status.reported_at : NaN;
+  const fresh = status && status.fresh === true && Number.isFinite(age) && age >= 0 && age <= 90;
+  const state = fresh && Object.hasOwn(labels, status.state) ? status.state : "unknown";
+  const date = value => Number.isFinite(value) ? new Date(value * 1000).toLocaleString((window.I18N && I18N.lang) || "sv-SE") : "–";
+  const windowHtml = ["planned","active","start_pending","release_pending"].includes(state) ?
+    `<div class="note">${esc(tr("Planerad start"))}: ${esc(date(status.start))}<br>${esc(tr("Senast klart"))}: ${esc(date(status.end))}</div>` : "";
+  return `<div><b>${esc(tr(labels[state]))}</b></div>${windowHtml}
+    <div class="note">${esc(tr("Booststyrningen ersätter ordinarie varmvattenplanering. Manuell styrning och hygienkörning har företräde."))}</div>`;
+}
+
+let hotWaterControlTimer = null;
+async function mountHotWaterControl() {
+  clearTimeout(hotWaterControlTimer);
+  const card = document.getElementById("hotwatercontrolcard"), body = document.getElementById("hotwatercontrolbody");
+  if (!card || !body) return;
+  let data;
+  try { data = await api("api/hot-water-control-status"); }
+  catch (_) { data = {enabled: null, status: null}; }
+  if (!body.isConnected || document.getElementById("hotwatercontrolbody") !== body) return;
+  card.hidden = data.enabled === false;
+  if (!card.hidden) body.innerHTML = hotWaterControlHtml(data.status);
+  hotWaterControlTimer = setTimeout(() => {
+    if (body.isConnected && document.getElementById("hotwatercontrolbody") === body) mountHotWaterControl();
+  }, 30000);
+}
+
 async function mountMqtt() {
   let d;
   try { d = await api("api/mqtt-settings"); } catch (e) { return; }
@@ -2186,6 +2234,11 @@ async function renderInstallningar() {
       <div id="hotwaterstatusbody" class="note">Laddar…</div>
       <button class="icobtn" id="hotwaterstatusrefresh" style="margin-top:8px">Uppdatera status</button>
     </div>
+    <div class="card" style="margin-bottom:16px" id="hotwatercontrolcard" hidden>
+      <h2>Varmvattenstyrning</h2>
+      <div id="hotwatercontrolbody" class="note">Laddar…</div>
+      <button class="icobtn" id="hotwatercontrolrefresh" style="margin-top:8px">Uppdatera status</button>
+    </div>
     <div class="card" style="margin-bottom:16px" id="sensorcard" hidden>
       <div style="font-size:1.1rem;font-weight:700">🏠 Givare inne och ute</div>
       <div class="note" style="margin-top:4px">Välj vilka temperaturgivare som visar husets innetemperatur (medianen används när du har tre eller fler) och vilken som sitter ute. Förslagen är markerade ⭐.</div>
@@ -2258,6 +2311,8 @@ async function renderInstallningar() {
   document.getElementById("snapshotstatusrefresh").onclick = mountSnapshotStatus;
   mountHotWaterStatus();
   document.getElementById("hotwaterstatusrefresh").onclick = mountHotWaterStatus;
+  mountHotWaterControl();
+  document.getElementById("hotwatercontrolrefresh").onclick = mountHotWaterControl;
   if (window.I18N && I18N.lang !== "sv") {
     const mb = document.getElementById("missingbtn");
     mb.hidden = false; mb.onclick = () => I18N.downloadMissing();

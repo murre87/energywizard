@@ -60,6 +60,7 @@ import ramp_budget     # #399: beviljade ökningar som ännu inte syns i mätnin
 import water_setpoints  # Varmvattnets start/stopp: stoppet aldrig under normal, kontroll efter skrivning
 import hot_water_monitor  # Default-off advisory shadow monitor; no device writes
 import hot_water_runtime  # Explicit opt-in bounded local boost owner
+import hot_water_status
 import hot_water_power  # Optional dedicated electrical-load evidence, cache/read-only
 import energy_source_evidence  # Optional raw source snapshot, separate from corrected balance
 import ev_heating       # Temperaturberoende baslast för laddplanen (ev_planning.heating_adjustment), natanoj
@@ -337,6 +338,7 @@ last_sent_water          = None
 water_sp = water_setpoints.WaterSetpoints()
 _hot_water_monitor = hot_water_monitor.Monitor()
 _hot_water_runtime = hot_water_runtime.Runtime()
+_hot_water_status = hot_water_status.Publisher()
 _battery_shadow_monitor = battery_shadow.Monitor()
 last_sent_spa_target     = None
 last_sent_spa_eco        = None
@@ -2747,6 +2749,11 @@ while True:
                 except Exception:
                     _hot_water_runtime.failed = True
                     _hot_water_runtime.report = {"state": "unavailable"}
+                if _hw_selected:
+                    try:
+                        _hot_water_status.submit(_hot_water_runtime, time.time())
+                    except Exception:
+                        pass  # Status expires; publication cannot change control.
 
             # 🔧 KVARTS-TASK – Exekvera modbus & tyngre uppgifter
             # ============================================================

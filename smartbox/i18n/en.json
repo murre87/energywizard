@@ -2760,5 +2760,20 @@
  "Varje rad räknas från sin dag. Slutar tiden före starttiden gäller den till nästa dag: torsdag 22:00–15:00 = torsdag kväll till fredag 15:00.": "Each row counts from its own day. If the end is before the start, it runs into the next day: Thursday 22:00–15:00 = Thursday evening to Friday 15:00.",
  "ML-styrt varmvatten": "ML-controlled hot water",
  "Startvärdet väljs efter era inlärda varmvattenvanor och elpriset: pumpen väntar på dyra timmar när ingen tappning väntas och fyller tanken på de billigaste timmarna före nästa troliga tappning. Skugga loggar bara vad som skulle ha gjorts.": "The start value is chosen from your learned hot water habits and the electricity price: the pump waits during expensive hours when no draw is expected and fills the tank in the cheapest hours before the next likely draw. Shadow only logs what would have been done.",
- "Prio #.# (VARMVATTEN, ML): Start # °C - {why}.": "Prio #.# (HOT WATER, ML): Start # °C - {why}."
+ "Prio #.# (VARMVATTEN, ML): Start # °C - {why}.": "Prio #.# (HOT WATER, ML): Start # °C - {why}.",
+ "Varmvattenstyrning": "Hot-water control",
+ "Varmvattenstyrningen saknar verifierat ägarskap eller är i skuggläge": "Hot-water control lacks verified ownership or is in shadow mode",
+ "Varmvattenboost är schemalagd": "Hot-water boost is scheduled",
+ "Varmvattenboost är aktiv": "Hot-water boost is active",
+ "Väntar på bekräftelse av varmvattenstart": "Waiting for confirmation of hot-water start",
+ "Väntar på bekräftelse av avslutad varmvattenboost": "Waiting for confirmation that hot-water boost has ended",
+ "Operatörsåterställning krävs efter en oavslutad varmvattenkörning": "Operator recovery is required after an unfinished hot-water cycle",
+ "Varmvattenstyrningen har avbrutits och behöver granskas": "Hot-water control was interrupted and needs review",
+ "Varmvattenstyrningen kan inte spara sitt tillstånd": "Hot-water control cannot save its state",
+ "Varmvattenkörningen är avslutad": "The hot-water cycle has ended",
+ "Varmvattenstyrningens status är inte tillgänglig": "Hot-water control status is unavailable",
+ "Varmvattenstart väntar på elutrymme och färska mätvärden": "Hot-water start is waiting for electrical headroom and fresh readings",
+ "Väntar på ett varmvattenfönster": "Waiting for a hot-water window",
+ "Planerad start": "Scheduled start",
+ "Booststyrningen ersätter ordinarie varmvattenplanering. Manuell styrning och hygienkörning har företräde.": "Boost control replaces ordinary hot-water scheduling. Manual control and hygiene cycles take precedence."
 }

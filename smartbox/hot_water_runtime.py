@@ -64,6 +64,17 @@ def selected(house):
             and (hp.get('hot_water_control') or {}).get('enabled') is True)
 
 
+def control_context(house, driver):
+    hp = house['heat_pump']
+    cfg = hp['hot_water_control']
+    return hashlib.sha256(json.dumps(
+        {'connection': hp.get('connection'), 'points': hp.get('points'),
+         'local_identity': {k: getattr(driver, k, None) for k in
+                            ('_host', '_port', '_index', '_expected_product', '_expected_serial')},
+         'policy': cfg['comfort_policy'], 'max_runtime_s': cfg['max_runtime_s']},
+        sort_keys=True, allow_nan=False).encode()).hexdigest()
+
+
 def permitted(*, meter_fresh, fuse_fresh, currents, filtered, fuse_a, margin_a,
               peak_ok, additional_kw):
     """Conservative start headroom: all additional load could land on one phase."""
@@ -120,10 +131,7 @@ class Runtime:
             # does not authorize recovery of an old process's active command.
             owner = cfg.get('exclusive_owner_confirmed') is True
             policy = cfg['comfort_policy']
-            context = hashlib.sha256(json.dumps(
-                {'connection': hp.get('connection'), 'points': hp.get('points'),
-                 'policy': policy, 'max_runtime_s': cfg['max_runtime_s']},
-                sort_keys=True, allow_nan=False).encode()).hexdigest()
+            context = control_context(house, driver)
             if self.context is not None and context != self.context:
                 self.failed = True
             if self.failed:
