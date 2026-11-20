@@ -42,6 +42,7 @@ import learning         # AI-modeller för temperatur och avsvalning
 import mpc               # Prediktiv förvärmnings-planerare (skuggläge + veckovis självvalidering)
 import house_config      # EnergyWizard Open: drivrutinsarkitektur (bil/laddare/värmepump/sol/spa)
 import smart_plugs
+import plug_presence      # #217: tomt rum och bortaläge noteras, reläet ändras inte
 import ev_handshake      # Generisk laddar-handskakning (vilken fysisk laddare hör till vilken bil)
 import decision_summary  # Vad görs nu och varför, per enhet (ur gpm.py:s logg)
 import solar_write_guard # Hur ofta exportgränsen får skrivas (flashminnet i växelriktaren)
@@ -152,6 +153,12 @@ try:
 except ValueError as e:
     print(f"Smart plugs disabled: {e}")
     _smart_plugs = smart_plugs.Controller(None)
+_plug_cfg = house_cfg.get("smart_plugs") if isinstance(house_cfg, dict) else None
+_plug_presence = plug_presence.Watch(plug_presence.select(
+    _smart_plugs.devices, _plug_cfg.get("devices") if isinstance(_plug_cfg, dict) else None))
+_plug_presence_n = sum(1 for _d in _plug_presence.devices if _d["presence"])
+if _plug_presence_n:
+    print(f"Smarta pluggar: närvaro noteras för {_plug_presence_n}, inget relä ändras")
 car_drivers = house_config.build_car_drivers(house_cfg)
 charger_drivers = house_config.build_charger_drivers(house_cfg)
 physical_charger_drivers = house_config.build_physical_charger_drivers(house_cfg)
@@ -1274,6 +1281,11 @@ while True:
                     smart_plugs.run(_smart_plugs, _plug_price, now.timestamp())
                 except Exception as e:
                     print(f"Smart plug policy skipped: {type(e).__name__}")
+            if _plug_presence.devices:
+                try:
+                    plug_presence.run(_plug_presence, now.timestamp(), cfg.get("away_mode_enabled") is True)
+                except Exception as e:
+                    print(f"Smart plug presence skipped: {type(e).__name__}")
 
             # Notis (deduppad per dygn) om vi kör på gårdagens prisprofil pga prisbortfall
             if strategy and strategy.get("price_fallback") and last_price_fallback_notify_date != now.date():

@@ -18,6 +18,8 @@ smart_plugs:
       restore_below: 1.0
       min_on_minutes: 15
       min_off_minutes: 15
+      # presence: binary_sensor.office_occupancy  # optional, on = someone is there
+      # unoccupied_minutes: 15                    # log after the room stays empty this long
 ```
 
 Thresholds use the configured contract's complete import-price calculation, in
@@ -50,6 +52,22 @@ and a service call are not atomic. This needs installation qualification before
 enabling, and is not a hardware safety controller. Shadow mode sends no plug calls.
 
 This is a price-policy milestone, not the complete #217 feature. It does not learn
-standby power, infer occupancy, handle room/vacation policies, calculate savings,
-coordinate fuse/phase restoration budgets, or provide setup/status dashboard
-controls. No runtime device has been tested or enrolled by this change.
+standby power, switch a plug off because a room is empty or the house is away,
+calculate savings, coordinate fuse/phase restoration budgets, or provide
+setup/status dashboard controls. No runtime device has been tested or enrolled
+by this change.
+
+## Presence and away (notes only)
+
+Optional `presence` on an enrolled plug is `binary_sensor.<name>` or
+`input_boolean.<name>`. `on` means the room is occupied. `off` means empty.
+`unavailable`, `unknown`, a missing read and any other value are not empty:
+that wait restarts. While the switch stays `on` and the room stays empty for
+`unoccupied_minutes` (default 15, range 5–1440), one log line names the plug.
+The wait starts again when the room is occupied or the plug is off. An invalid
+presence id is ignored and does not disable the price policy.
+
+While system away mode is on, an enrolled plug that is `on` is logged once.
+Presence is not counted during away. The next away period can log again.
+Neither note calls `switch.turn_on` or `switch.turn_off`. The price policy is
+unchanged. A failed log does not change the relay. Restart clears the notes.
