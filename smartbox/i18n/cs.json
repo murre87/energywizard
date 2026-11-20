@@ -3028,5 +3028,9 @@
  "Värmepump: Rumsåterkoppling i skugga skulle sätta # °C, nu # °C": "Tepelné čerpadlo: Zpětná vazba ve stínovém režimu by nastavila # °C, teď # °C",
  "inklusive avgifter": "včetně poplatků",
  "spotpris": "spotová cena",
- "snittpris inklusive avgifter": "průměrná cena včetně poplatků"
+ "snittpris inklusive avgifter": "průměrná cena včetně poplatků",
+ "SAJ skugga: självförbrukning, register # = # och # = #. Skriver inte.": "SAJ stín: vlastní spotřeba, registr # = # a # = #. Nezapisuje.",
+ "SAJ skugga: håller utan urladdning, register # = # och # = #. Skriver inte.": "SAJ stín: drží bez vybíjení, registr # = # a # = #. Nezapisuje.",
+ "SAJ skugga: laddar från nätet, register # = #, # = #, # = #, # = # och # = #. Skriver inte.": "SAJ stín: nabíjí ze sítě, registr # = #, # = #, # = #, # = # a # = #. Nezapisuje.",
+ "SAJ utan lägen i Home Assistant: ett skuggrecept (ärende #) kan logga vilket registerläge EnergyWizard skulle valt. Inga register skrivs, och styrningen lämnas i samarbete tills en installation verifierat den.": "SAJ bez režimů v Home Assistantu: stínový recept (hlášení #) jen zapíše do protokolu, jaký režim registrů by EnergyWizard zvolil. Registry se nezapisují a řízení zůstává ve spolupráci, dokud to nějaká instalace neověří."
 }

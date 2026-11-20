@@ -3028,5 +3028,9 @@
  "Värmepump: Rumsåterkoppling i skugga skulle sätta # °C, nu # °C": "Heat pump: Room feedback in shadow mode would set # °C, now # °C",
  "inklusive avgifter": "incl. fees",
  "spotpris": "spot price",
- "snittpris inklusive avgifter": "average price incl. fees"
+ "snittpris inklusive avgifter": "average price incl. fees",
+ "SAJ skugga: självförbrukning, register # = # och # = #. Skriver inte.": "SAJ shadow: self-consumption, register # = # and # = #. Does not write.",
+ "SAJ skugga: håller utan urladdning, register # = # och # = #. Skriver inte.": "SAJ shadow: holds without discharging, register # = # and # = #. Does not write.",
+ "SAJ skugga: laddar från nätet, register # = #, # = #, # = #, # = # och # = #. Skriver inte.": "SAJ shadow: charges from the grid, register # = #, # = #, # = #, # = # and # = #. Does not write.",
+ "SAJ utan lägen i Home Assistant: ett skuggrecept (ärende #) kan logga vilket registerläge EnergyWizard skulle valt. Inga register skrivs, och styrningen lämnas i samarbete tills en installation verifierat den.": "SAJ with no modes in Home Assistant: a shadow recipe (issue #) can log which register mode EnergyWizard would have chosen. No registers are written, and control stays on cooperate until an installation has verified it."
 }
