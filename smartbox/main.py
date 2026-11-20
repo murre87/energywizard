@@ -42,6 +42,7 @@ import learning         # AI-modeller för temperatur och avsvalning
 import mpc               # Prediktiv förvärmnings-planerare (skuggläge + veckovis självvalidering)
 import house_config      # EnergyWizard Open: drivrutinsarkitektur (bil/laddare/värmepump/sol/spa)
 import smart_plugs
+import plug_presence    # Närvaro och semester för pluggar: bara en loggrad, inget relä (#217)
 import ev_handshake      # Generisk laddar-handskakning (vilken fysisk laddare hör till vilken bil)
 import decision_summary  # Vad görs nu och varför, per enhet (ur gpm.py:s logg)
 import solar_write_guard # Hur ofta exportgränsen får skrivas (flashminnet i växelriktaren)
@@ -152,6 +153,11 @@ try:
 except ValueError as e:
     print(f"Smart plugs disabled: {e}")
     _smart_plugs = smart_plugs.Controller(None)
+try:
+    _plug_presence = plug_presence.Watcher(house_cfg.get('smart_plugs'))
+except ValueError as e:
+    print(f"Plug presence disabled: {e}")
+    _plug_presence = plug_presence.Watcher(None)
 car_drivers = house_config.build_car_drivers(house_cfg)
 charger_drivers = house_config.build_charger_drivers(house_cfg)
 physical_charger_drivers = house_config.build_physical_charger_drivers(house_cfg)
@@ -1274,6 +1280,11 @@ while True:
                     smart_plugs.run(_smart_plugs, _plug_price, now.timestamp())
                 except Exception as e:
                     print(f"Smart plug policy skipped: {type(e).__name__}")
+            if _plug_presence.devices:
+                try:
+                    plug_presence.run(_plug_presence, now.timestamp())
+                except Exception as e:
+                    print(f"Plug presence skipped: {type(e).__name__}")
 
             # Notis (deduppad per dygn) om vi kör på gårdagens prisprofil pga prisbortfall
             if strategy and strategy.get("price_fallback") and last_price_fallback_notify_date != now.date():

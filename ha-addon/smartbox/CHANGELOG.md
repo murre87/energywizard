@@ -1,5 +1,10 @@
 # Ändringar
 
+## 1.2.120 (2026-11-20)
+- **Närvaro och semester för smarta pluggar loggas utan att styras (#217).** En valfri närvaro kan säga att ett rum
+  är tomt, att huset är borta eller att semestern är på. Efter väntetiden skrivs en rad om att pluggen skulle slås av,
+  och en rad när skälet har varit borta lika länge. Inget relä anropas. Saknad status räknas inte som tomt.
+
 ## 1.2.119 (2026-11-20)
 - **HeishaMon nollställer inte kurvförskjutningen i onödan (#491).** FTW-drivrutinen skrev 0 °C till
   `Z1_Heat_Request_Temp` vid varje vakthund och omstart, även när Home Assistant styrde förskjutningen.

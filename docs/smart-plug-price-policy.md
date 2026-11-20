@@ -5,6 +5,8 @@ that may safely lose power and restart unattended. Never enroll refrigerators,
 medical equipment, networking, pumps, heating safety systems, computers with
 unsaved work, or any other essential device. EW does not classify devices for you.
 Keep existing Home Assistant automations from controlling the same enrolled plugs.
+Room occupancy, a house away signal and vacation are noted separately in
+[smart-plug-presence.md](smart-plug-presence.md) and never switch a relay.
 
 ```yaml
 smart_plugs:
