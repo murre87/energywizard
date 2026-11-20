@@ -23,6 +23,9 @@ smart_plugs:
       min_off_minutes: 15
       # occupied: binary_sensor.office   # on/home means the room is in use
       # unoccupied_minutes: 15
+      # away: false                      # follow the house home signal
+      # vacation: false                  # follow the vacation signal
+      # presence_off: false              # true switches the relay off
 ```
 
 Thresholds use the configured contract's complete import-price calculation, in
@@ -54,19 +57,33 @@ that HA does not expose as a state/context change cannot be detected; observatio
 and a service call are not atomic. This needs installation qualification before
 enabling, and is not a hardware safety controller. Shadow mode sends no plug calls.
 
-Optional `occupied`, `home` and `vacation` only add a log line. They do not
-switch the relay. `occupied` is per plug (`binary_sensor`, `input_boolean`,
-`device_tracker` or `person`). `on` or `home` means someone is there. `off` or
-`not_home` starts `unoccupied_minutes` (default 15, range 5–1440). `home` is
-the same signal for the whole house, with `away_minutes`. `vacation` is a
-`binary_sensor` or `input_boolean` that is `on` during vacation and logs once
-while it stays on. Unknown, unavailable or a missing reading is not empty and
-is not vacation. The note is repeated only after the signal returns and the
-wait passes again. The timers are process-local and restart clears them.
-Invalid occupancy settings disable the notes and leave the price policy
-running. Shadow mode still sends no plug calls.
+Optional `occupied`, `home` and `vacation` add a log line. They switch a relay
+only when that plug sets `presence_off: true`. `occupied` is per plug
+(`binary_sensor`, `input_boolean`, `device_tracker` or `person`). `on` or
+`home` means someone is there. `off` or `not_home` starts `unoccupied_minutes`
+(default 15, range 5–1440). `home` is the same signal for the whole house, with
+`away_minutes`. `vacation` is a `binary_sensor` or `input_boolean` that is `on`
+during vacation and logs once while it stays on. Unknown, unavailable or a
+missing reading is not empty and is not vacation. The note is repeated only
+after the signal returns and the wait passes again. The timers are process-local
+and restart clears them.
+
+`presence_off: true` switches that plug off after an opted-in signal has
+finished its wait and the minimum-on dwell has also elapsed. The room follows
+`occupied`. `away: true` follows the house `home` signal. `vacation: true`
+follows `vacation`. At least one of those is required. A missing or non-finite
+price still causes no switching. The write uses the same changed-state check as
+the price policy. One failed or ambiguous write suspends the device; there is
+no retry. The plug is not turned back on when the room is occupied again,
+someone comes home, vacation ends, or the price falls. Turning it on by hand
+suspends the device until restart. An off caused only by a high price is still
+restored when the price falls, unless presence still wants that plug off.
+Shadow mode sends no plug calls.
+
+Invalid occupancy settings disable the notes and this switch, and leave the
+price policy running.
 
 This is a price-policy milestone, not the complete #217 feature. It does not
-learn standby power, switch off for an empty room, away or vacation, calculate
+learn standby power, turn a plug back on when someone returns, calculate
 savings, coordinate fuse/phase restoration budgets, or provide setup/status
 dashboard controls. No runtime device has been tested or enrolled by this change.

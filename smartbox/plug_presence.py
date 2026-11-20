@@ -1,4 +1,4 @@
-"""Room, away and vacation notes for enrolled plugs. Never switches a relay."""
+"""Room, away and vacation for enrolled plugs. This module never calls a switch."""
 import math
 import re
 
@@ -55,6 +55,8 @@ class Watch:
         self.rooms = []
         self.home = None
         self.vacation = None
+        self._cut = {}
+        self._ready = set()
         self._since = {}
         self._noted = set()
         if not isinstance(config, dict) or config.get('enabled') is not True:
@@ -62,24 +64,6 @@ class Watch:
         devices = config.get('devices', [])
         if not isinstance(devices, list) or len(devices) > 32:
             raise ValueError('At most 32 smart plugs supported')
-        seen = set()
-        for item in devices:
-            if not isinstance(item, dict):
-                raise ValueError('Invalid smart plug entry')
-            if (item.get('enabled') is not True or item.get('nonessential') is not True
-                    or item.get('always_on', False) is not False):
-                continue
-            switch = item.get('switch', '')
-            if not isinstance(switch, str) or not _SWITCH.fullmatch(switch) or switch in seen:
-                raise ValueError('Invalid smart plug occupancy')
-            seen.add(switch)
-            if 'occupied' not in item and 'unoccupied_minutes' not in item:
-                continue
-            sensor = item.get('occupied')
-            minutes = _delay(item.get('unoccupied_minutes', 15))
-            if not isinstance(sensor, str) or not _PRESENCE.fullmatch(sensor) or minutes is None:
-                raise ValueError('Invalid smart plug occupancy')
-            self.rooms.append(dict(switch=switch, entity=sensor, delay=minutes * 60, label=f'{minutes:g}'))
         if 'home' in config or 'away_minutes' in config:
             sensor = config.get('home')
             minutes = _delay(config.get('away_minutes', 15))
@@ -91,6 +75,38 @@ class Watch:
             if not isinstance(sensor, str) or not _VACATION.fullmatch(sensor):
                 raise ValueError('Invalid smart plug occupancy')
             self.vacation = sensor
+        seen = set()
+        for item in devices:
+            if not isinstance(item, dict):
+                raise ValueError('Invalid smart plug entry')
+            if (item.get('enabled') is not True or item.get('nonessential') is not True
+                    or item.get('always_on', False) is not False):
+                continue
+            switch = item.get('switch', '')
+            if not isinstance(switch, str) or not _SWITCH.fullmatch(switch) or switch in seen:
+                raise ValueError('Invalid smart plug occupancy')
+            seen.add(switch)
+            has_room = 'occupied' in item or 'unoccupied_minutes' in item
+            off = item.get('presence_off', False)
+            away = item.get('away', False)
+            holiday = item.get('vacation', False)
+            if ((off is not True and off is not False) or (away is not True and away is not False)
+                    or (holiday is not True and holiday is not False)):
+                raise ValueError('Invalid smart plug occupancy')
+            if has_room:
+                sensor = item.get('occupied')
+                minutes = _delay(item.get('unoccupied_minutes', 15))
+                if not isinstance(sensor, str) or not _PRESENCE.fullmatch(sensor) or minutes is None:
+                    raise ValueError('Invalid smart plug occupancy')
+                self.rooms.append(dict(switch=switch, entity=sensor, delay=minutes * 60, label=f'{minutes:g}'))
+            if away and self.home is None:
+                raise ValueError('Invalid smart plug occupancy')
+            if holiday and self.vacation is None:
+                raise ValueError('Invalid smart plug occupancy')
+            if off and not has_room and not away and not holiday:
+                raise ValueError('Invalid smart plug occupancy')
+            if off:
+                self._cut[switch] = dict(room=has_room, away=away, vacation=holiday)
 
     @property
     def active(self):
@@ -100,19 +116,33 @@ class Watch:
         if not empty:
             self._since.pop(key, None)
             self._noted.discard(key)
+            self._ready.discard(key)
             return
         since = self._since.get(key)
         if since is None or now < since:
             since = now
             self._noted.discard(key)
+            self._ready.discard(key)
         self._since[key] = since
-        if key in self._noted or now - since < delay:
+        if now - since < delay:
+            return
+        self._ready.add(key)
+        if key in self._noted:
             return
         try:
             record(key, detail)
         except Exception:
             return
         self._noted.add(key)
+
+    def switches_to_cut(self):
+        """Plugs with presence_off whose opted-in signal has finished its wait."""
+        home = 'home' in self._ready
+        holiday = 'vacation' in self._ready
+        return tuple(
+            switch for switch, policy in self._cut.items()
+            if (policy['room'] and switch in self._ready)
+            or (policy['away'] and home) or (policy['vacation'] and holiday))
 
     def tick(self, now, read, record):
         """read returns one HA state. record may log. Neither path can switch a plug."""

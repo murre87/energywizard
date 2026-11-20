@@ -1276,17 +1276,19 @@ while True:
             # Explicit nonessential devices only; never switch from yesterday's
             # fallback profile or a missing current interval. Prices use the
             # configured contract's complete import-price calculation.
-            if _smart_plugs.devices:
-                try:
-                    _plug_price = smart_plugs.policy_price(current_price, strategy, now, nordpool.planning_buy_price)
-                    smart_plugs.run(_smart_plugs, _plug_price, now.timestamp())
-                except Exception as e:
-                    print(f"Smart plug policy skipped: {type(e).__name__}")
+            cut = ()
             if _plug_presence.active:
                 try:
                     plug_presence.run(_plug_presence, now.timestamp())
+                    cut = _plug_presence.switches_to_cut()
                 except Exception as e:
                     print(f"Plug presence skipped: {type(e).__name__}")
+            if _smart_plugs.devices:
+                try:
+                    _plug_price = smart_plugs.policy_price(current_price, strategy, now, nordpool.planning_buy_price)
+                    smart_plugs.run(_smart_plugs, _plug_price, now.timestamp(), cut)
+                except Exception as e:
+                    print(f"Smart plug policy skipped: {type(e).__name__}")
 
             # Notis (deduppad per dygn) om vi kör på gårdagens prisprofil pga prisbortfall
             if strategy and strategy.get("price_fallback") and last_price_fallback_notify_date != now.date():

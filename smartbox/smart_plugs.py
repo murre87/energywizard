@@ -48,16 +48,19 @@ class Controller:
         except ValueError:return None
         return snapshot['state'],context,changed
 
-    def tick(self,price,now,read,write,shadow=False):
+    def tick(self,price,now,read,write,shadow=False,cut=()):
         """read is a fresh HA GET; write returns the changed state, never an ACK.
 
         Missing evidence, manual changes and ambiguous writes suspend that device
         until restart. Ownership is never restored from disk or inferred from off.
+        ``cut`` names plugs presence wants off. A missing price never writes.
+        A presence off is not turned back on when the price falls.
         """
         if shadow:
             self.state.clear()
             return
         if not finite(price) or not finite(now):return
+        cutting=set(cut)
         for device in self.devices:
             entity=device['entity']
             previous=self.state.get(entity)
@@ -75,9 +78,14 @@ class Controller:
                 self.state[entity]={'paused':True}
                 continue
             turn_on=None
-            if identity[0]=='on' and price>device['high'] and now-previous['since']>=device['on_s']:
+            reason=None
+            if identity[0]=='on' and entity in cutting and now-previous['since']>=device['on_s']:
                 turn_on=False
-            elif (identity[0]=='off' and previous['owned'] and price<device['low']
+                reason='presence'
+            elif identity[0]=='on' and price>device['high'] and now-previous['since']>=device['on_s']:
+                turn_on=False
+            elif (identity[0]=='off' and previous['owned'] and previous.get('reason')!='presence'
+                  and entity not in cutting and price<device['low']
                   and now-previous['since']>=device['off_s']):
                 turn_on=True
             if turn_on is None:continue
@@ -88,10 +96,12 @@ class Controller:
             except Exception:continue
             expected='on' if turn_on else 'off'
             if changed and changed[0]==expected and changed[1]!=identity[1]:
-                self.state[entity]={'identity':changed,'since':now,'owned':not turn_on}
+                nxt={'identity':changed,'since':now,'owned':not turn_on}
+                if reason:nxt['reason']=reason
+                self.state[entity]=nxt
 
 
-def run(controller,price,now):
+def run(controller,price,now,cut=()):
     """Isolated opt-in adapter; shares the existing HA TLS/auth/shadow safeguards."""
     if not controller.devices:return
     import homeassistant as ha
@@ -109,9 +119,11 @@ def run(controller,price,now):
         if not isinstance(changed,list):return None
         return next((s for s in changed if isinstance(s,dict) and s.get('entity_id')==entity),None)
     before={entity:dict(state) for entity,state in controller.state.items()}
-    controller.tick(price,now,read,write,shadow=shadow.active())
+    controller.tick(price,now,read,write,shadow=shadow.active(),cut=cut)
     for entity,state in controller.state.items():
         if state.get('paused') and not before.get(entity,{}).get('paused'):
             print(f'Smart plug {entity}: suspended until restart; state or command ownership is uncertain')
         elif state.get('identity')!=before.get(entity,{}).get('identity'):
-            print(f"Smart plug {entity}: observed {state.get('identity',('unknown',))[0]}")
+            observed=state.get('identity',('unknown',))[0]
+            why=f" for {state['reason']}" if state.get('reason') else ''
+            print(f"Smart plug {entity}: observed {observed}{why}")

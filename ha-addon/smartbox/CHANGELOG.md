@@ -1,5 +1,11 @@
 # Ändringar
 
+## 1.2.120 (2026-11-20)
+- **Närvaro kan stänga av en plugg när det är valt (#217).** `presence_off: true` slår av en påslagen
+  plugg när rummet varit tomt, huset borta eller semestern på, efter väntetiden och minsta på-tid.
+  Utan flaggan är det fortfarande bara en rad i loggen. Saknat pris och skuggläge skriver inte.
+  Pluggen slås inte på igen när någon kommer tillbaka eller elen blir billig.
+
 ## 1.2.119 (2026-11-20)
 - **HeishaMon nollställer inte kurvförskjutningen i onödan (#491).** FTW-drivrutinen skrev 0 °C till
   `Z1_Heat_Request_Temp` vid varje vakthund och omstart, även när Home Assistant styrde förskjutningen.
