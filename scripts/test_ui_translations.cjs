@@ -143,7 +143,8 @@ function checkScreenshotCards(lang,tr) {
   let cars = [{id: 'IONIQ & Traveller', driver: 'generic_ev', battery_kwh: 38, soc: 'sensor.ioniq'}];
   const carsContext = vm.createContext({esc, document: {getElementById: id => id === 'configuredCars' ? panel : null},
     api: async path => {
-      assert.equal(path, 'api/house-config/cars');
+      if (path === 'api/house-config-status') return {writable: false};          // #596: väljaren för laddnivå visas bara när konfigurationen går att skriva
+      assert.equal(path, 'api/house-config/cars?choices=1');
       return {cars};
     }});
   vm.runInContext(web.slice(web.indexOf('async function mountConfiguredCars('), web.indexOf('async function renderInstallningar(')), carsContext);
