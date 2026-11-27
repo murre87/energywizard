@@ -18,7 +18,7 @@ import time
 
 from drivers.host import homeassistant
 from drivers import ha_gecko
-from drivers.host import spa_entities
+from drivers import spa_entities
 from drivers.spa import SpaDriver
 
 _REFRESH_S = 900          # entiteterna i HA ändras sällan; kolla igen med några minuters mellanrum om något fortfarande saknas

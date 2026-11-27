@@ -22,7 +22,7 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | 5a | Sömmen: drivrutinerna når Core bara genom en modul (`drivers/host.py`) som Core binder vid start; kontraktstester mot en falsk värd | |
 | 5b | Märkesspecifik kod ut ur `homeassistant.py` (Easee, SolarEdge, Gecko, bilens klimat, spabad) in i drivrutinerna | klart: `drivers/ha_easee.py`, `ha_solaredge.py`, `ha_gecko.py`, `ha_car.py` |
 | 5c | Drivrutinerna flyttas till `energywizard-drivers` (med `host.py`, falsk värd, kontraktstester och CI); Core hämtar dem med fast version | klart: repot har `drivers/`, tester mot falsk värd och CI (tagg v0.1.0); Core har `release-manifest.json`, `scripts/sync_drivers.py` och `tests/test_release_manifest.py` |
-| 5d | Resten av beroendena (`pump`, `hot_water_*`, `spa_entities`, `telemetry`, `notifier`, `support_bundle`) bakom värden | |
+| 5d | Resten av beroendena bakom värden: det som är drivrutinskod flyttar (`pump`, `spa_entities`, `lua_host`), det som är Core:s tjänster blir kvar som värdens permanenta yta | klart: drivrutinerna v0.2.0 |
 | 6 | API i Core (REST/WebSocket); appen och webben flyttas över ett område i taget, med den gamla vägen kvar tills den nya är verifierad | |
 | 7 | Release-kanaler (stable/dev), synlig version och versionskoll | |
 | 8 | Flytta det som får vara privat (efter avtal) | |
@@ -79,6 +79,15 @@ Märkesspecifik kod låg i `homeassistant.py`. Den bor nu hos drivrutinerna, och
 - `set_climate_temperature` blev kvar i värden: det är en generell `climate.set_temperature` som flera drivrutiner delar (värmepump, spa), inte märkeskod. Det avviker från den ursprungliga listan.
 - Värdens yta för `homeassistant` krympte från 32 till 17 namn (`_BASE`, `_HEADERS` och `_VERIFY` behövs inte längre), vilket är det drivrutinsrepot måste erbjuda i steg 5c.
 - Bevis: `tests/test_ha_brands.py` (märkesmodulerna mot en falsk värd utan motorns `homeassistant`, exakt samma HA-anrop och tidsgränser som förut, vidarekopplingarna, och att ytan inte längre har märkesnamn).
+
+## Det sista bakom värden (steg 5d)
+
+Av de tretton modulerna värden erbjöd efter 5a visade sig tre vara ren drivrutinskod, och de flyttade med till `energywizard-drivers` (v0.2.0):
+
+- `pump.py` (Thermia/Husdata via Modbus) är nu `drivers/thermia_pump.py`, `spa_entities.py` (Gecko-badets entiteter) är `drivers/spa_entities.py` och `lua_host.py` (värd för FTW:s Lua-drivrutiner) är `drivers/lua_host.py`. Skuggläget och `HA_IP` når de via värden.
+- I Core finns tre vidarekopplingar med de gamla namnen (`smartbox/pump.py`, `lua_host.py`, `spa_entities.py`). De byter ut sig själva mot drivrutinsmodulen (`sys.modules`), så `import pump` ger samma modulobjekt och motorn, webben och testerna som ändrar `pump.NAMN` fungerar oförändrat.
+- Det som blir kvar i värden är **Core:s egna tjänster**, inte drivrutinskod: `homeassistant` (generella delen), `shadow`, `ew_settings`, `nordpool.price_timezone`, `hot_water_observation.temperature`, `hot_water_runtime.Journal`, `hot_water_reservations.boost_fields`, `support_bundle`, `telemetry.report_error` och `notifier.send_emil`. Det är den permanenta ytan en drivrutin får räkna med, och den är versionerad med kontrakten. Värdens moduler är 10 (var 13).
+- Första riktiga släppet genom flödet: ändra i drivrutinsrepot, tagga v0.2.0, kör `--bump v0.2.0` i Core.
 
 ## Så håller vi ihop releaserna när delarna ligger i olika repon
 

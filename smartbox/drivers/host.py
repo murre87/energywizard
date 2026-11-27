@@ -17,7 +17,7 @@ import importlib
 # modul -> de attribut drivrutinerna använder (uppmätt före steg 5a)
 SURFACE = {
     "homeassistant": {
-        "_climate_now", "_get_numeric_attribute", "_get_numeric_state", "_get_raw_state", "_states_cache", "all_entity_names", "call_service",
+        "HA_IP", "_climate_now", "_get_numeric_attribute", "_get_numeric_state", "_get_raw_state", "_states_cache", "all_entity_names", "call_service",
         "get_attribute", "get_power_w", "post_service", "press_button", "report_failure", "set_climate_temperature", "set_number", "set_select",
         "set_switch", "update_states"},
     "shadow": {"active", "record"},
@@ -26,16 +26,12 @@ SURFACE = {
     "nordpool": {"price_timezone"},
     "hot_water_runtime": {"Journal"},
     "support_bundle": {"note_error_line", "sanitize"},
-    "lua_host": {"LuaDriver"},
     "telemetry": {"report_error"},
     "notifier": {"send_emil"},
     "hot_water_reservations": {"boost_fields"},
-    "pump": {"read_room_setpoint", "read_sensors", "read_water_setpoints", "set_heating_start_temp", "set_operating_mode", "set_room_temp",
-             "set_water_start_temp", "set_water_stop_temp"},
-    "spa_entities": {"complete_gecko"},
 }
 # namn som drivrutiner importerar direkt (from drivers.host import NAMN): namn -> (modul, attribut)
-NAMES = {"temperature": ("hot_water_observation", "temperature"), "Journal": ("hot_water_runtime", "Journal"), "LuaDriver": ("lua_host", "LuaDriver")}
+NAMES = {"temperature": ("hot_water_observation", "temperature"), "Journal": ("hot_water_runtime", "Journal")}
 
 _bound = {}
 
@@ -90,12 +86,9 @@ ew_settings = _Proxy("ew_settings")
 nordpool = _Proxy("nordpool")
 hot_water_runtime = _Proxy("hot_water_runtime")
 support_bundle = _Proxy("support_bundle")
-lua_host = _Proxy("lua_host")
 telemetry = _Proxy("telemetry")
 notifier = _Proxy("notifier")
 hot_water_reservations = _Proxy("hot_water_reservations")
-pump = _Proxy("pump")
-spa_entities = _Proxy("spa_entities")
 
 
 def __getattr__(name):

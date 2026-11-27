@@ -55,13 +55,13 @@ class FtwDevice:
     """En körande FTW-drivrutin för en enhet. Delas mellan batteri- och solomslaget för samma enhet."""
 
     def __init__(self, name, host, port=502, unit_id=1, config=None, allow_write=False):
-        from drivers.host import LuaDriver
+        from drivers import lua_host
         path = os.path.join(FTW_DIR, os.path.basename(str(name)) + ".lua")
         if not os.path.exists(path):
             raise ValueError(f"FTW-drivrutinen '{name}' finns inte (finns: {', '.join(available())})")
         self.name, self.emits, self.ok_at, self.error = name, {}, None, None
         self.host, self.port = host, port
-        self.drv = LuaDriver(path, host=host, port=port, unit_id=unit_id, config=config or {}, allow_write=allow_write)
+        self.drv = lua_host.LuaDriver(path, host=host, port=port, unit_id=unit_id, config=config or {}, allow_write=allow_write)
         self._stop = False
         self._cmd_lock = threading.Lock()
         threading.Thread(target=self._loop, daemon=True, name=f"ftw-{name}").start()

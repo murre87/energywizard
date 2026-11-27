@@ -123,6 +123,6 @@ def test_a_real_driver_runs_against_a_fake_host_with_no_engine_homeassistant():
 
 
 def test_all_engine_modules_the_drivers_need_are_covered_by_the_host():
-    """Täcker värden alla moduler som drivrutinerna använde före steg 5a? (Listan kommer ur mätningen i PLAN.md.)"""
+    """Värdens moduler efter steg 5d: det som är Core:s tjänster. pump, spa_entities och lua_host bor i drivrutinsrepot sedan v0.2.0."""
     assert set(host.SURFACE) == {"homeassistant", "shadow", "hot_water_observation", "ew_settings", "nordpool", "hot_water_runtime", "support_bundle",
-                                 "lua_host", "telemetry", "notifier", "hot_water_reservations", "pump", "spa_entities"}
+                                 "telemetry", "notifier", "hot_water_reservations"}
