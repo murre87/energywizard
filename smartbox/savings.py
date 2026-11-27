@@ -109,7 +109,7 @@ def _summary(rows):
 
 
 _all_cache = {"t": 0.0, "day": None, "val": None}
-ALL_TTL_S = 600
+ALL_TTL_S = 1800
 
 
 def all_time(conn, today):
@@ -123,6 +123,87 @@ def all_time(conn, today):
     val = _summary(rows)
     val["since"] = rows[0]["day"] if rows else None
     _all_cache.update(t=now, day=today, val=val)
+    return val
+
+
+_benefit_cache = {"t": 0.0, "day": None, "val": None}
+_refresh = {"running": False}
+
+
+def cached(conn, today):
+    """(sedan_start, total_nytta) ur cachen, aldrig blockerande: hela historiken läses (flera sekunder), så en inaktuell eller tom
+    cache fylls i en bakgrundstråd med egen anslutning, och sidan visar det som finns (None första gången, tills tråden är klar)."""
+    import threading
+    import time as _t
+    now = _t.time()
+    fresh = (_benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S
+             and _all_cache["val"] is not None and _money_cache["val"] is not None and _money_cache["day"] == today)
+    if not fresh and not _refresh["running"]:
+        _refresh["running"] = True
+        engine = conn.engine
+
+        def run():
+            try:
+                with engine.connect() as c2:
+                    all_time(c2, today)
+                    total_benefit(c2, today)
+                    money_all(c2, today)                        # pengarna sedan start (Ekonomi, period Totalt) fylls av samma tråd
+            except Exception as e:
+                print(f"⚠️ Total nytta: {type(e).__name__}: {str(e)[:120]}")
+            finally:
+                _refresh["running"] = False
+        threading.Thread(target=run, daemon=True, name="savings-refresh").start()
+    return _all_cache["val"], _benefit_cache["val"]
+
+
+def total_benefit(conn, today):
+    """Hela nyttan sedan start, post för post (startsidan): prisstyrning av köpt el, solel som huset använt (värderad till vad den
+    hade kostat att köpa: moms, nätavgift, skatt), såld solel, och därav sol till elbil och spabad. Posterna för sol finns bara
+    om huset har solceller. Summan lägger ihop posterna (sol till elbil/spa är en del av solelen och räknas inte dubbelt).
+    Prisstyrningen är det EnergyWizard styr; solposterna är vad solcellerna ger, med eller utan styrning. Cachas i tio minuter."""
+    import time as _t
+    now = _t.time()
+    if _benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S:
+        return _benefit_cache["val"]
+    timing = all_time(conn, today)
+    items = [{"key": "timing", "kr": round(timing["saved_kr"], 0), "kwh": round(timing["kwh"], 0)}]
+    flexible = None
+    try:
+        import nordpool
+        rows = conn.execute(text("""
+            SELECT date_trunc('hour', timestamp) AS h, sum(pv_power_w + LEAST(net_power, 0)) / 60000.0 AS kwh, avg(price) AS p
+            FROM sensor_log WHERE pv_power_w IS NOT NULL AND net_power IS NOT NULL AND price IS NOT NULL AND pv_power_w > 0
+            GROUP BY 1""")).fetchall()
+        kr = kwh = 0.0
+        for h, k, p in rows:
+            if k is None or p is None or k <= 0:
+                continue
+            kr += float(k) * nordpool.full_buy_cost(float(p), h)
+            kwh += float(k)
+        if kwh > 1:
+            items.append({"key": "solar_self", "kr": round(kr, 0), "kwh": round(kwh, 0)})
+            sold = conn.execute(text(f"""
+                SELECT sum(GREATEST(-net_power, 0) * {nordpool.sql_sell_income_expr('price')}) / 60000.0,
+                       sum(GREATEST(-net_power, 0)) / 60000.0
+                FROM sensor_log WHERE net_power IS NOT NULL AND price IS NOT NULL""")).fetchone()
+            if sold and sold[1] and float(sold[1]) > 1:
+                items.append({"key": "solar_sold", "kr": round(float(sold[0] or 0), 0), "kwh": round(float(sold[1]), 0)})
+            f = conn.execute(text("""
+                SELECT sum(COALESCE(ev_power_kw, 0) + COALESCE(ev_carport_power_kw, 0)) / 60.0,
+                       sum(CASE WHEN spa_heater_running = 1 THEN spa_power_w ELSE 0 END) / 60000.0,
+                       sum((COALESCE(ev_power_kw, 0) + COALESCE(ev_carport_power_kw, 0)) * 1000 * price) / 60000.0
+                         + sum(CASE WHEN spa_heater_running = 1 THEN spa_power_w * price ELSE 0 END) / 60000.0
+                FROM sensor_log WHERE net_power IS NOT NULL AND net_power <= 0 AND price IS NOT NULL""")).fetchone()
+            if f and f[2] is not None and float(f[2]) > 0:
+                flexible = {"kr": round(float(f[2]), 0), "ev_kwh": round(float(f[0] or 0), 0), "spa_kwh": round(float(f[1] or 0), 0)}
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    val = {"since": timing.get("since"), "days": timing["days"], "items": items, "flexible": flexible,
+           "total_kr": round(sum(i["kr"] for i in items), 0)}
+    _benefit_cache.update(t=now, day=today, val=val)
     return val
 
 
@@ -228,6 +309,11 @@ def money_all(conn, today):
     val["since"] = rows[0]["day"] if rows else None
     _money_cache.update(t=now, day=today, val=val)
     return val
+
+
+def money_cached():
+    """Köpt, såld och netto sedan start ur cachen, aldrig blockerande (None tills bakgrundstråden i cached() har fyllt den)."""
+    return _money_cache["val"]
 
 
 def money_periods(rows, today, all_rows=None):

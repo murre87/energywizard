@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from battery_control import decide, should_apply
+from battery_control import decide, keepalive_allowed, should_apply
 from drivers.battery_generic import GenericBatteryDriver
 from house_config import battery_settings, build_battery_driver
 from decision_summary import summarize
@@ -229,3 +229,25 @@ def test_low_soc_charge_keeps_command_limits_and_priority(soc):
     assert decide(s, STYR, {"auto"})["intent"] == "auto"
     for control in ("samarbete", "av"):
         assert decide(s, {**STYR, "control": control}, ALL)["intent"] is None
+
+
+def test_reservnivan_fornyas_bara_nar_hall_redan_ar_skrivet():
+    """#615: oförändrat håll skrivs inte om av should_apply (flash). Håll-vid-liv får förnya det,
+    men inte en laddning eller urladdning som ännu inte bytts ut."""
+    t = datetime(2026, 11, 26, 12, 0)
+    hold = {"intent": "hold", "power_w": None, "rule": "reserve"}
+    discharge = {"intent": "discharge", "power_w": 2000, "rule": "plan"}
+    assert should_apply(hold, hold, t, t + timedelta(minutes=30)) is False
+    assert should_apply(hold, discharge, t, t) is True
+    assert keepalive_allowed("reserve", hold)
+    assert keepalive_allowed("reserve", {"intent": "hold", "power_w": None, "rule": "ev_grid"})
+    assert not keepalive_allowed("reserve", discharge)
+    assert not keepalive_allowed("reserve", {"intent": "charge", "power_w": 3000, "rule": "plan"})
+    assert not keepalive_allowed("reserve", {"intent": "auto", "power_w": None, "rule": "reserve"})
+    assert not keepalive_allowed("reserve", None)
+    for rule in ("stale", "fuse", "fuse_cap", "peak", "soc_limit"):
+        assert not keepalive_allowed(rule, hold)
+        assert not keepalive_allowed(rule, discharge)
+    assert keepalive_allowed("plan", {"intent": "charge", "power_w": 3000, "rule": "plan"})
+    assert keepalive_allowed("ev_grid", {"intent": "hold", "power_w": None, "rule": "ev_grid"})
+    assert keepalive_allowed(None, None)

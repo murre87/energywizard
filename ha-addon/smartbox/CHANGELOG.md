@@ -2,8 +2,20 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.183 (2026-11-27)
+## 1.2.187 (2026-11-27)
 - **Ekonomisidan har perioden Totalt (#599).** Vid sidan av Idag, 7 dagar och Månad summeras köpt el, såld el, netto och sparat genom tajmning sedan EnergyWizard började mäta. Samma formel som de andra perioderna. Dagar utan pris eller effekt räknas inte som noll, och raden säger hur många dagar som ingick och från vilket datum. Diagrammen är kvar som senaste 31 dagarna. Månad för månad och år för år är kvar.
+
+## 1.2.186 (2026-11-27)
+- **Kupétemperaturen syns under Bil (#610).** Bilfliken i appen och Elbil på webben visar hur varmt det är i bilen, även när kupévärmen är av. Temperaturen tas från bilens egen temperaturgivare om den finns, annars från climate-entitetens current_temperature. Saknas båda visas ingen temperatur.
+
+## 1.2.185 (2026-11-27)
+- **Solis RC håller kvar reservnivån (#615).** När batteriet låg på reservnivån skrev EnergyWizard håll en gång och förnyade det inte. Solis släpper fjärrstyrningen efter RC Timeout (5–7 minuter) och batteriet laddade då ur under reservnivån. Håll på reservnivån skrivs nu om lika ofta som övriga håll. En laddning eller urladdning som ännu inte hunnit bytas till håll förlängs inte. Övriga säkerhetsregler (gammal data, säkring, effekttak och laddtak) förnyas fortfarande inte.
+
+## 1.2.184 (2026-11-27)
+- **Dubbletter i telemetrins husöversikt (#614).** Två orsaker rättade i insamlaren: (1) en ominstallation där användaren ändrat huvudsäkringen (25 A till 20 A) räknades som ett nytt hus, eftersom säkringen ingick i husets utrustningsavtryck. Säkringen är en inställning och ingår inte längre. (2) En testkopia av ett hus utan versionsnummer som körde samtidigt med det riktiga räknades som ett eget hus. Den slås nu ihop med det riktiga huset om utrustningen är exakt densamma. Två riktiga installationer slås aldrig ihop bara för att de är samtida.
+
+## 1.2.183 (2026-11-27)
+- **Total nytta sedan start, post för post, på startsidan.** Förut visade startsidan bara prisstyrningen. Nu finns en komplett uppställning: prisstyrning av köpt el, solel som huset använt (värderad till vad den hade kostat att köpa, med moms, nätavgift och skatt), såld solel, och därav sol som gick till elbil och spabad (visas men räknas inte dubbelt). Summan lägger ihop posterna. Prisstyrningen är det EnergyWizard styr, solposterna är vad solcellerna ger med eller utan styrning. Posterna för sol visas bara om huset har solceller. I appen: tryck "Se alla poster". Gäller alla installationer. Hela historiken läses i en bakgrundstråd (flera sekunder), så sidan blir inte långsammare: summan dyker upp när den är klar och uppdateras var 30:e minut.
 
 ## 1.2.182 (2026-11-27)
 - **Mindre elpatron (tillsats) i värmen utan att huset blir kallare.** Analys av veckan: varje gång tillsatsen gick hade rumsåterkopplingen satt börvärdet till 23-25 °C, vilket ger en beräknad framledning på 50-55 °C medan kompressorn bara levererar 43-47 °C. Gradminuterna rasar mot -1190 och elpatronen kopplas in. Mätt över 30 dygn gav börvärde 21 4 % tillsats, 22 10 % och 23 82 %, medan framledningen var densamma. Nu (1) lär sig EnergyWizard varje dygn ur loggen högsta börvärdet pumpen klarar utan tillsats vid aktuell utetemperatur (lärt kapacitetstak, bara med rumsåterkoppling på), och (2) gradminutvakten gäller i alla lägen: vid gradminuter under -600 sänks börvärdet så att pumpen hämtar sig, om de kallaste rummen har marginal till golvet. Gränsen kan ändras med `heat_aux_guard_dm`.

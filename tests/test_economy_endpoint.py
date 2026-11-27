@@ -37,6 +37,9 @@ def test_ekonomisidans_api_bygger_svaret(monkeypatch):
     import savings
     monkeypatch.setattr(savings, "money_rows", lambda c, days=40: [])
     monkeypatch.setattr(savings, "daily_rows", lambda c, days=40: [])
+    # Pengarna sedan start läses i en bakgrundstråd (savings.cached) och sidan visar det som är cachat. Fyll cachen så att testet inte beror på tråden.
+    monkeypatch.setattr(savings, "_money_cache", {"t": 0.0, "day": None, "val": dict(savings._money_total([]), since=None)})
+    monkeypatch.setattr(savings, "_all_cache", {"t": 0.0, "day": None, "val": dict(savings._summary([]), since=None)})     # samma för tiden sedan start
     out = asyncio.run(mod.api_economy())
     assert out["ok"] is True and out["price"] == 1.5 and "money" in out and "timing" in out
     assert out["money"]["all"]["days"] == 0 and out["money"]["all"]["since"] is None

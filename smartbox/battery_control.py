@@ -37,6 +37,10 @@ FUSE_CAP_STEP_W = 100         # #399: minsta minskning som skrivs när säkrings
 POWER_DEADBAND_W = 200        # #194: mindre effektändringar inom samma läge skrivs inte
 MIN_CHANGE_INTERVAL = timedelta(minutes=5)     # lägesbyten sparsamt (flashminne), säkerhetsregler undantagna
 SAFETY_RULES = {"stale", "fuse", "fuse_cap", "peak", "soc_limit", "reserve"}
+# Håll-vid-liv skriver om senaste lyckade kommandot. De här säkerhetsreglerna förnyas inte, eftersom de kan
+# vara laddning eller urladdning. Reservnivån saknas: den är bara håll, och Solis RC släpper den efter
+# RC Timeout så batteriet annars laddar ur under reserven (#615).
+KEEPALIVE_SKIP_RULES = SAFETY_RULES - {"reserve"}
 FUSE_MIN_W = 500
 FROZEN_AFTER_S = 600          # elmätaren visar exakt samma värde så här länge -> räknas som död
 
@@ -218,3 +222,12 @@ def should_apply(new, last, last_change_at, now, min_change_minutes=5.0):
     if new.get("rule") == "topup" and last.get("rule") != "topup":     # #396: användarens "Toppa nu" startar direkt
         return True
     return (now - last_change_at) >= max(MIN_CHANGE_INTERVAL, timedelta(minutes=min_change_minutes))
+
+
+def keepalive_allowed(rule, last) -> bool:
+    """Håll-vid-liv får skriva om senaste kommandot. Reservnivån får det bara när det som redan
+    skrivits är håll: då förlängs varken laddning eller urladdning. Övriga säkerhetsregler är av."""
+    if rule == "reserve":
+        last = last or {}
+        return last.get("intent") == "hold"
+    return rule not in KEEPALIVE_SKIP_RULES

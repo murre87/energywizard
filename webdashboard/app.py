@@ -1585,8 +1585,8 @@ async def api_economy():
         today = now.date().isoformat()
         money = savings.money_rows(c, days=40)
         timing = savings.daily_rows(c, days=40)
-        everything = savings.all_time(c, today)
-        everything_money = savings.money_all(c, today)
+        everything, _benefit = savings.cached(c, today)          # bakgrundstråd: blockerar inte sidan
+        everything_money = savings.money_cached()               # fylls av samma tråd; None tills den är klar (då visas ingen period "Totalt")
     span = savings.price_span(today_prices)
     spot, buy = span["spot"], span["buy"]
     settings = nordpool.cost_settings()
@@ -1690,8 +1690,9 @@ async def api_savings():
     today = datetime.now(zoneinfo.ZoneInfo("Europe/Stockholm")).date().isoformat()
     with ENGINE.connect() as c:
         rows = savings.daily_rows(c, days=40)
-        everything = savings.all_time(c, today)
-    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything)}
+        everything, benefit = savings.cached(c, today)       # bakgrundstråd, blockerar inte sidan
+    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything),
+            "benefit": benefit}
 
 
 @app.get("/api/plan")
