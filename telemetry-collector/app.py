@@ -23,7 +23,7 @@ import os
 import smtplib
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 
 from fastapi import FastAPI, Request
@@ -252,22 +252,95 @@ def _fingerprint(drivers: list) -> frozenset:
     return frozenset(out)
 
 
+# Ett dygns rapport plus marginal. Samlaren hör huset en gång per dygn, så en ominstallation
+# hinner ofta skicka en sista rapport efter att det nya id:t redan finns (#614).
+_REINSTALL_OVERLAP = timedelta(hours=36)
+# Äldre versioner skickar inte mätare, storlek och land. Saknas de på ena sidan är det samma hus
+# om resten stämmer. Finns de på båda sidor måste de vara lika.
+_FP_OPTIONAL = ("meter", "size", "country")
+
+
+def _parse_ts(value: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _overlap(last_old: str, first_new: str) -> timedelta | None:
+    """Hur länge det gamla id:t hördes efter att det nya dök upp.
+
+    0 om det tystnade innan. None om överlappet är längre än en daglig rapport, eller om tiden saknas.
+    Ett hus som tystnat kopplas till det id som dök upp efteråt, inte till ett tidigare hus inom fönstret."""
+    if not last_old or not first_new:
+        return None
+    if last_old <= first_new:
+        return timedelta(0)
+    old, new = _parse_ts(last_old), _parse_ts(first_new)
+    if old is None or new is None:
+        return None
+    gap = old - new
+    return gap if gap <= _REINSTALL_OVERLAP else None
+
+
+def _split_fingerprint(fp: frozenset) -> tuple[frozenset, dict]:
+    core, optional = set(), {}
+    for item in fp:
+        cat, _, rest = item.partition(":")
+        if cat in _FP_OPTIONAL:
+            optional.setdefault(cat, set()).add(rest)
+        else:
+            core.add(item)
+    return frozenset(core), optional
+
+
+def _same_equipment(a: list, b: list) -> bool:
+    """Samma hus: minst fem gemensamma utrustningsdelar. Mätare, storlek och land som bara den
+    nyare rapporten har räknas inte som en skillnad. Två hus med bara en elmätare slås inte ihop."""
+    fa, fb = _fingerprint(a), _fingerprint(b)
+    if fa == fb:
+        return len(fa) >= 5
+    ca, oa = _split_fingerprint(fa)
+    cb, ob = _split_fingerprint(fb)
+    if ca != cb:
+        return False
+    for cat in set(oa) & set(ob):
+        if oa[cat] != ob[cat]:
+            return False
+    return len(ca) + len(set(oa) & set(ob)) >= 5
+
+
 def _merge_reinstalls(latest: dict, first: dict, last_seen: dict) -> dict:
     """Samma hus med nytt installations-ID (ominstallation, tappad datamapp, eller före 1.2.40 ett ID som kunde
-    skrivas över): ett äldre hus som tystnat innan ett nytt med exakt samma utrustning dök upp räknas som samma.
-    Kräver minst fem utrustningsdelar, så att två vanliga hus med t.ex. bara en elmätare aldrig slås ihop.
-    Tar bort det äldre ur latest och returnerar {nytt hus: [äldre hus ...]}. Inga IP-adresser används."""
+    skrivas över). Det äldre id:t får överlappa det nyare med högst 36 timmar: en sista dygnsrapport efter bytet
+    är samma hus (#614). Ett id som fortfarande hörs mer än så efter att det andra dök upp är ett annat hus
+    och blir kvar. Kräver minst fem utrustningsdelar. Det id som hörts senast behålls.
+    Returnerar {kvarvarande hus: [borttagna hus ...]}. Inga IP-adresser används."""
     merged = {}
     order = sorted(latest, key=lambda h: first.get(h, ""))
     for i, old in enumerate(order):
-        fp = _fingerprint(latest[old][1])
-        if len(fp) < 5:
+        if old not in latest:
             continue
+        best = None
         for new in order[i + 1:]:
-            if new in latest and _fingerprint(latest[new][1]) == fp and last_seen.get(old, "") <= first.get(new, ""):
-                merged.setdefault(new, []).extend([old] + merged.pop(old, []))
-                latest.pop(old)
-                break
+            if new not in latest or not _same_equipment(latest[old][1], latest[new][1]):
+                continue
+            gap = _overlap(last_seen.get(old, ""), first.get(new, ""))
+            if gap is None:
+                continue
+            rank = (gap, first.get(new, ""), new)
+            if best is None or rank < best:
+                best = rank
+        if best is None:
+            continue
+        new = best[2]
+        if last_seen.get(old, "") > last_seen.get(new, ""):
+            keep, drop = old, new
+        else:
+            keep, drop = new, old
+        merged.setdefault(keep, []).extend([drop] + merged.pop(drop, []))
+        latest.pop(drop)
     return merged
 
 
@@ -334,7 +407,8 @@ async def stats(request: Request, me: str = ""):
             cat, _, rest = d.partition(":")
             devs.setdefault(cat, []).append(_norm(rest))
         houses.append({"label": f"Hus {i}", "since": since[h][:10],
-                       "reinstalls": len(merged.get(h, [])), "last_seen": last_seen.get(h), "current": _current(latest[h][0]), "mine": bool(me) and h == me, "devices": devs,
+                       "reinstalls": len(merged.get(h, [])), "last_seen": last_seen.get(h), "current": _current(latest[h][0]),
+                       "mine": bool(me) and (h == me or me in merged.get(h, [])), "devices": devs,
                        "ping_only": latest[h][2],     # bara anonymt livstecken (telemetrin av): ID + version
                        # Bara fel från husets nuvarande version: ett fel som rättats i en senare version försvinner
                        # när huset uppdaterats, i stället för att ligga kvar ett dygn
