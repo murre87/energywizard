@@ -136,3 +136,33 @@ def test_total_nytta_summerar_posterna_och_räknar_inte_sol_till_elbil_dubbelt(d
     assert b["items"][1]["kr"] == 20.0 and b["items"][2]["kr"] == 30.0
     assert b["total_kr"] == 150.0                                     # 100 + 20 + 30
     assert b["flexible"]["kr"] == 7.0 and b["since"] == "2026-01-01"  # visas, ingår redan i solposten
+
+
+def test_cached_blockerar_inte_och_fyller_i_bakgrunden(monkeypatch):
+    """#sparat sedan start: hela historiken är långsam att läsa, så cached() ger det som finns och räknar i en tråd."""
+    import threading
+    import time
+    import savings
+    savings._benefit_cache.update(t=0.0, day=None, val=None)
+    savings._all_cache.update(t=0.0, day=None, val=None)
+    savings._refresh["running"] = False
+    done = threading.Event()
+
+    class Eng:
+        def connect(self):
+            time.sleep(0.3)                                 # långsam körning
+            done.set()
+            raise RuntimeError("klart för testet")
+
+    class Conn:
+        engine = Eng()
+
+    t = time.time()
+    assert savings.cached(Conn(), "2026-11-27") == (None, None)
+    assert time.time() - t < 0.2                            # blockerade inte på den långsamma läsningen
+    assert done.wait(2)
+    for _ in range(50):                                     # tråden återställer flaggan även vid fel
+        if not savings._refresh["running"]:
+            break
+        time.sleep(0.05)
+    assert savings._refresh["running"] is False

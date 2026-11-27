@@ -109,7 +109,7 @@ def _summary(rows):
 
 
 _all_cache = {"t": 0.0, "day": None, "val": None}
-ALL_TTL_S = 600
+ALL_TTL_S = 1800
 
 
 def all_time(conn, today):
@@ -127,6 +127,32 @@ def all_time(conn, today):
 
 
 _benefit_cache = {"t": 0.0, "day": None, "val": None}
+_refresh = {"running": False}
+
+
+def cached(conn, today):
+    """(sedan_start, total_nytta) ur cachen, aldrig blockerande: hela historiken läses (flera sekunder), så en inaktuell eller tom
+    cache fylls i en bakgrundstråd med egen anslutning, och sidan visar det som finns (None första gången, tills tråden är klar)."""
+    import threading
+    import time as _t
+    now = _t.time()
+    fresh = (_benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S
+             and _all_cache["val"] is not None)
+    if not fresh and not _refresh["running"]:
+        _refresh["running"] = True
+        engine = conn.engine
+
+        def run():
+            try:
+                with engine.connect() as c2:
+                    all_time(c2, today)
+                    total_benefit(c2, today)
+            except Exception as e:
+                print(f"⚠️ Total nytta: {type(e).__name__}: {str(e)[:120]}")
+            finally:
+                _refresh["running"] = False
+        threading.Thread(target=run, daemon=True, name="savings-refresh").start()
+    return _all_cache["val"], _benefit_cache["val"]
 
 
 def total_benefit(conn, today):

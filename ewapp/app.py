@@ -1213,8 +1213,7 @@ def savings_api(request: Request):
         except Exception as e:
             print(f"⚠️ Jämförelse mot självförbrukning: {e}")
             c.rollback()
-        everything = savings.all_time(c, today)
-        benefit = savings.total_benefit(c, today)
+        everything, benefit = savings.cached(c, today)       # bakgrundstråd, blockerar inte sidan
     return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today, everything), "battery_vs_selfuse": battery,
             "benefit": benefit}
 
