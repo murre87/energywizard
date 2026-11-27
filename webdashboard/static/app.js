@@ -2765,16 +2765,63 @@ async function loadWatchtowerUpdates(force) {
 
 let _discovered = null;
 
+function carSocChoices(c) {
+  const list = Array.isArray(c.soc_candidates) ? c.soc_candidates : (Array.isArray(c.soc_options) ? c.soc_options : []);
+  if (list.length) return list;
+  const current = c.soc_entity || c.soc;
+  return current ? [{ entity: current, name: current }] : [];
+}
+function carSocSelect(c, i, cls) {
+  const options = carSocChoices(c);
+  if (!options.length) return "";
+  const selected = c.soc_entity || c.soc || options[0].entity;
+  const opts = options.map((o) => {
+    const state = o.state != null && o.state !== "" ? ` · ${o.state} %` : "";
+    const label = o.name && o.name !== o.entity ? `${o.name}${state} · ${o.entity}` : `${o.entity}${state}`;
+    return `<option value="${esc(o.entity)}"${o.entity === selected ? " selected" : ""}>${esc(label)}</option>`;
+  }).join("");
+  return `<label style="display:block;margin-top:6px"><span>Laddnivå</span>
+    <select class="${cls}" data-i="${i}">${opts}</select></label>`;
+}
+function say(text) { return window.I18N ? I18N.tr(text) : text; }
+
 async function mountConfiguredCars() {
   const panel = document.getElementById("configuredCars");
   if (!panel) return;
   try {
-    const { cars } = await api("api/house-config/cars", { cache: "no-store" });
-    panel.innerHTML = cars.length ? cars.map(car => `
-      <div class="note" style="margin-top:8px;overflow-wrap:anywhere">
+    const [{ cars }, st] = await Promise.all([
+      api("api/house-config/cars?choices=1", { cache: "no-store" }),
+      api("api/house-config-status").catch(() => ({ writable: false })),
+    ]);
+    panel.innerHTML = cars.length ? cars.map((car, i) => {
+      const options = Array.isArray(car.soc_options) ? car.soc_options : [];
+      const picker = st && st.writable && options.length > 1
+        ? `${carSocSelect(car, i, "cfg-car-soc")}
+           <div class="note">Välj bilens laddnivå, inte 12 V-batteriet.</div>
+           <button type="button" class="icobtn cfg-car-soc-save" data-i="${i}" style="margin-top:8px">Spara laddnivå</button>
+           <div class="note cfg-car-soc-msg" data-i="${i}"></div>`
+        : `<div><span>Laddnivå</span> <code data-noi18n>${esc(car.soc ?? "–")}</code></div>`;
+      return `<div class="note" style="margin-top:8px;overflow-wrap:anywhere">
         <b data-noi18n>${esc(car.id ?? "–")}</b> · <span data-noi18n>${esc(car.driver ?? "–")}</span> · <span data-noi18n>${esc(car.battery_kwh == null ? "–" : car.battery_kwh + " kWh")}</span><br>
-        <span>SOC</span> <code data-noi18n>${esc(car.soc ?? "–")}</code> · <span>Kabel</span> <code data-noi18n>${esc(car.plugged_in ?? "–")}</code> · <span>Klimat</span> <code data-noi18n>${esc(car.climate ?? "–")}</code>
-      </div>`).join("") : '<div class="note">Inga bilar är konfigurerade.</div>';
+        ${picker}
+        <span>Kabel</span> <code data-noi18n>${esc(car.plugged_in ?? "–")}</code> · <span>Klimat</span> <code data-noi18n>${esc(car.climate ?? "–")}</code>
+      </div>`;
+    }).join("") : '<div class="note">Inga bilar är konfigurerade.</div>';
+    panel.querySelectorAll(".cfg-car-soc-save").forEach((btn) => {
+      btn.onclick = async () => {
+        const car = cars[btn.dataset.i];
+        const sel = panel.querySelector(`.cfg-car-soc[data-i="${btn.dataset.i}"]`);
+        const msg = panel.querySelector(`.cfg-car-soc-msg[data-i="${btn.dataset.i}"]`);
+        if (!car || !sel) return;
+        if (msg) msg.textContent = say("Sparar…");
+        try {
+          const saved = await postJSON("api/house-config/car-soc", { id: car.id, soc: sel.value });
+          if (msg) msg.textContent = say(saved.message || "");
+        } catch (e) {
+          if (msg) msg.textContent = say(e.message || "");
+        }
+      };
+    });
   } catch (_) {
     panel.textContent = "Kunde inte läsa bilar från house_config.yaml.";
   }
@@ -2959,8 +3006,8 @@ const _carKey = (c) => c.soc_entity || c.device_name || "";
 function wizardForm() {
   const d = _discovered || {}, f = { cars: {}, chargers: {}, picks: {}, heaters: {} };
   (d.cars || []).forEach((c, i) => {
-    const on = document.querySelector(`.car-pick[data-i="${i}"]`), id = document.querySelector(`.car-id[data-i="${i}"]`), kwh = document.querySelector(`.car-kwh[data-i="${i}"]`);
-    if (on) f.cars[_carKey(c)] = { on: on.checked, id: id ? id.value : "", kwh: kwh ? kwh.value : "" };
+    const on = document.querySelector(`.car-pick[data-i="${i}"]`), id = document.querySelector(`.car-id[data-i="${i}"]`), kwh = document.querySelector(`.car-kwh[data-i="${i}"]`), soc = document.querySelector(`.car-soc[data-i="${i}"]`);
+    if (on) f.cars[_carKey(c)] = { on: on.checked, id: id ? id.value : "", kwh: kwh ? kwh.value : "", soc: soc ? soc.value : "" };
   });
   (d.chargers || []).forEach((c, i) => { const cb = document.querySelector(`.charger-pick[data-i="${i}"]`); if (cb) f.chargers[c.device_name || i] = cb.checked; });
   (d.radiators || []).forEach((r, i) => {
@@ -3007,8 +3054,9 @@ function applyWizardForm(f) {
   if (!f || !_discovered) return;
   (_discovered.cars || []).forEach((c, i) => {
     const s = (f.cars || {})[_carKey(c)]; if (!s) return;
-    const on = document.querySelector(`.car-pick[data-i="${i}"]`), id = document.querySelector(`.car-id[data-i="${i}"]`), kwh = document.querySelector(`.car-kwh[data-i="${i}"]`);
+    const on = document.querySelector(`.car-pick[data-i="${i}"]`), id = document.querySelector(`.car-id[data-i="${i}"]`), kwh = document.querySelector(`.car-kwh[data-i="${i}"]`), soc = document.querySelector(`.car-soc[data-i="${i}"]`);
     if (on) on.checked = !!s.on; if (id && s.id) id.value = s.id; if (kwh && s.kwh) kwh.value = s.kwh;
+    if (soc && s.soc && [...soc.options].some((o) => o.value === s.soc)) soc.value = s.soc;
   });
   (_discovered.chargers || []).forEach((c, i) => { const v = (f.chargers || {})[c.device_name || i]; const cb = document.querySelector(`.charger-pick[data-i="${i}"]`); if (cb && v != null) cb.checked = !!v; });
   (_discovered.radiators || []).forEach((r, i) => {
@@ -3064,7 +3112,8 @@ async function runDiscovery(ev, cached) {
       <label><input type="checkbox" class="car-pick" data-i="${i}" checked> <b data-noi18n>${esc(c.device_name)}</b></label> ${driverTag(c)}<br>
       id: <input type="text" class="car-id" data-i="${i}" value="${esc(c.driver)}" style="width:100px"> &nbsp;
       batteri (kWh): <input type="number" class="car-kwh" data-i="${i}" value="60" style="width:70px"><br>
-      <span style="font-size:.8rem">SOC: ${esc(c.soc_entity || "-")} · Kabel: ${esc(c.plugged_in_entity || "-")} · Klimat: ${esc(c.climate_entity || "-")}</span>
+      ${carSocSelect(c, i, "car-soc")}${(c.soc_candidates || []).length > 1 ? `<div class="note">Välj bilens laddnivå, inte 12 V-batteriet.</div>` : ""}
+      <span style="font-size:.8rem"><span>Kabel</span>: ${esc(c.plugged_in_entity || "-")} · <span>Klimat</span>: ${esc(c.climate_entity || "-")}</span>
       <div class="car-learned" data-i="${i}"></div>
     </div>`;
   });
@@ -3237,6 +3286,8 @@ async function generateConfig(save) {
     const car = { ..._discovered.cars[i] };
     car.id = document.querySelector(`.car-id[data-i="${i}"]`).value || car.driver;
     car.battery_kwh = parseFloat(document.querySelector(`.car-kwh[data-i="${i}"]`).value) || 60;
+    const socSel = document.querySelector(`.car-soc[data-i="${i}"]`);
+    if (socSel && socSel.value) car.soc_entity = socSel.value;
     // Ihopparning laddare<->bil är en gissning (index-ordning) - markerad i YAML:ns
     // kommentar, inte tyst: handskakningen (se main.py) kan ändå byta dem vid behov.
     car.charger = pickedChargers[idx] || null;
