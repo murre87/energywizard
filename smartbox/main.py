@@ -143,6 +143,9 @@ weather.init_weather_db()
 
 # Initiera GPM Motorn och Watchdog-heartbeat
 gpm_engine = gpm.GlobalPriorityManager()
+import contracts
+from drivers import host as _drivers_host
+_drivers_host.check_compat(contracts.API_VERSION)    # drivrutinerna är skrivna mot en kontraktsversion: starta inte med fel huvudversion (steg 5c, PLAN.md)
 _planner = planner_bridge.Bridge()      # EW_PLANNER_MODE: local (standard, ingen skillnad) eller shadow (jämför med planerarens egen process, påverkar inget)
 last_heartbeat = datetime.now(SWE_TZ)
 

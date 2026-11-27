@@ -33,6 +33,22 @@ SURFACE = {
 # namn som drivrutiner importerar direkt (from drivers.host import NAMN): namn -> (modul, attribut)
 NAMES = {"temperature": ("hot_water_observation", "temperature"), "Journal": ("hot_water_runtime", "Journal")}
 
+# Kontraktets huvudversion (x-api-version i Core:s contracts/) som den här versionen av drivrutinerna är skriven mot. Core jämför vid start
+# och vägrar starta vid fel huvudversion: en brytande kontraktsändring kräver att drivrutinerna släpps tillsammans med Core.
+REQUIRES_CONTRACT_MAJOR = 1
+
+
+def check_compat(contract_version: str) -> None:
+    """Kastar RuntimeError om Core:s kontrakt har en annan huvudversion än drivrutinerna kräver."""
+    try:
+        major = int(str(contract_version).split(".")[0])
+    except ValueError:
+        raise RuntimeError(f"Drivrutinerna: okänd kontraktsversion {contract_version!r}")
+    if major != REQUIRES_CONTRACT_MAJOR:
+        raise RuntimeError(f"Drivrutinerna kräver kontrakt {REQUIRES_CONTRACT_MAJOR}.x men Core har {contract_version}. "
+                           "Uppdatera drivrutinerna (energywizard-drivers) till en version för det kontraktet.")
+
+
 _bound = {}
 
 
