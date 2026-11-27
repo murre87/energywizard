@@ -50,7 +50,7 @@ jobs:
           cache-dependency-path: smartbox/requirements.txt
       - run: |
           python -m pip --disable-pip-version-check install --upgrade pip==26.3 setuptools==84.2.1 wheel==0.46.3
-          pip --disable-pip-version-check install -r smartbox/requirements.txt pytest
+          pip --disable-pip-version-check install -r smartbox/requirements.txt pytest jsonschema==4.26.0
       - run: python -m pytest -q
         env:
           # Utan denna försöker gpm.py:s GlobalPriorityManager() ansluta till hostnamnet

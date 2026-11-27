@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/planner-decision.schema.json",
+  "title": "Planner decision (planner -> core)",
+  "description": "Det beslut planeringen (i dag smartbox/gpm.py, GlobalPriorityManager.evaluate) lämnar till Core: börvärden och gränser som Core validerar och verkställer inom säkerhetsspärrarna. Facit är de 2 600 beslut i tests/fixtures/gpm_golden.json.gz. Nya nycklar kräver att schemat ändras (additionalProperties: false) och att x-api-version höjs.",
+  "x-api-version": "1.0.0",
+  "type": "object",
+  "required": ["pump_mode", "pump_target_temp", "pump_run_water", "water_target_temp", "spa_target", "spa_eco",
+               "spa_solar_boost_active", "solar_limit_pct", "solar_order", "solar_info", "ev", "log"],
+  "properties": {
+    "pump_mode": {"enum": ["CHEAP", "EXPENSIVE"], "description": "Värmepumpens läge: CHEAP lagrar värme, EXPENSIVE sparar."},
+    "pump_target_temp": {"type": "number", "description": "Börvärde inne, °C."},
+    "pump_run_water": {"type": "boolean", "description": "Värmepumpen får göra varmvatten nu."},
+    "water_target_temp": {"type": "number", "description": "Varmvattnets måltemperatur, °C."},
+    "spa_target": {"type": "number", "description": "Spabadets måltemperatur, °C."},
+    "spa_eco": {"type": "boolean"},
+    "spa_solar_boost_active": {"type": "boolean"},
+    "solar_limit_pct": {"type": "integer", "minimum": 0, "maximum": 100, "description": "Växelriktarens effektgräns i procent (minuspris)."},
+    "solar_order": {"type": ["array", "null"], "items": {"enum": ["battery", "ev", "spa", "hotwater", "house"]}, "uniqueItems": true,
+                    "description": "Egen ordning för solöverskottet, eller null för standard."},
+    "house_solar_active": {"type": "boolean"},
+    "heat_feedback_for_mode": {"enum": ["CHEAP", "EXPENSIVE"], "description": "Läget rumsåterkopplingens börvärde gäller för."},
+    "heat_feedback_sp": {"type": "number", "description": "Rumsåterkopplingens börvärde, °C."},
+    "heat_ml_rate": {"type": "number"},
+    "hw_ml_start": {"type": "number", "description": "Varmvattnets ML-starttemperatur, °C."},
+    "solar_info": {
+      "type": "object",
+      "required": ["ev", "hotwater", "house", "spa"],
+      "additionalProperties": false,
+      "properties": {"ev": {"$ref": "#/$defs/solar_load"}, "hotwater": {"$ref": "#/$defs/solar_load"},
+                     "house": {"$ref": "#/$defs/solar_load"}, "spa": {"$ref": "#/$defs/solar_load"}}
+    },
+    "ev": {"type": "object", "description": "Per bil (bilens id i installationen): samma värden som nycklarna <bil>_limit_a, <bil>_panic och <bil>_set_phases.",
+           "additionalProperties": {"$ref": "#/$defs/ev_car"}},
+    "log": {"type": "array", "items": {"type": "string"}, "description": "Beslutsraderna (svenska, visas efter översättning i appen)."}
+  },
+  "patternProperties": {
+    "^[a-z0-9_]+_limit_a$": {"type": "integer", "minimum": 0, "maximum": 32, "description": "Laddström per bil i ampere (0 = pausa)."},
+    "^[a-z0-9_]+_panic$": {"type": "boolean"},
+    "^[a-z0-9_]+_set_phases$": {"enum": [1, 3, null], "description": "Önskat antal faser, null = ingen ändring."}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "solar_load": {"type": "object", "required": ["active", "min_w", "wants"], "additionalProperties": false,
+                   "properties": {"active": {"type": "boolean"}, "min_w": {"type": "number"}, "wants": {"type": "boolean"}}},
+    "ev_car": {"type": "object", "required": ["limit_a", "panic", "set_phases"], "additionalProperties": false,
+               "properties": {"limit_a": {"type": "integer", "minimum": 0, "maximum": 32}, "panic": {"type": "boolean"},
+                              "set_phases": {"enum": [1, 3, null]}}}
+  }
+}
