@@ -21,7 +21,7 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | 4d | Läget `remote`: planerarens process styr, den gamla vägen är fallback (senaste giltiga plan, sedan den gamla vägen); notiser flyttas dit | |
 | 5a | Sömmen: drivrutinerna når Core bara genom en modul (`drivers/host.py`) som Core binder vid start; kontraktstester mot en falsk värd | |
 | 5b | Märkesspecifik kod ut ur `homeassistant.py` (Easee, SolarEdge, Gecko, bilens klimat, spabad) in i drivrutinerna | klart: `drivers/ha_easee.py`, `ha_solaredge.py`, `ha_gecko.py`, `ha_car.py` |
-| 5c | Drivrutinerna flyttas till `energywizard-drivers` (med `host.py`, falsk värd, kontraktstester och CI); Core hämtar dem med fast version | |
+| 5c | Drivrutinerna flyttas till `energywizard-drivers` (med `host.py`, falsk värd, kontraktstester och CI); Core hämtar dem med fast version | klart: repot har `drivers/`, tester mot falsk värd och CI (tagg v0.1.0); Core har `release-manifest.json`, `scripts/sync_drivers.py` och `tests/test_release_manifest.py` |
 | 5d | Resten av beroendena (`pump`, `hot_water_*`, `spa_entities`, `telemetry`, `notifier`, `support_bundle`) bakom värden | |
 | 6 | API i Core (REST/WebSocket); appen och webben flyttas över ett område i taget, med den gamla vägen kvar tills den nya är verifierad | |
 | 7 | Release-kanaler (stable/dev), synlig version och versionskoll | |
@@ -92,4 +92,11 @@ Frågan (FlebbsRulez, Discord 2026-11-27): en fix i Core som delen Planner beror
 6. **Ändringslogg utan krockar.** Under 2026-11-27 krockade alla tio öppna PR:er på `ha-addon/smartbox/CHANGELOG.md` (varje PR lägger en versionspost överst) och tog flera timmar att reda ut. Varje PR bör i stället lägga en egen liten fil (`changelog.d/`) och versionen sätts vid släpp. Det rör släppkedjan (tilläggsbotten läser översta rubriken) och görs därför som ett eget, försiktigt steg.
 7. **Grind innan fler delar delas ut.** Drivrutinerna delas först. Efter det mäts hur ofta en ändring rör flera repon. Är det ofta är en monorepo med kataloger, kodägare och en privat del som undermodul ett bättre svar än fler repon, och då slås delarna ihop igen (kontrakten och värdmodulen behövs ändå).
 
-Detta är en plan. Release-manifestet, versionskontrollen vid start, `Beror på`-kontrollen och ändringsloggsfilerna är **inte byggda än** (steg 5c och framåt).
+Byggt i steg 5c: **release-manifestet** (`release-manifest.json`: repo, tagg, commit och innehållsstämpel för drivrutinerna) och kontrollen av det. **Inte byggt än:** versionskontrollen vid start, `Beror på`-kontrollen i PR-mallen och ändringsloggsfilerna.
+
+## Drivrutinerna i eget repo (steg 5c)
+
+- **Repot** `murre87/energywizard-drivers` (publikt, AGPL-3.0) har `drivers/` (inklusive `host.py`), `tests/test_host_seam.py` (ingen drivrutin når motorn förbi värden, och ytan stämmer med användningen, utan motorn), `tests/test_brands_fake_host.py` (märkesmodulerna mot en falsk värd) och CI. Första taggen är `v0.1.0`.
+- **Core vendrar** den fastlåsta versionen: `smartbox/drivers/` är byte för byte den taggade versionen (Dockerfilerna är oförändrade, bygget behöver ingen nätverkshämtning). `scripts/sync_drivers.py --check` jämför innehållsstämpeln med manifestet, och `tests/test_release_manifest.py` kör det i CI. En lokal ändring av en drivrutin i Core gör alltså CI rött.
+- **Så ändras en drivrutin:** ändra i `energywizard-drivers`, tagga, kör `python scripts/sync_drivers.py --bump <tagg>` i Core och skicka en PR. Core:s hela testsvit körs mot den nya versionen. Ändringen räknas som levererad när den PR:en är mergad.
+- **Konsekvens att veta:** pågående PR:er som rör `smartbox/drivers/` (till exempel nya drivrutiner) måste flyttas till drivrutinsrepot innan de kan mergas i Core.
