@@ -17,8 +17,9 @@ def test_hacs_json_pekar_pa_filen():
 
 def test_alla_tre_korten_ar_registrerade():
     js = (ROOT / "dist" / "energywizard-cards.js").read_text(encoding="utf-8")
-    for tag in ("energywizard-house-card", "energywizard-heat-card", "energywizard-car-card"):
+    for tag in ("energywizard-house-card", "energywizard-heat-card", "energywizard-car-card", "energywizard-bath-card"):
         assert f'customElements.define("{tag}"' in js
+    assert "a.bath" in js and "Uppvärmning planeras inför badtiden" in js
 
 
 def test_bilkortets_knappar_anropar_ha_och_visas_bara_med_vaeljare():

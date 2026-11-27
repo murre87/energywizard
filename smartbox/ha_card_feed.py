@@ -20,10 +20,14 @@ Schema (v1), alla fält är valfria för korten:
   heat     {indoor, target, setpoint, outdoor, water, water_set, mode, floor, cheap, max, min, cop}  värmepump och varmvatten
   price    {now, spot, mode}         nuvarande pris (kr/kWh), spotpris och läge
   battery  true/false                finns husbatteri
+  bath     null, eller (#558): {water, water_set, spa, spa_set, in_bath, next, until, heat}
+           water/spa är grader. next och until är ISO-tider (nästa badtid, eller badtidens slut).
+           heat är "now" under badtid, "before" när uppvärmning planeras inom 36 timmar,
+           "later" när badtiden ligger längre bort, och null utan badtider. Ingen tid gissas.
 """
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ENTITY = "sensor.energywizard_kort"
 SCHEMA = 1
@@ -130,7 +134,42 @@ def _heat(row, cfg):
             "max": _num(cfg.get("indoor_max"), 1), "min": _num(cfg.get("indoor_min"), 1)}
 
 
-def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None):
+def bath_view(now, row, windows, mode="bath", spa_set=None, ahead_h=36):
+    """Varmvatten, spabadets temperatur och nästa badtid till kortet.
+
+    Saknas både temperatur och badtid blir det None, inte nollor. Uppvärmningens starttimme
+    räknas inte här: inom 36 timmar planerar motorn den, längre bort gör den det inte än.
+    """
+    import spa_bath
+    row = row or {}
+    water = _num(row.get("water_temp"), 0)
+    water_set = _num(row.get("water_setpoint"), 0) if water is not None else None
+    spa = _num(row.get("spa_temp"), 1)
+    target = _num(spa_set, 1) if spa is not None else None
+    try:
+        in_bath, nxt, end = spa_bath.status(now, windows, "nobath" if mode == "nobath" else "bath")
+    except Exception:
+        in_bath, nxt, end = False, None, None
+    if water is None and spa is None and not in_bath and nxt is None and end is None:
+        return None
+
+    def iso(dt):
+        return None if dt is None else dt.isoformat(timespec="minutes")
+
+    if in_bath:
+        heat = "now"
+    elif nxt is not None and nxt - now <= timedelta(hours=ahead_h):
+        heat = "before"
+    elif nxt is not None:
+        heat = "later"
+    else:
+        heat = None
+    return {"water": water, "water_set": water_set, "spa": spa, "spa_set": target,
+            "in_bath": bool(in_bath), "next": None if in_bath else iso(nxt),
+            "until": iso(end) if in_bath else None, "heat": heat}
+
+
+def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None, bath=None):
     """Sensorns (tillstånd, attribut) ur flödet och planen. Rena funktioner, testas utan databas."""
     now = now or datetime.now().astimezone()
     slots = _slots(planclock)
@@ -145,6 +184,7 @@ def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None)
         "unit": unit, "flow": _flow(flow, pump_w), "why": {k: str(v)[:240] for k, v in ((flow or {}).get("why") or {}).items()},
         "slots": slots, "cars": _cars(flow, planclock), "heat": _heat(row, cfg),
         "price": price, "battery": bool((planclock or {}).get("has_battery")),
+        "bath": bath,
     }
     return {"E": "dyrt", "C": "billigt"}.get(price["mode"], "okänt"), attrs
 
@@ -188,5 +228,16 @@ def entities(engine):
             pump_w = live_flow.latest_pump_w(c2)
     except Exception:
         pump_w = None
-    state, attrs = build(flow, pc, unit=nordpool.cost_settings()["symbol"], row=row, cfg=cfg, pump_w=pump_w)
+    bath = None
+    try:
+        import ew_settings
+        import local_sql
+        import spa_bath
+        now_b = datetime.now(local_sql.installation_timezone())
+        mode = ew_settings.get("spa_bath_mode") or "bath"
+        spa_set = (cfg or {}).get("spa_normal_temp")
+        bath = bath_view(now_b, row, ew_settings.get("spa_bath_windows"), mode, spa_set, spa_bath.PLAN_AHEAD_H)
+    except Exception:
+        bath = None
+    state, attrs = build(flow, pc, unit=nordpool.cost_settings()["symbol"], row=row, cfg=cfg, pump_w=pump_w, bath=bath)
     return {ENTITY: (state, attrs)}

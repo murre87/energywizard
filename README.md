@@ -127,8 +127,8 @@ som Home Assistant (Container-installation utan Supervisor), se
 
 ## Kort i Home Assistant
 
-Tre kort i appens stil: **Hemmet** (energiflöde, elpris med planklocka, bilar), **Värme** (termostatratt, varmvatten) och **Bil**
-(laddnivå och planerade pass över elpriset). De fungerar likadant för tillägget och Docker. Installera via HACS
+Kort i appens stil: **Hemmet** (energiflöde, elpris med planklocka, bilar), **Värme** (termostatratt, varmvatten), **Bil**
+(laddnivå och planerade pass över elpriset) och **Varmvatten och spabad** (temperatur och nästa badtid). De fungerar likadant för tillägget och Docker. Installera via HACS
 (Anpassade arkiv → `https://github.com/murre87/energywizard`, kategori Dashboard). Se [ha-cards/README.md](ha-cards/README.md).
 
 ## Vilka märken stöds idag

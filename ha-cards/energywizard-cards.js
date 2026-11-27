@@ -19,12 +19,20 @@ const EW_TEXT = {
         missing: (e) => `Hittar inte ${e}. Är EnergyWizard uppdaterad och kopplad till Home Assistant?`, stale: "Gammal data", clock: "Klocka", skyline: "Skyline",
         heat: "Värme", water: "Varmvatten", outdoor: "Ute", setpoint: "Börvärde", within: "inom", cheapUntil: (h) => `Billigt till ${h}`, dearUntil: (h) => `Dyrt till ${h}`, thenCheap: "sedan billigt", thenDear: "sedan dyrt", noHeat: "Ingen värmedata än.", noPlan: "Inget planerat pass", plannedAt: "Planerad laddning", battery: "Laddnivå", notCharging: "Laddar inte", modes: { "Auto": "Auto", "Ladda nu": "Ladda nu", "Pausa": "Pausa" }, modeHint: "Auto = AI-schemat styr. Ladda nu laddar tills bilen är full eller kabeln dras ur.",
         perKwh: "kWh", price: "Pris nu", cheapest: "Billigast", dearest: "Dyrast", sun: "Sol", charging: "Laddar", noCars: "Inga elbilar i installationen.",
-        why: "Varför", house: "Hemmet", ago: (m) => `${m} min sedan` },
+        why: "Varför", house: "Hemmet", ago: (m) => `${m} min sedan`,
+        bathTitle: "Varmvatten och spabad", spa: "Spabad", nextBath: "Nästa badtid", bathingUntil: "Badar till",
+        heatNow: "Håller badet varmt", heatBefore: "Uppvärmning planeras inför badtiden", heatLater: "Ingen uppvärmning planerad än",
+        noBath: "Ingen varmvatten- eller spabadsdata än.",
+        days: ["mån", "tis", "ons", "tor", "fre", "lör", "sön"] },
   en: { now: "Now", plan: "Plan", cars: "Cars", cheap: "cheap", dear: "expensive", unknown: "unknown", noData: "No data from EnergyWizard yet.",
         missing: (e) => `Cannot find ${e}. Is EnergyWizard updated and connected to Home Assistant?`, stale: "Old data", clock: "Clock", skyline: "Skyline",
         heat: "Heating", water: "Hot water", outdoor: "Outdoors", setpoint: "Setpoint", within: "within", cheapUntil: (h) => `Cheap until ${h}`, dearUntil: (h) => `Expensive until ${h}`, thenCheap: "then cheap", thenDear: "then expensive", noHeat: "No heating data yet.", noPlan: "No planned session", plannedAt: "Planned charging", battery: "Charge level", notCharging: "Not charging", modes: { "Auto": "Auto", "Ladda nu": "Charge now", "Pausa": "Pause" }, modeHint: "Auto = the AI plan decides. Charge now charges until the car is full or the cable is unplugged.",
         perKwh: "kWh", price: "Price now", cheapest: "Cheapest", dearest: "Most expensive", sun: "Sun", charging: "Charging", noCars: "No EVs in the installation.",
-        why: "Why", house: "House", ago: (m) => `${m} min ago` },
+        why: "Why", house: "House", ago: (m) => `${m} min ago`,
+        bathTitle: "Hot water and spa", spa: "Spa", nextBath: "Next bath", bathingUntil: "Bathing until",
+        heatNow: "Keeping the bath warm", heatBefore: "Heating is planned before the bath", heatLater: "No heating planned yet",
+        noBath: "No hot-water or spa data yet.",
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
 };
 
 // Färg per nod. Följer HA:s tema för text och bakgrund, men energifärgerna är desamma i ljust och mörkt.
@@ -391,7 +399,33 @@ class EnergyWizardCarCard extends EnergyWizardBase {
   }
 }
 
+class EnergyWizardBathCard extends EnergyWizardBase {
+  static getStubConfig() { return { entity: "sensor.energywizard_kort" }; }
+  _title(t) { return t.bathTitle; }
+  _when(iso, t) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const hh = String(d.getHours()).padStart(2, "0"), mm = String(d.getMinutes()).padStart(2, "0");
+    const day = t.days[(d.getDay() + 6) % 7];
+    return day + " " + hh + ":" + mm;
+  }
+  _body(a, t) {
+    const b = a.bath;
+    if (!b) return `<div class="msg">${esc(t.noBath)}</div>`;
+    const temp = (v, set) => (v == null ? "" : v + " °C" + (set == null ? "" : " / " + set));
+    const row = (name, value, detail) => value ? `<div class="row"><div style="flex:1;min-width:0"><div class="n">${esc(name)}</div>${detail ? `<div class="d">${esc(detail)}</div>` : ""}</div><div class="n">${esc(value)}</div></div>` : "";
+    const heat = { now: t.heatNow, before: t.heatBefore, later: t.heatLater }[b.heat] || "";
+    let html = row("💧 " + t.water, temp(b.water, b.water_set));
+    html += row("🛁 " + t.spa, temp(b.spa, b.spa_set));
+    html += row(t.nextBath, this._when(b.next, t));
+    html += row(t.bathingUntil, this._when(b.until, t));
+    return html + (heat ? `<div class="why">${esc(heat)}</div>` : "");
+  }
+}
+
 if (!customElements.get("energywizard-house-card")) customElements.define("energywizard-house-card", EnergyWizardHouseCard);
+if (!customElements.get("energywizard-bath-card")) customElements.define("energywizard-bath-card", EnergyWizardBathCard);
 if (!customElements.get("energywizard-heat-card")) customElements.define("energywizard-heat-card", EnergyWizardHeatCard);
 if (!customElements.get("energywizard-car-card")) customElements.define("energywizard-car-card", EnergyWizardCarCard);
 window.customCards = window.customCards || [];
@@ -403,6 +437,7 @@ console.info(`%c EnergyWizard %c ${EW_VERSION} `, "background:#f5b301;color:#000
 
 for (const [type, name, description] of [
   ["energywizard-heat-card", "EnergyWizard: Värme", "Termostatratt med inomhustemperatur och band, varmvatten och dygnets billiga och dyra pass."],
-  ["energywizard-car-card", "EnergyWizard: Bil", "Laddnivå, status och planerade laddpass över elpriset, per bil."]]) {
+  ["energywizard-car-card", "EnergyWizard: Bil", "Laddnivå, status och planerade laddpass över elpriset, per bil."],
+  ["energywizard-bath-card", "EnergyWizard: Varmvatten och spabad", "Tank- och badtemperatur, nästa badtid och om uppvärmningen är planerad."]]) {
   if (!window.customCards.some((c) => c.type === type)) window.customCards.push({ type, name, preview: true, description });
 }
