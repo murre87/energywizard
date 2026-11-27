@@ -219,6 +219,35 @@ def _token_ok(request: Request) -> bool:
     return not ADMINS or _admin_name(request) is not None
 
 
+TRIAL_MAX_MIN = 30       # en installation som bara hördes så här kort och sedan tystnade är en testkörning, inte ett hus
+TRIAL_SILENT_H = 6
+
+
+def _is_trial(first_seen: str, last_seen: str, now=None) -> bool:
+    """Kortlivad testkörning (en tillfällig container, en provinstallation): hördes under högst TRIAL_MAX_MIN minuter och har
+    varit tyst i minst TRIAL_SILENT_H timmar. Räknas inte som aktivt hus (#614: ID:n som levde en eller två minuter låg kvar i
+    husöversikten i tre dygn). Pågående korta körningar räknas tills de varit tysta tillräckligt länge."""
+    try:
+        a, b = datetime.fromisoformat(first_seen), datetime.fromisoformat(last_seen)
+        now = now or datetime.now(timezone.utc)
+        if a.tzinfo is None:
+            a = a.replace(tzinfo=timezone.utc)
+        if b.tzinfo is None:
+            b = b.replace(tzinfo=timezone.utc)
+        return (b - a).total_seconds() <= TRIAL_MAX_MIN * 60 and (now - b).total_seconds() >= TRIAL_SILENT_H * 3600
+    except (TypeError, ValueError):
+        return False
+
+
+def _suspected_duplicates(latest: dict, first: dict, min_parts: int = 7) -> list:
+    """Par av aktiva hus som EFTER ihopslagningen ändå har exakt samma utrustning (minst min_parts delar). Det ska vara noll;
+    finns något är det en ny orsak till dubbletter som ska rättas. Returnerar [(hus a, hus b, antal delar)]."""
+    import itertools
+    fps = {h: _fingerprint(v[1]) for h, v in latest.items()}
+    return [(a, b, len(fps[a])) for a, b in itertools.combinations(sorted(latest, key=lambda x: first.get(x, "")), 2)
+            if len(fps[a]) >= min_parts and fps[a] == fps[b]]
+
+
 ACTIVE_DAYS = 3          # smartbox skickar översikten varje dygn: hörd inom 3 dygn = aktiv
 
 
@@ -247,6 +276,8 @@ def _fingerprint(drivers: list) -> frozenset:
     out = set()
     for d in drivers:
         cat, _, rest = d.partition(":")
+        if cat == "size" and rest.startswith("fuse"):
+            continue            # huvudsäkringen är en inställning som användare ändrar (#614: 25 A -> 20 A gav två hus)
         if cat in _EQUIPMENT:
             out.add(f"{cat}:{rest.partition('@')[0]}")
     return frozenset(out)
@@ -341,6 +372,18 @@ def _merge_reinstalls(latest: dict, first: dict, last_seen: dict) -> dict:
             keep, drop = new, old
         merged.setdefault(keep, []).extend([drop] + merged.pop(drop, []))
         latest.pop(drop)
+    # Bygge utan versionsnummer ("unknown": en utvecklings- eller testkopia av ett hus som körs parallellt med det riktiga, #614)
+    # är samma hus även när båda är aktiva samtidigt: slås ihop med ett riktigt hus med exakt samma utrustning. Gäller bara
+    # "unknown", så att två riktiga installationer med liknande utrustning aldrig slås ihop bara för att de är samtida.
+    for dev in [h for h in list(latest) if latest[h][0] in (None, "", "unknown")]:
+        fp = _fingerprint(latest[dev][1])
+        if len(fp) < 5:
+            continue
+        for real in latest:
+            if real != dev and latest[real][0] not in (None, "", "unknown") and _fingerprint(latest[real][1]) == fp:
+                merged.setdefault(real, []).extend([dev] + merged.pop(dev, []))
+                latest.pop(dev)
+                break
     return merged
 
 
@@ -371,6 +414,9 @@ async def stats(request: Request, me: str = ""):
             latest[house] = (version, [d for d in (drivers or "").split(",") if d and d != PING_MARK],
                              drivers == PING_MARK)
             last_seen[house] = at
+    trials = [h for h in latest if _is_trial(first.get(h) or "", last_seen.get(h) or "")]
+    for h in trials:                                    # kortlivade testkörningar räknas inte som hus
+        latest.pop(h)
     merged = _merge_reinstalls(latest, first, last_seen)
     # När varje version först sågs (hos något hus): de som dök upp inom 2 dygn från den nyaste räknas som aktuella
     with _db() as c:
@@ -414,8 +460,12 @@ async def stats(request: Request, me: str = ""):
                        # när huset uppdaterats, i stället för att ligga kvar ett dygn
                        "version": latest[h][0], "errors": sorted({e for v, e in errs.get(h, []) if v == latest[h][0]})})
     week = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    label_of = {h: f"Hus {i}" for i, h in enumerate(sorted(latest, key=lambda x: since[x]), start=1)}
+    dups = [{"a": label_of[a], "b": label_of[b], "parts": n} for a, b, n in _suspected_duplicates(latest, first)]
     return {
         "active": len(latest),
+        "trial_runs": len(trials),
+        "suspected_duplicates": dups,
         "active_days": ACTIVE_DAYS,
         "total_known": sum(1 for h in known if _is_real_house(h)) - sum(len(v) for v in merged.values()),
         "new_last_7d": sum(1 for h, f in first.items() if _is_real_house(h) and f >= week)

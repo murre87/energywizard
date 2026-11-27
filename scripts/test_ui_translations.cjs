@@ -78,7 +78,7 @@ function checkScreenshotCards(lang,tr) {
     sunDaysHtml:()=>'',savingsPeriod:'week',SAVINGS_PERIODS:[],symbol:'€'});
   ctx.moneyUnit=()=>ctx.symbol;
   vm.runInContext(web.slice(web.indexOf('function decisionHeadlineHtml('),web.indexOf('async function mountPlan(')),ctx);
-  vm.runInContext(web.slice(web.indexOf('function savingsCardHtml('),web.indexOf('// Kostnad per dag')),ctx);
+  vm.runInContext(web.slice(web.indexOf('// Sparat sedan EnergyWizard startade'),web.indexOf('// Kostnad per dag')),ctx);
   ctx.I18N=ctx.window.I18N={lang,tr};
   vm.runInContext(web.slice(web.indexOf('function snapshotStatusHtml('),web.indexOf('async function mountSnapshotStatus(')),ctx);
   for(const state of ['disabled','waiting','queued','saving','failed','saved','unknown']){

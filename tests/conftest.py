@@ -10,10 +10,18 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "smartbox"))
-
+sys.path.insert(0, str(ROOT / "tests"))
+# Databasvariablerna först: moduler som logger och settings läser dem vid import, och vakten nedan importerar dem.
 os.environ.setdefault("POSTGRES_USER", "postgres")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
 os.environ.setdefault("POSTGRES_DB", "smartbox_test")
+from contract_guard import _contract_guard_install, contract_guard  # noqa: E402,F401  (kontraktsvakten: autouse-fixturer, se tests/contract_guard.py)
+try:                                             # installeras redan här: testmoduler som gör "from battery_control import decide" ska få den vaktade funktionen
+    import contract_guard as _cg
+    _cg.install()
+except Exception:                                # saknas något beroende är vakten bara av, inte ett fel för resten av sviten
+    pass
+
 DB_HOST = os.environ.get("TEST_DB_HOST", "localhost")
 
 SCHEMA = """

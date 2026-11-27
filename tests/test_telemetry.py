@@ -410,3 +410,42 @@ def test_ha_maker_laser_utf8_fran_ha(monkeypatch):
 
     with patch.object(t.requests, "post", return_value=R()):
         assert t._ha_maker("sensor.bil_soc") == "Škoda|Enyaq"
+
+
+def test_huvudsakringen_ar_inte_utrustning_och_testkopior_slas_ihop_med_riktiga_huset(monkeypatch, tmp_path):
+    """#614: (1) ominstallation där användaren ändrat huvudsäkringen 25 A -> 20 A blev två hus. (2) Emils eget hus kom
+    med två ID: det riktiga och en testkopia utan versionsnummer som körde samtidigt."""
+    mod = _collector(monkeypatch, tmp_path)
+    base = ["heatpump:ha_entities@NIBE#F730", "car:generic_ev@Hyundai#IONIQ", "charger:generic", "meter:ha@NIBE#F730",
+            "size:car_30-50kWh", "country:SE"]
+    old = {"a" * 16: ("1b8c601", base + ["size:fuse_25A"], False), "b" * 16: ("1b8c601", base + ["size:fuse_20A"], False)}
+    m = mod._merge_reinstalls(old, {"a" * 16: "2026-11-23T21:09", "b" * 16: "2026-11-24T09:34"},
+                              {"a" * 16: "2026-11-24T08:24", "b" * 16: "2026-11-24T10:43"})
+    assert m == {"b" * 16: ["a" * 16]}
+    emil = ["heatpump:thermia_husdata", "solar:solaredge", "spa:gecko", "car:nissan", "charger:easee", "car:tesla", "meter:ha",
+            "size:car_30-50kWh", "country:SE"]
+    houses = {"c" * 16: ("1.534", emil, False), "d" * 16: ("unknown", emil, False),          # samtida
+              "e" * 16: ("1.534", ["heatpump:ha_entities", "meter:ha", "size:car_30-50kWh", "country:SE", "car:generic_ev"], False),
+              "f" * 16: ("1.534", ["heatpump:ha_entities", "meter:ha", "size:car_30-50kWh", "country:SE", "car:generic_ev"], False)}
+    first = {"c" * 16: "2026-11-04", "d" * 16: "2026-11-23", "e" * 16: "2026-11-10", "f" * 16: "2026-11-11"}
+    last = {k: "2026-11-27" for k in houses}
+    m = mod._merge_reinstalls(houses, first, last)
+    assert m == {"c" * 16: ["d" * 16]} and set(houses) == {"c" * 16, "e" * 16, "f" * 16}       # två riktiga samtida hus slås inte ihop
+
+
+def test_kortlivade_testkorningar_och_misstankta_dubbletter(monkeypatch, tmp_path):
+    """#614: ID:n som levde minuter låg kvar i husöversikten i tre dygn; och en vakt som larmar om två aktiva hus ändå har
+    exakt samma utrustning efter ihopslagningen."""
+    from datetime import datetime, timedelta, timezone
+    mod = _collector(monkeypatch, tmp_path)
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+    iso = lambda dt: dt.isoformat()
+    assert mod._is_trial(iso(now - timedelta(hours=10)), iso(now - timedelta(hours=10) + timedelta(minutes=2)), now)
+    assert not mod._is_trial(iso(now - timedelta(hours=10)), iso(now - timedelta(hours=1)), now)           # levde länge
+    assert not mod._is_trial(iso(now - timedelta(minutes=20)), iso(now - timedelta(minutes=18)), now)      # pågår nyss
+    assert not mod._is_trial("trasigt", "tid", now)
+    eq = ["heatpump:a", "solar:b", "battery:c", "car:d", "charger:e", "meter:f", "size:car_30-50kWh", "country:SE"]
+    houses = {"a" * 16: ("v", eq, False), "b" * 16: ("v", eq, False), "c" * 16: ("v", eq[:4], False)}
+    first = {"a" * 16: "2026-11-01", "b" * 16: "2026-11-02", "c" * 16: "2026-11-03"}
+    assert mod._suspected_duplicates(houses, first) == [("a" * 16, "b" * 16, 8)]
+    assert mod._suspected_duplicates({"c" * 16: houses["c" * 16]}, first) == []

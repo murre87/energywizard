@@ -44,10 +44,34 @@ function heatBatteryHtml(hb, compact) {
 // ---------- Besparing (inspirerat av FTW:s savings-kort, egen implementation) ----------
 // Vad samma el hade kostat i ett vanligt hushåll utan styrning (toppar morgon och kväll), minus vad den kostade,
 // inklusive moms (smartbox/savings.py). Negativa dagar visas som de är.
-const SAVINGS_PERIODS = [["today", "Idag"], ["week", "7 dagar"], ["month", "Månad"]];
+const SAVINGS_PERIODS = [["today", "Idag"], ["week", "7 dagar"], ["month", "Månad"], ["all", "Totalt"]];
 let savingsPeriod = "week";
 try { savingsPeriod = localStorage.getItem("ew_savings_period") || "week"; } catch (e) { /* privat läge */ }
 
+
+// Sparat sedan EnergyWizard startade, alltid synligt under siffran (samma för alla installationer), med alla poster
+const BENEFIT_LABELS = { timing: ["Prisstyrning av köpt el", "jämfört med ett vanligt hushåll utan styrning"],
+  solar_self: ["Solel som huset använt", "värderad till vad den hade kostat att köpa"],
+  solar_sold: ["Såld solel", "intäkt för el som exporterats"] };
+function savingsSinceStart(d) {
+  const b = d.benefit, a = d.periods && d.periods.all;
+  const sgn = (v) => (v > 0 ? "+" : v < 0 ? "−" : "");
+  const col = (v) => (v >= 0 ? "var(--acc)" : "var(--bad)");
+  if (b && b.items && b.items.length > 1) {
+    const rows = b.items.map((it) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line)">
+      <div><div>${BENEFIT_LABELS[it.key] ? BENEFIT_LABELS[it.key][0] : it.key}</div><div class="note">${BENEFIT_LABELS[it.key] ? BENEFIT_LABELS[it.key][1] : ""}${it.kwh ? " · " + it.kwh.toLocaleString("sv-SE") + " kWh" : ""}</div></div>
+      <b style="color:${col(it.kr)};white-space:nowrap;font-variant-numeric:tabular-nums">${sgn(it.kr)}${Math.abs(it.kr).toLocaleString("sv-SE")} ${moneyUnit()}</b></div>`).join("");
+    const flex = b.flexible ? `<div class="note" style="margin-top:4px">Varav sol som gick till elbil och spabad: ${b.flexible.kr.toLocaleString("sv-SE")} ${moneyUnit()} (${b.flexible.ev_kwh.toLocaleString("sv-SE")} kWh elbil, ${b.flexible.spa_kwh.toLocaleString("sv-SE")} kWh spabad).</div>` : "";
+    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><span class="note">Total nytta sedan start${b.since ? " (" + b.since + ")" : ""}</span>
+      <div style="font-size:1.5rem;font-weight:800;color:${col(b.total_kr)};font-variant-numeric:tabular-nums">${sgn(b.total_kr)}${Math.abs(b.total_kr).toLocaleString("sv-SE")} ${moneyUnit()}</div>
+      <div style="margin-top:6px">${rows}</div>${flex}
+      <div class="note" style="margin-top:4px">Prisstyrningen är det EnergyWizard styr. Solposterna är vad solcellerna ger, med eller utan styrning, och summan lägger ihop alla poster.</div></div>`;
+  }
+  if (!a || !a.days) return "";
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><span class="note">Sparat sedan start${a.since ? " (" + a.since + ")" : ""}</span>
+    <div style="font-size:1.4rem;font-weight:800;color:${col(a.saved_kr)};font-variant-numeric:tabular-nums">${sgn(a.saved_kr)}${Math.abs(a.saved_kr).toFixed(0)} ${moneyUnit()}</div>
+    <div class="note">${a.days} dagar med data${a.pct != null ? ` · ${a.pct > 0 ? "+" : ""}${a.pct.toFixed(0)} % billigare än ett vanligt hushåll` : ""}</div></div>`;
+}
 
 function savingsCardHtml(d) {
   const p = d.periods[savingsPeriod] || d.periods.week;
@@ -66,6 +90,7 @@ function savingsCardHtml(d) {
       </div>
       <div style="font-size:2.1rem;font-weight:800;margin-top:10px;color:${pos ? "var(--acc)" : "var(--bad)"};font-variant-numeric:tabular-nums">${kr}${pct}</div>
       <div class="note">${sub}</div>
+      ${savingsSinceStart(d)}
       <div id="savingsbars" style="height:90px;margin-top:8px"></div>
     </div>`;
 }
@@ -617,7 +642,7 @@ async function renderElbil() {
         <div class="note">${c.stale ? badge("warn", "⚠️ gammalt värde") : badge("on", "live")} ${c.status ? "· " + c.status : ""}</div>
         <div class="note" style="margin-top:6px">⚡ ${fmt(c.power_kw, 1, " kW")} just nu${c.planned_kwh_today != null ? ` · 📅 ${c.planned_kwh_today.toFixed(1)} kWh planerat idag` : ""}</div>
         ${c.limits ? `<div class="note">🔌 ${c.limits.phases === "auto" ? "Faser: auto" : c.limits.phases + "-fas"}${c.limits.phases_src === "inlärt" ? " (inlärt)" : ""} · max ${c.limits.max_a} A${c.limits.max_a_src === "inlärt" ? " (inlärt av laddningarna)" : c.limits.max_a_src === "standard" ? " (standard)" : ""}</div>` : ""}
-        ${c.climate_state ? `<div class="note">🌡️ Klimat: ${c.climate_state}${c.climate_temp != null ? " (" + c.climate_temp.toFixed(0) + "°C)" : ""}</div>` : ""}
+        ${c.climate_temp != null ? `<div class="note">🌡️ Kupé ${c.climate_temp.toFixed(0)} °C${c.climate_state && c.climate_state !== "off" ? " · Värmen är på" : ""}</div>` : (c.climate_state && c.climate_state !== "off" ? `<div class="note">🌡️ Värmen är på</div>` : "")}
         ${(() => { const ma = (c.limits || {}).max_a || 16;           // #182: förklaring på varje knapp
           const t = { start: `Laddar nu med ${ma} A, före planen och elpriset. Gäller tills du trycker Auto eller Stoppa. Säkringsskyddet gäller fortfarande.`,
             max: `Laddar med full ström (${ma} A) direkt, oavsett elpris. Gäller tills du trycker Auto eller Stoppa. Säkringsskyddet gäller fortfarande.`,
@@ -1006,7 +1031,7 @@ async function renderEkonomi() {
     const m = d.money[econPeriod], t = d.timing[econPeriod] || {}, sym = d.symbol || "kr";
     const money = (v) => v == null ? "–" : `${v.toFixed(v >= 100 || v <= -100 ? 0 : 2).replace(".", ",")} ${sym}`;
     const chip = (k, label) => `<button class="icobtn" data-econ="${k}"${k === econPeriod ? ` style="border-color:var(--acc);color:var(--acc)"` : ""}>${label}</button>`;
-    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden", all: "sedan start" }[econPeriod];
     // #510: snittet på köpt el är inklusive avgifter. Lägst/snitt/högst måste vara samma bas,
     // annars kan snittet se högre ut än dagens högsta (det var bara spotpriset).
     const paidSub = (buy, spot) => {
@@ -1018,11 +1043,11 @@ async function renderEkonomi() {
     const avgPaid = m.avg_paid == null ? "" : ` · <span>snittpris inklusive avgifter</span> <span data-noi18n>${m.avg_paid.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     const avgSold = m.avg_sold == null ? "" : ` · <span>snittpris</span> <span data-noi18n>${m.avg_sold.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     return `
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}${chip("all", "Totalt")}</div>
     <div class="grid" style="margin-bottom:16px">
       ${statTile("🧾 Köpt el", money(m.cost), `${fmt(m.bought_kwh, 1, " kWh")}${avgPaid}`)}
       ${statTile("☀️ Såld el", money(m.income), `${fmt(m.sold_kwh, 1, " kWh")}${avgSold}`)}
-      ${statTile("💰 Netto", money(m.net), "köpt minus sålt")}
+      ${statTile("💰 Netto", money(m.net), econPeriod === "all" ? `köpt minus sålt · ${m.days} dagar med data` : "köpt minus sålt")}
       ${statTile("🎯 Sparat genom tajmning", t.saved_kr != null ? (t.saved_kr >= 0 ? "+" : "") + money(t.saved_kr) : "–", t.pct != null ? `${t.pct.toFixed(0)} % billigare än ett vanligt hushåll` : "")}
     </div>
     ${d.electricity_support_area ? `<div class="card" style="margin-bottom:16px">
@@ -1043,7 +1068,7 @@ async function renderEkonomi() {
       ${paidTile("📈", "Högst idag", d.price_buy_max, d.price_max)}
     </div>
     <div class="card"><h2>Elpris senaste dygnet</h2><div id="econpricechart" style="height:240px;margin-top:10px"></div></div>
-    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).</div>`;
+    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).${econPeriod === "all" && m.since ? ` <span data-noi18n>(${esc(m.since)})</span>` : ""}</div>`;
   });
   if (!d) return;
   const supportButton = document.getElementById("electricity-support-calculate");
@@ -2147,7 +2172,11 @@ async function loadPumpModes() {
     const dur = (s) => (s >= 3600 ? Math.floor(s / 3600) + " h " : "") + Math.round((s % 3600) / 60) + " min";
     const legend = Object.keys(PUMP_MODES).filter((k) => k !== "aux2" || d.has_aux).map((k) =>
       `<span style="white-space:nowrap;margin-right:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${PUMP_MODES[k][1]};margin-right:4px"></span>${PUMP_MODES[k][0]}${secs[k] ? " " + dur(secs[k]) : ""}</span>`).join("");
-    el.innerHTML = `<h2>🔥 Driftläge, senaste 24 timmarna</h2>
+    const aw = d.aux_week, awh = aw ? (aw.minutes >= 60 ? Math.floor(aw.minutes / 60) + " h " : "") + (aw.minutes % 60) + " min" : "";
+    const auxLine = aw ? `<div style="margin:6px 0 2px;padding:8px 10px;border-radius:10px;background:${aw.minutes ? "rgba(239,68,68,.12)" : "rgba(34,197,94,.12)"}">
+      <b>Tillsats senaste 7 dagarna: ${aw.minutes ? awh : "ingen"}</b>${aw.minutes ? ` <span class="note">· ca ${aw.kwh.toLocaleString("sv-SE")} kWh · ca ${aw.cost.toLocaleString("sv-SE")} ${moneyUnit()} (uppskattat)</span>` : ""}
+      <div class="note">Mätt sedan ${aw.since.slice(0, 10)}.</div></div>` : "";
+    el.innerHTML = `<h2>🔥 Driftläge, senaste 24 timmarna</h2>${auxLine}
       <div style="display:flex;height:34px;border-radius:6px;overflow:hidden;background:var(--card-2,#eee);margin-top:8px">${cells}</div>
       <div style="display:flex;justify-content:space-between" class="note"><span>${lab(t0)}</span><span>${lab(t1)}</span></div>
       <div class="note" style="margin-top:6px">${legend}</div>
@@ -2529,6 +2558,8 @@ function installsCard(d) {
       </div>
       ${d.without_devices ? `<div class="note" style="margin-top:8px">${d.without_devices} har inte valt några enheter än.</div>` : ""}
       ${d.ping_only ? `<div class="note" style="margin-top:4px">${d.ping_only} kör en äldre version utan telemetri och syns med utrustning efter uppdateringen.</div>` : ""}
+      ${d.trial_runs ? `<div class="note" style="margin-top:4px">${d.trial_runs} korta testkörningar (under 30 minuter) räknas inte som hus.</div>` : ""}
+      ${(d.suspected_duplicates || []).length ? `<div class="note" style="margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(239,68,68,.14)"><b>Misstänkt dubblett:</b> ${d.suspected_duplicates.map((x) => `${esc(x.a)} och ${esc(x.b)} (${x.parts} delar)`).join(", ")} har exakt samma utrustning. Rätta orsaken i insamlaren.</div>` : ""}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-top:14px">${cats}</div>
       <div class="note" style="margin-top:10px">Antal enheter, från telemetrin: bara drivrutin och märke, aldrig vem eller var. En installation syns med sina enheter när den valt dem i startguiden.</div>
     </div>`;

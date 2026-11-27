@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/ev-plan.schema.json",
+  "title": "EV charging plan (planner -> core)",
+  "description": "Elbilsladdningens körplan i kvartsrutor (i dag decisions.calculate_ev_charge_plan). Core verkställer den ruta som gäller nu, inom säkringen och effektgränsen. Per bil finns <bil>_kw och <bil>_panic. Interna kolumner (t_hour) ingår inte.",
+  "x-api-version": "1.0.0",
+  "type": "object",
+  "required": ["rows"],
+  "additionalProperties": false,
+  "properties": {
+    "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}}
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": ["t_slot", "price", "allocated_kw", "slot_power_limit"],
+      "properties": {
+        "t_slot": {"type": "string", "format": "date-time", "description": "Rutans start, lokal tid utan tidszon (ISO 8601)."},
+        "price": {"type": ["number", "null"], "description": "Spotpris, kr/kWh."},
+        "score": {"type": ["number", "null"]},
+        "cloud_cover": {"type": ["number", "null"]},
+        "temp": {"type": ["number", "null"]},
+        "solar_w": {"type": ["number", "null"]},
+        "solar_kw": {"type": ["number", "null"]},
+        "house_load_kw": {"type": ["number", "null"]},
+        "hour_val": {"type": "integer", "minimum": 0, "maximum": 23},
+        "allocated_kw": {"type": "number", "minimum": 0},
+        "slot_power_limit": {"type": "number", "minimum": 0}
+      },
+      "patternProperties": {
+        "^[a-z0-9_]+_kw$": {"type": "number", "minimum": 0},
+        "^[a-z0-9_]+_panic$": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

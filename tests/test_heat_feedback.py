@@ -163,3 +163,32 @@ def test_tillsatsvakt_höjer_inte_i_dyr_el_vid_låga_gradminuter():
     assert a["pump_target_temp"] == 21.0
     a, _ = run(20.3, 2.0, degree_minutes=-900, heat_aux_guard_dm=-1100)
     assert a["pump_target_temp"] == 21.0
+
+
+def test_kapacitetstak_begränsar_börvärdet_i_billigt_läge():
+    a, log = run(21.0, 0.2, heat_cap_sp=21.0)
+    assert a["pump_mode"] == "CHEAP" and a["pump_target_temp"] == 21.0 and "Kapacitetstak 21" in log[0]
+    a, _ = run(21.0, 0.2)                                       # utan tak som förut (23 = billig temp + 1)
+    assert a["pump_target_temp"] == 23.0
+    a, log = run(21.0, 0.2, heat_cap_sp=24.0)                   # taket högre än valet: inget ändras
+    assert a["pump_target_temp"] == 23.0 and "Kapacitetstak" not in log[0]
+
+
+def test_kapacitetstaket_gäller_inte_vid_minuspris():
+    a, _ = run(21.0, -0.5, heat_cap_sp=21.0)
+
+    assert "Kapacitetstak" not in " ".join(a["log"])
+
+
+def test_gradminutvakt_sänker_börvärdet_i_alla_lägen_så_pumpen_hämtar_sig():
+    kw = dict(degree_minutes=-800, forward_temp=44.0, calc_forward_temp=55.0, pump_setpoint=25.0)
+    a, log = run(21.0, 0.2, **kw)                                # billigt läge, huset har marginal
+    assert a["pump_target_temp"] <= 20.0 and "Tillsatsvakt" in log[0] and "sänks" in log[0]
+    a, log = run(21.0, 0.2, **{**kw, "degree_minutes": -300})
+    assert "Tillsatsvakt" not in log[0]                          # grunda gradminuter: ingen åtgärd
+
+
+def test_gradminutvakten_rör_inte_komforten_nära_golvet():
+    kw = dict(degree_minutes=-800, forward_temp=44.0, calc_forward_temp=55.0, pump_setpoint=25.0)
+    a, log = run(20.2, 0.2, **kw)                                # nära golvet (20,0): ingen sänkning
+    assert "sänks" not in log[0]
