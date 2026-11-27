@@ -75,7 +75,7 @@ def test_schema_is_valid_versioned_and_states_its_evidence():
     jsonschema.Draft202012Validator.check_schema(SCHEMA)
     assert SCHEMA["x-api-version"] == contracts.API_VERSION and SCHEMA["required"] == []
     ev = {k: v["x-evidence"] for k, v in PROPS.items()}
-    assert set(ev.values()) == {"golden", "main-code", "unverified"}
+    assert set(ev.values()) == {"golden", "main-code", "scenario", "unverified"}
     assert sum(1 for v in ev.values() if v == "golden") >= 40
 
 
@@ -97,11 +97,10 @@ def test_the_schema_matches_what_gpm_reads_and_main_sends_in_both_directions():
 
 
 def test_known_gaps_are_the_ones_we_documented():
-    """Dessa är de enda avvikelserna just nu. Rättas en av dem ska flaggan tas bort här och i schemat."""
+    """Det enda som är kvar: en inställning gpm läser men main aldrig skickar. Rättas den ska flaggan tas bort här och i schemat."""
     assert {k for k, v in PROPS.items() if v.get("x-not-provided-by-main")} == {"heat_glide_hours"}
-    assert {k for k, v in PROPS.items() if v.get("x-unused-by-planner")} == {"base_load_profile", "ev_max_charge_a", "ev_min_charge_a", "grid_import_w", "house_consumption_w", "power_limit_kw"}
-    unverified = {k for k, v in PROPS.items() if v["x-evidence"] == "unverified" and not v.get("x-unused-by-planner") and not v.get("x-not-provided-by-main")}
-    assert unverified == {"ev_load_cap_a", "heat_cap_sp", "heat_horizon", "hw_profile", "indoor_low2", "predicted_cooling_rate", "spa_bath_note"}
+    assert {k for k, v in PROPS.items() if v.get("x-unused-by-planner")} == set()                 # städat i steg 4a
+    assert {k for k, v in PROPS.items() if v["x-evidence"] == "unverified"} == {"heat_glide_hours"}
 
 
 def test_every_golden_scenario_input_follows_the_contract():

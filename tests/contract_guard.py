@@ -16,6 +16,8 @@ except ImportError:                                                     # CI ins
     jsonschema = None
 
 VIOLATIONS = []
+# Sex nycklar som main.py skickade före steg 4a men som gpm aldrig läste. Äldre testfixturer har dem kvar; planeringen ignorerar dem, så vakten gör det också.
+LEGACY_INPUT_KEYS = {"base_load_profile", "ev_max_charge_a", "ev_min_charge_a", "grid_import_w", "house_consumption_w", "power_limit_kw"}
 INPUT_OFF = {"v": False}                  # satt av @pytest.mark.no_planner_input_guard: bara indatakontrollen av, övrig vakt gäller
 _LOCK = threading.Lock()
 _INSTALLED = {"done": False}
@@ -51,7 +53,7 @@ def check(kind, obj):
     """Lista med avvikelser (tom = följer kontraktet). kind: ett av contracts.STATE_KINDS, 'battery_plan' eller 'battery_decision'."""
     import contracts
     if kind == "planner_input":
-        wire, v = contracts.planner_input_to_wire(obj), _validator("planner-input")
+        wire, v = contracts.planner_input_to_wire({k: x for k, x in obj.items() if k not in LEGACY_INPUT_KEYS}), _validator("planner-input")
     elif kind == "battery_plan":
         wire, v = contracts.battery_plan_to_wire(obj), _validator("battery-plan")
     elif kind == "battery_decision":

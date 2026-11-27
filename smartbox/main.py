@@ -2299,10 +2299,10 @@ while True:
             # ============================================================
             gpm_state = {
                 'now': now, 'current_price': current_price, 'all_prices': all_prices,
-                'pv_power_w': solar_now, 'avg_net_w': avg_net, 'house_consumption_w': house_consumption_w,
-                'predicted_base_load_kw': dynamic_predicted_base_load_kw, 'grid_import_w': grid_import_w,
-                'consumed_kwh_this_hour': float(consumed_kwh_this_hour), 'power_limit_kw': current_target_limit,
-                'predicted_cooling_rate': predicted_cooling_rate, 'base_load_profile': dynamic_base_load_profile,
+                'pv_power_w': solar_now, 'avg_net_w': avg_net,
+                'predicted_base_load_kw': dynamic_predicted_base_load_kw,
+                'consumed_kwh_this_hour': float(consumed_kwh_this_hour),
+                'predicted_cooling_rate': predicted_cooling_rate,
                 'peak_shaving_enabled': cfg.get("peak_shaving_enabled", True), 'solar_is_shaky': solar_is_shaky,
                 'solar_auto_export': str(all_overrides.get("solar_auto_export", "true")).lower() != "false",
                 'sun_soon': _sun_cache.get("soon"), 'sun_day': _sun_cache.get("day"),
@@ -2337,7 +2337,7 @@ while True:
                 'max_fuse_a': cfg.get('fuse_size_a', decisions.MAX_FUSE_A), 'house_load_a': house_load_excluding_ev_a, 'ev_actual_a': 0,
                 'ev_fuse_cap_a': ev_fuse_cap_a, 'ev_load_cap_a': ev_load_cap_a,
                 'current_solar_limit_pct': current_solar_limit_pct, 'current_target_limit': current_target_limit,
-                'ev_min_charge_a': EV_MIN_CHARGE_AMPS, 'ev_max_charge_a': EV_MAX_CHARGE_AMPS, 'ev_plan': ev_charge_plan,
+                'ev_plan': ev_charge_plan,
                 # Bilarna ur installationen: vilka som finns och deras laddboxars faser/maxström (gpm har inga bilnamn)
                 'car_ids': list(car_ids), 'car_specs': CAR_SPECS, 'has_spa': HAS_SPA,
             }
