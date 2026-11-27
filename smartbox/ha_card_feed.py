@@ -20,6 +20,12 @@ Schema (v1), alla fält är valfria för korten:
   heat     {indoor, target, setpoint, outdoor, water, water_set, mode, floor, cheap, max, min, cop}  värmepump och varmvatten
   price    {now, spot, mode}         nuvarande pris (kr/kWh), spotpris och läge
   battery  true/false                finns husbatteri (oförändrat, så äldre kort fortsätter fungera)
+  eco      {today, week, month} eller null (#558). Varje period:
+           {buy_kwh, buy, buy_avg, sell_kwh, sell, sell_avg, net, saved, pct, bat}
+           buy är köpt el inklusive avgifter, sell är såld el, saved är sparat genom
+           tajmning mot ett vanligt hushåll, bat är sparat mot batteriet i
+           självförbrukning (null utan jämförelse). En period utan dagar är null, inte noll.
+           Ingen period för sedan start.
   solar    {w, today_kwh, tomorrow_kwh}  produktion nu och prognos i planfönstret (#558), eller null
   batt     {soc, w, plan, plan_kw}   laddnivå, effekt och plan (charge/hold/discharge/export/...), eller null
 """
@@ -31,6 +37,7 @@ ENTITY = "sensor.energywizard_kort"
 SCHEMA = 1
 _SLOT_TTL_S = 300          # planen räknas om högst var femte minut, flödet varje minut
 _cache = {"t": 0.0, "slots": None}
+_eco_cache = {"t": 0.0, "day": None, "v": None}   # ekonomin delar intervallet: självförbrukningen simulerar dygnen
 
 _MODE = {"CHEAP": "C", "EXPENSIVE": "E"}
 
@@ -195,7 +202,54 @@ def _heat(row, cfg):
             "max": _num(cfg.get("indoor_max"), 1), "min": _num(cfg.get("indoor_min"), 1)}
 
 
-def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None):
+def pack_economy(money, timing, battery):
+    """Idag, 7 dagar och månad till korta tal. Period utan dagar blir null, inte noll.
+    bat är null när jämförelsen mot självförbrukning saknas. Sedan start följer inte med."""
+    if money is None and timing is None and battery is None:
+        return None
+
+    def one(key):
+        m = (money or {}).get(key) or {}
+        t = (timing or {}).get(key) or {}
+        b = (battery or {}).get(key) if isinstance(battery, dict) else None
+        has_money = (m.get("days") or 0) > 0
+        has_timing = (t.get("days") or 0) > 0
+        return {
+            "buy_kwh": m.get("bought_kwh") if has_money else None,
+            "buy": m.get("cost") if has_money else None,
+            "buy_avg": m.get("avg_paid") if has_money else None,
+            "sell_kwh": m.get("sold_kwh") if has_money else None,
+            "sell": m.get("income") if has_money else None,
+            "sell_avg": m.get("avg_sold") if has_money else None,
+            "net": m.get("net") if has_money else None,
+            "saved": t.get("saved_kr") if has_timing else None,
+            "pct": t.get("pct") if has_timing else None,
+            "bat": None if not isinstance(b, dict) or not b.get("days") else b.get("saved"),
+        }
+
+    return {k: one(k) for k in ("today", "week", "month")}
+
+
+def load_economy(conn, today, tz, battery_cfg):
+    """Samma formler som Ekonomisidan och appens jämförelse mot självförbrukning.
+    Anropar inte savings.all_time: sedan start hör inte till kortet."""
+    import savings
+    money = savings.money_periods(savings.money_rows(conn, days=40), today)
+    timing = savings.summarize_periods(savings.daily_rows(conn, days=40), today)
+    battery = None
+    cfg = battery_cfg or {}
+    if cfg.get("control") != "av" and cfg.get("capacity_kwh"):
+        try:
+            import battery_baseline
+            from datetime import date
+            battery = battery_baseline.periods(conn, cfg, date.fromisoformat(today), tz)
+        except Exception:
+            conn.rollback()
+            battery = None
+    return pack_economy(money, timing, battery)
+
+
+def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None, economy=None):
     """Sensorns (tillstånd, attribut) ur flödet och planen. Rena funktioner, testas utan databas."""
     now = now or datetime.now().astimezone()
     slots = _slots(planclock)
@@ -210,6 +264,7 @@ def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None)
         "unit": unit, "flow": _flow(flow, pump_w), "why": {k: str(v)[:240] for k, v in ((flow or {}).get("why") or {}).items()},
         "slots": slots, "cars": _cars(flow, planclock), "heat": _heat(row, cfg),
         "price": price, "battery": bool((planclock or {}).get("has_battery")),
+        "eco": economy,
         "solar": _solar(flow, planclock, now), "batt": _batt(flow, planclock, now),
     }
     return {"E": "dyrt", "C": "billigt"}.get(price["mode"], "okänt"), attrs
@@ -243,6 +298,27 @@ def entities(engine):
             _cache.update(t=time.time(), slots=plan_clock.load(
                 c, cars=[{"id": x.get("id"), "name": x.get("name")} for x in (hc.get("evs") or [])]))
         pc = _cache["slots"]
+        eco = None
+        today = None
+        try:
+            import local_sql
+            tz = local_sql.installation_timezone()
+            today = datetime.now(tz).date().isoformat()
+            if _eco_cache["v"] is not None and _eco_cache["day"] == today and time.time() - _eco_cache["t"] <= _SLOT_TTL_S:
+                eco = _eco_cache["v"]
+            else:
+                try:
+                    bat_cfg = house_config.battery_settings(hc)
+                except Exception:
+                    bat_cfg = {}
+                eco = load_economy(c, today, tz, bat_cfg)
+                _eco_cache.update(t=time.time(), day=today, v=eco)
+        except Exception:
+            try:
+                c.rollback()
+            except Exception:
+                pass
+            eco = _eco_cache["v"] if today and _eco_cache.get("day") == today else None
     try:
         import settings
         cfg = settings.get_settings()
@@ -254,5 +330,5 @@ def entities(engine):
             pump_w = live_flow.latest_pump_w(c2)
     except Exception:
         pump_w = None
-    state, attrs = build(flow, pc, unit=nordpool.cost_settings()["symbol"], row=row, cfg=cfg, pump_w=pump_w)
+    state, attrs = build(flow, pc, unit=nordpool.cost_settings()["symbol"], row=row, cfg=cfg, pump_w=pump_w, economy=eco)
     return {ENTITY: (state, attrs)}

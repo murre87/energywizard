@@ -17,8 +17,10 @@ def test_hacs_json_pekar_pa_filen():
 
 def test_korten_ar_registrerade():
     js = (ROOT / "dist" / "energywizard-cards.js").read_text(encoding="utf-8")
-    for tag in ("energywizard-house-card", "energywizard-heat-card", "energywizard-car-card", "energywizard-battery-card"):
+    for tag in ("energywizard-house-card", "energywizard-heat-card", "energywizard-car-card", "energywizard-economy-card", "energywizard-battery-card"):
         assert f'customElements.define("{tag}"' in js
+    assert "a.eco" in js and "button[data-period]" in js and "Sparat genom tajmning" in js
+    assert "Mot självförbrukning" in js and 'data-period="all"' not in js and "data-period=\"all\"" not in js
     assert "a.batt" in js and "a.solar" in js and "Sparar" in js
 
 

@@ -105,10 +105,41 @@ def test_sol_och_batteri_med_niva_och_prognos():
 def test_tom_data_kraschar_inte():
     state, a = ha_card_feed.build({}, {}, now=NOW)
     assert state == "okänt" and a["flow"] == [] and a["slots"] == [] and a["price"]["now"] is None and a["cars"] == []
+    assert a["eco"] is None
+
+
+def test_ekonomi_perioder_utan_dagar_ar_inte_noll():
+    """#558: kortet visar köpt, sålt, tajmning och självförbrukning. Tom period är null, inte 0.
+    Sedan start (all) följer inte med."""
+    money = {"today": {"bought_kwh": 10.0, "cost": 25.0, "sold_kwh": 2.0, "income": 3.0, "net": 22.0,
+                       "avg_paid": 2.5, "avg_sold": 1.5, "days": 1},
+             "week": {"bought_kwh": 0, "cost": 0, "sold_kwh": 0, "income": 0, "net": 0, "avg_paid": None, "avg_sold": None, "days": 0},
+             "month": {"bought_kwh": 30.0, "cost": 75.0, "sold_kwh": 0.0, "income": 0.0, "net": 75.0,
+                       "avg_paid": 2.5, "avg_sold": None, "days": 2}}
+    timing = {"today": {"saved_kr": 4.2, "pct": 13.1, "days": 1},
+              "week": {"saved_kr": 0, "pct": None, "days": 0},
+              "month": {"saved_kr": 9.0, "pct": 8.0, "days": 2},
+              "all": {"saved_kr": 400.0, "pct": 11.0, "days": 80, "since": "2024-01-01"}}
+    battery = {"today": {"saved": 1.8, "days": 1}, "week": None, "month": {"saved": 0.0, "days": 2}}
+    eco = ha_card_feed.pack_economy(money, timing, battery)
+    assert set(eco) == {"today", "week", "month"}
+    assert eco["today"] == {"buy_kwh": 10.0, "buy": 25.0, "buy_avg": 2.5, "sell_kwh": 2.0, "sell": 3.0,
+                            "sell_avg": 1.5, "net": 22.0, "saved": 4.2, "pct": 13.1, "bat": 1.8}
+    assert eco["week"] == {"buy_kwh": None, "buy": None, "buy_avg": None, "sell_kwh": None, "sell": None,
+                           "sell_avg": None, "net": None, "saved": None, "pct": None, "bat": None}
+    assert eco["month"]["sell_avg"] is None and eco["month"]["bat"] == 0.0 and eco["month"]["saved"] == 9.0
+    assert ha_card_feed.pack_economy(None, None, None) is None
+    _, a = ha_card_feed.build(FLOW, PC, now=NOW, economy=eco)
+    assert a["eco"]["today"]["buy"] == 25.0 and "all" not in a["eco"]
 
 
 def test_attributen_ryms_i_havets_grans_med_en_hel_dag():
     pc = {"ok": True, "has_battery": True, "cars": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
           "slots": [_slot(15 * i, 2.0 + i / 100, "CHEAP" if i % 2 else "EXPENSIVE", {"a": 3.7, "b": 1.4}, sun=900) for i in range(96)]}
-    _, a = ha_card_feed.build(FLOW, pc, now=NOW)
+    _, a = ha_card_feed.build(FLOW, pc, now=NOW, economy=ha_card_feed.pack_economy(
+        {"today": {"bought_kwh": 1, "cost": 2, "sold_kwh": 0, "income": 0, "net": 2, "avg_paid": 2, "avg_sold": None, "days": 1},
+         "week": {"days": 0}, "month": {"days": 0}},
+        {"today": {"saved_kr": 1, "pct": 10, "days": 1}, "week": {"days": 0}, "month": {"days": 0}, "all": {"saved_kr": 9, "days": 3}},
+        {"today": {"saved": 0.5, "days": 1}, "week": None, "month": None}))
+    assert "all" not in a["eco"]
     assert len(json.dumps(a, ensure_ascii=False)) < 16000
