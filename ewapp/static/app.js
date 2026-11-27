@@ -189,8 +189,9 @@ function limitChip(pw) {
 function auxNote(a) {
   if (!a) return "";
   const t = a.today_min >= 60 ? `${Math.floor(a.today_min / 60)} h ${a.today_min % 60} min` : `${a.today_min} min`;
-  if (a.on) return `<div class="note limnote">🔥⚡ Tillsats ${a.steps.join(" + ")} går${a.pct != null ? ` · ${a.pct} %` : ""} · idag ${t}</div>`;
-  return a.today_min ? `<div class="note">Tillsats idag ${t}</div>` : "";
+  if (a.on) return `<div class="note limnote">🔥⚡ Tillsats ${a.steps.join(" + ")} går${a.pct != null ? ` · ${a.pct} %` : ""} · idag ${t}${a.week_min ? ` · 7 dagar ${a.week_min >= 60 ? Math.floor(a.week_min / 60) + " h " + (a.week_min % 60) + " min" : a.week_min + " min"}` : ""}</div>`;
+  const wk = a.week_min >= 60 ? `${Math.floor(a.week_min / 60)} h ${a.week_min % 60} min` : `${a.week_min || 0} min`;
+  return a.today_min || a.week_min ? `<div class="note">Tillsats idag ${t} · 7 dagar ${wk}</div>` : "";
 }
 function pageHus() {
   if (!H) return `<div class="note" style="text-align:center;margin-top:20dvh">Laddar…</div>`;
@@ -219,12 +220,17 @@ function gridViz(net) {
     <g class="house" stroke="currentColor" fill="none" stroke-width="2" stroke-linejoin="round"><path d="M92 30 L106 18 L120 30 M95 28 V50 H117 V28"/></g>${idle ? '<path class="idle" d="M44 30 H84" stroke="currentColor" stroke-dasharray="3 5"/>' : chev}</svg></div>`;
 }
 // ---- Hem (Just nu) --------------------------------------------------------------------------------------------------------------
-const SVP = [["today", "Idag"], ["week", "7 d"], ["month", "Månad"]];
+const SVP = [["today", "Idag"], ["week", "7 d"], ["month", "Månad"], ["all", "Totalt"]];
 function svLine() {                                       // besparingen på en rad – bara ägaren (servern svarar hidden för andra)
   if (!SV || !SV.ok) return "";
   const p = SV.periods[svPeriod] || SV.periods.week, pos = p.saved_kr >= 0;
   return `<section class="card svline"><div><h4>Sparat mot ett vanligt hushåll</h4><div class="v" style="color:${pos ? "var(--acc)" : "var(--bad)"}">${p.saved_kr > 0 ? "+" : p.saved_kr < 0 ? "−" : ""}${f1(Math.abs(p.saved_kr), 0)}<small> ${moneyUnit()}${p.pct != null ? ` (${p.pct > 0 ? "+" : ""}${f1(p.pct, 0)} %)` : ""}</small></div></div>
-    <div class="seg">${SVP.map(([k, l]) => `<button data-a="svp" data-v="${k}" class="${k === svPeriod ? "on" : ""}">${l}</button>`).join("")}</div></section>`;
+    <div class="seg">${SVP.map(([k, l]) => `<button data-a="svp" data-v="${k}" class="${k === svPeriod ? "on" : ""}">${l}</button>`).join("")}</div>${svSince()}</section>`;
+}
+function svSince() {                                      // sparat sedan EnergyWizard startade, alltid synligt (samma för alla)
+  const a = SV && SV.periods && SV.periods.all;
+  if (!a || !a.days || svPeriod === "all") return "";
+  return `<div class="note" style="flex-basis:100%">Sedan start${a.since ? " (" + a.since + ")" : ""}: <b style="color:${a.saved_kr >= 0 ? "var(--acc)" : "var(--bad)"}">${a.saved_kr > 0 ? "+" : a.saved_kr < 0 ? "−" : ""}${f1(Math.abs(a.saved_kr), 0)} ${moneyUnit()}</b></div>`;
 }
 function svBattery() {                                   // #398: vad styrningen gav utöver batteriet i självförbrukningsläge
   const b = SV && SV.battery_vs_selfuse && SV.battery_vs_selfuse[svPeriod];

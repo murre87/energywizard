@@ -378,3 +378,4 @@ html:not([data-classic]) .ljquick .night { border-color:var(--line); color:var(-
 .limnote { color: var(--warn, #f0a04b); margin-top: 6px; }
 
 .srow.climrow { grid-template-columns:38px 44px 1fr 44px 1fr; gap:8px; padding:2px 10px; } .climrow .tm span { font-size:1.05rem; }
+.svline { flex-wrap:wrap; }

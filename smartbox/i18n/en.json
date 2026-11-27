@@ -3255,5 +3255,11 @@
  "Nätnyttan ska vara 0 till 100 öre per kWh": "The grid benefit must be 0 to 100 öre per kWh",
  "Skattereduktionens slutdatum ska skrivas ÅÅÅÅ-MM-DD": "The end date of the tax reduction must be written YYYY-MM-DD",
  "månader": "months",
- "Skattereduktion": "Tax reduction"
+ "Skattereduktion": "Tax reduction",
+ "Sparat sedan start": "Saved since start",
+ "Tillsats senaste 7 dagarna:": "Auxiliary heat, last 7 days:",
+ "(uppskattat)": "(estimated)",
+ "Mätt sedan": "Measured since",
+ "Sedan start": "Since start",
+ "Tillsats idag": "Auxiliary heat today"
 }

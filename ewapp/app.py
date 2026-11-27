@@ -985,8 +985,10 @@ def _aux_heat():
                 return None
             today = c.execute(text(local_sql("SELECT count(*) FROM sensor_log WHERE (add_heat_1 > 0 OR add_heat_2 > 0) AND "
                                              "timestamp >= date_trunc('day', now() AT TIME ZONE __EW_TIMEZONE__) AT TIME ZONE __EW_TIMEZONE__"))).scalar()
+            week = c.execute(text("SELECT count(*) FROM sensor_log WHERE (add_heat_1 > 0 OR add_heat_2 > 0) AND timestamp > now() - interval '7 days'")).scalar()
         steps = [i + 1 for i, v in enumerate((r[0], r[1])) if v and float(v) > 0]
-        return {"on": bool(steps), "steps": steps, "pct": None if r[2] is None else round(float(r[2])), "today_min": int(today or 0)}
+        return {"on": bool(steps), "steps": steps, "pct": None if r[2] is None else round(float(r[2])), "today_min": int(today or 0),
+                "week_min": int(week or 0)}
     except Exception:
         return None
 
@@ -1211,7 +1213,8 @@ def savings_api(request: Request):
         except Exception as e:
             print(f"⚠️ Jämförelse mot självförbrukning: {e}")
             c.rollback()
-    return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today), "battery_vs_selfuse": battery}
+        everything = savings.all_time(c, today)
+    return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today, everything), "battery_vs_selfuse": battery}
 
 
 @app.get("/api/plan")

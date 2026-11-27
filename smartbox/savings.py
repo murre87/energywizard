@@ -108,7 +108,25 @@ def _summary(rows):
     }
 
 
-def summarize_periods(rows, today):
+_all_cache = {"t": 0.0, "day": None, "val": None}
+ALL_TTL_S = 600
+
+
+def all_time(conn, today):
+    """Sparat sedan EnergyWizard startade (hela historiken i loggen): {saved_kr, kwh, paid_kr, pct, days, since}.
+    Samma formel som Idag/7 dagar/Månad. Cachas i tio minuter, eftersom den läser hela historiken."""
+    import time as _t
+    now = _t.time()
+    if _all_cache["val"] is not None and _all_cache["day"] == today and now - _all_cache["t"] < ALL_TTL_S:
+        return _all_cache["val"]
+    rows = daily_rows(conn, days=4000)
+    val = _summary(rows)
+    val["since"] = rows[0]["day"] if rows else None
+    _all_cache.update(t=now, day=today, val=val)
+    return val
+
+
+def summarize_periods(rows, today, all_rows=None):
     """rows från daily_rows(), today = 'YYYY-MM-DD' i svensk tid.
 
     today: bara dagens rad (kan saknas tidigt på morgonen). week: de 7 kalenderdagarna
@@ -119,11 +137,18 @@ def summarize_periods(rows, today):
     week_start = (t - timedelta(days=6)).isoformat()
     month_prefix = today[:7]
     rows = sorted(rows or [], key=lambda r: r["day"])
-    return {
+    out = {
         "today": _summary([r for r in rows if r["day"] == today]),
         "week": _summary([r for r in rows if week_start <= r["day"] <= today]),
         "month": _summary([r for r in rows if r["day"].startswith(month_prefix) and r["day"] <= today]),
     }
+    if all_rows is not None:                               # sedan start: hela historiken (dict från all_time, eller rader)
+        if isinstance(all_rows, dict):
+            out["all"] = all_rows
+        else:
+            ar = sorted(all_rows, key=lambda r: r["day"])
+            out["all"] = {**_summary(ar), "since": ar[0]["day"] if ar else None}
+    return out
 
 
 # ---- Pengar per dag och period (Ekonomi-sidan) ---------------------------------------------------------------------

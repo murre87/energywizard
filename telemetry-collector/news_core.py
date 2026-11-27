@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+SENDER_NAME = "EnergyWizards skapare"          # avsändarnamnet i veckobrevets mejl (Emil 2026-11-27): skaparen, inte en funktionsadress
 LANGS = ("sv", "en", "cs")
 BASE = os.environ.get("NEWS_BASE_URL", "https://energywizzard.profitalgos.com/telemetry").rstrip("/")
 NEWS_DIR = os.environ.get("NEWS_DIR", "/data/news")
@@ -63,6 +64,13 @@ def valid_email(e) -> bool:
     if len(labels) < 2 or any(not l or len(l) > 63 or l[0] == "-" or l[-1] == "-" for l in labels) or len(labels[-1]) < 2:
         return False
     return True
+
+
+def from_header(addr) -> str:
+    """Avsändaren: "EnergyWizards skapare <adress>". Ett namn som redan står i SMTP_FROM byts ut, så adressen är den enda delen som behålls."""
+    from email.utils import formataddr, parseaddr
+    a = parseaddr(str(addr or ""))[1]
+    return formataddr((SENDER_NAME, a)) if a else ""
 
 
 def _now() -> str:

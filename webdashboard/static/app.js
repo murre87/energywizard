@@ -44,10 +44,20 @@ function heatBatteryHtml(hb, compact) {
 // ---------- Besparing (inspirerat av FTW:s savings-kort, egen implementation) ----------
 // Vad samma el hade kostat i ett vanligt hushåll utan styrning (toppar morgon och kväll), minus vad den kostade,
 // inklusive moms (smartbox/savings.py). Negativa dagar visas som de är.
-const SAVINGS_PERIODS = [["today", "Idag"], ["week", "7 dagar"], ["month", "Månad"]];
+const SAVINGS_PERIODS = [["today", "Idag"], ["week", "7 dagar"], ["month", "Månad"], ["all", "Totalt"]];
 let savingsPeriod = "week";
 try { savingsPeriod = localStorage.getItem("ew_savings_period") || "week"; } catch (e) { /* privat läge */ }
 
+
+// Sparat sedan EnergyWizard startade, alltid synligt under siffran (samma för alla installationer)
+function savingsSinceStart(d) {
+  const a = d.periods && d.periods.all;
+  if (!a || !a.days) return "";
+  const pos = a.saved_kr >= 0, sign = a.saved_kr > 0 ? "+" : a.saved_kr < 0 ? "−" : "";
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><span class="note">Sparat sedan start${a.since ? " (" + a.since + ")" : ""}</span>
+    <div style="font-size:1.4rem;font-weight:800;color:${pos ? "var(--acc)" : "var(--bad)"};font-variant-numeric:tabular-nums">${sign}${Math.abs(a.saved_kr).toFixed(0)} ${moneyUnit()}</div>
+    <div class="note">${a.days} dagar med data${a.pct != null ? ` · ${a.pct > 0 ? "+" : ""}${a.pct.toFixed(0)} % billigare än ett vanligt hushåll` : ""}</div></div>`;
+}
 
 function savingsCardHtml(d) {
   const p = d.periods[savingsPeriod] || d.periods.week;
@@ -66,6 +76,7 @@ function savingsCardHtml(d) {
       </div>
       <div style="font-size:2.1rem;font-weight:800;margin-top:10px;color:${pos ? "var(--acc)" : "var(--bad)"};font-variant-numeric:tabular-nums">${kr}${pct}</div>
       <div class="note">${sub}</div>
+      ${savingsSinceStart(d)}
       <div id="savingsbars" style="height:90px;margin-top:8px"></div>
     </div>`;
 }
@@ -2147,7 +2158,11 @@ async function loadPumpModes() {
     const dur = (s) => (s >= 3600 ? Math.floor(s / 3600) + " h " : "") + Math.round((s % 3600) / 60) + " min";
     const legend = Object.keys(PUMP_MODES).filter((k) => k !== "aux2" || d.has_aux).map((k) =>
       `<span style="white-space:nowrap;margin-right:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${PUMP_MODES[k][1]};margin-right:4px"></span>${PUMP_MODES[k][0]}${secs[k] ? " " + dur(secs[k]) : ""}</span>`).join("");
-    el.innerHTML = `<h2>🔥 Driftläge, senaste 24 timmarna</h2>
+    const aw = d.aux_week, awh = aw ? (aw.minutes >= 60 ? Math.floor(aw.minutes / 60) + " h " : "") + (aw.minutes % 60) + " min" : "";
+    const auxLine = aw ? `<div style="margin:6px 0 2px;padding:8px 10px;border-radius:10px;background:${aw.minutes ? "rgba(239,68,68,.12)" : "rgba(34,197,94,.12)"}">
+      <b>Tillsats senaste 7 dagarna: ${aw.minutes ? awh : "ingen"}</b>${aw.minutes ? ` <span class="note">· ca ${aw.kwh.toLocaleString("sv-SE")} kWh · ca ${aw.cost.toLocaleString("sv-SE")} ${moneyUnit()} (uppskattat)</span>` : ""}
+      <div class="note">Mätt sedan ${aw.since.slice(0, 10)}.</div></div>` : "";
+    el.innerHTML = `<h2>🔥 Driftläge, senaste 24 timmarna</h2>${auxLine}
       <div style="display:flex;height:34px;border-radius:6px;overflow:hidden;background:var(--card-2,#eee);margin-top:8px">${cells}</div>
       <div style="display:flex;justify-content:space-between" class="note"><span>${lab(t0)}</span><span>${lab(t1)}</span></div>
       <div class="note" style="margin-top:6px">${legend}</div>

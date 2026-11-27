@@ -534,7 +534,7 @@ def _news_smtp_send(msg) -> None:
     """Skickar ett mejl från samlaren (veckobrevets bekräftelse). Kastar vid fel så att anropet kan svara ärligt."""
     if not SMTP_HOST:
         raise RuntimeError("SMTP saknas")
-    msg["From"] = SMTP_FROM
+    msg["From"] = news.from_header(SMTP_FROM)             # "EnergyWizards skapare <adress>"
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
         s.starttls()
         if SMTP_USER:
