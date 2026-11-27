@@ -1,15 +1,15 @@
 {
- "updated": "2026-11-20",
- "installations": 98,
+ "updated": "2026-11-27",
+ "installations": 94,
  "equipment": {
   "heatpump": [
    {
     "name": "NIBE",
-    "n": 17
+    "n": 20
    },
    {
     "name": "Thermia",
-    "n": 9
+    "n": 8
    },
    {
     "name": "Mitsubishi Electric",
@@ -21,10 +21,6 @@
    },
    {
     "name": "IVT",
-    "n": 1
-   },
-   {
-    "name": "Sensibo",
     "n": 1
    }
   ],
@@ -45,14 +41,14 @@
   "solar": [
    {
     "name": "SolarEdge",
-    "n": 5
-   },
-   {
-    "name": "GoodWe",
     "n": 4
    },
    {
-    "name": "Fronius",
+    "name": "Sungrow",
+    "n": 4
+   },
+   {
+    "name": "GoodWe",
     "n": 3
    },
    {
@@ -60,7 +56,7 @@
     "n": 3
    },
    {
-    "name": "Sungrow",
+    "name": "SolaX",
     "n": 3
    },
    {
@@ -72,19 +68,15 @@
     "n": 2
    },
    {
-    "name": "SolaX",
-    "n": 2
-   },
-   {
     "name": "FoxESS",
     "n": 1
    },
    {
-    "name": "Hypontech",
+    "name": "Fronius",
     "n": 1
    },
    {
-    "name": "SAJ",
+    "name": "Hypontech",
     "n": 1
    },
    {
@@ -103,23 +95,7 @@
   "battery": [
    {
     "name": "Sungrow",
-    "n": 4
-   },
-   {
-    "name": "Solis",
-    "n": 3
-   },
-   {
-    "name": "Sonnen",
-    "n": 3
-   },
-   {
-    "name": "Victron",
-    "n": 3
-   },
-   {
-    "name": "Fronius",
-    "n": 2
+    "n": 5
    },
    {
     "name": "Growatt",
@@ -130,15 +106,27 @@
     "n": 2
    },
    {
+    "name": "Solis",
+    "n": 2
+   },
+   {
+    "name": "Sonnen",
+    "n": 2
+   },
+   {
+    "name": "Victron",
+    "n": 2
+   },
+   {
     "name": "AlphaESS",
     "n": 1
    },
    {
-    "name": "Deye",
+    "name": "Ferroamp",
     "n": 1
    },
    {
-    "name": "Ferroamp",
+    "name": "Fronius",
     "n": 1
    },
    {
@@ -154,10 +142,6 @@
     "n": 1
    },
    {
-    "name": "Sofar",
-    "n": 1
-   },
-   {
     "name": "SolarEdge",
     "n": 1
    },
@@ -169,15 +153,11 @@
   "charger": [
    {
     "name": "Easee",
-    "n": 16
+    "n": 17
    },
    {
     "name": "Zaptec",
     "n": 4
-   },
-   {
-    "name": "Wallbox",
-    "n": 3
    },
    {
     "name": "Charge Amps",
@@ -185,11 +165,15 @@
    },
    {
     "name": "Garo",
-    "n": 1
+    "n": 2
    },
    {
     "name": "StarCharge",
-    "n": 1
+    "n": 2
+   },
+   {
+    "name": "Wallbox",
+    "n": 2
    },
    {
     "name": "cFos",
@@ -207,31 +191,35 @@
    },
    {
     "name": "Volvo",
-    "n": 9
+    "n": 8
    },
    {
     "name": "Volkswagen",
-    "n": 7
-   },
-   {
-    "name": "Škoda",
     "n": 6
    },
    {
     "name": "Kia",
-    "n": 3
+    "n": 5
    },
    {
     "name": "Nissan",
     "n": 3
    },
    {
-    "name": "Audi",
+    "name": "Škoda",
+    "n": 3
+   },
+   {
+    "name": "MG",
     "n": 2
    },
    {
     "name": "Mercedes-Benz",
     "n": 2
+   },
+   {
+    "name": "Audi",
+    "n": 1
    },
    {
     "name": "BMW",
@@ -243,10 +231,6 @@
    },
    {
     "name": "Cupra",
-    "n": 1
-   },
-   {
-    "name": "MG",
     "n": 1
    },
    {
@@ -273,22 +257,14 @@
   "meter": [
    {
     "name": "Tibber",
-    "n": 22
+    "n": 23
    },
    {
     "name": "HomeWizard",
-    "n": 7
+    "n": 6
    },
    {
-    "name": "Sonnen",
-    "n": 3
-   },
-   {
-    "name": "Victron",
-    "n": 3
-   },
-   {
-    "name": "Fronius",
+    "name": "Growatt",
     "n": 2
    },
    {
@@ -300,6 +276,14 @@
     "n": 2
    },
    {
+    "name": "Sonnen",
+    "n": 2
+   },
+   {
+    "name": "Victron",
+    "n": 2
+   },
+   {
     "name": "AlphaESS",
     "n": 1
    },
@@ -308,11 +292,11 @@
     "n": 1
    },
    {
-    "name": "GivEnergy",
+    "name": "Fronius",
     "n": 1
    },
    {
-    "name": "Growatt",
+    "name": "GivEnergy",
     "n": 1
    },
    {
