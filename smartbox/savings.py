@@ -137,7 +137,7 @@ def cached(conn, today):
     import time as _t
     now = _t.time()
     fresh = (_benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S
-             and _all_cache["val"] is not None)
+             and _all_cache["val"] is not None and _money_cache["val"] is not None and _money_cache["day"] == today)
     if not fresh and not _refresh["running"]:
         _refresh["running"] = True
         engine = conn.engine
@@ -147,6 +147,7 @@ def cached(conn, today):
                 with engine.connect() as c2:
                     all_time(c2, today)
                     total_benefit(c2, today)
+                    money_all(c2, today)                        # pengarna sedan start (Ekonomi, period Totalt) fylls av samma tråd
             except Exception as e:
                 print(f"⚠️ Total nytta: {type(e).__name__}: {str(e)[:120]}")
             finally:
@@ -284,19 +285,53 @@ def price_span(rows, buy_cost=None):
     return {"spot": pack(spots), "buy": pack(buys)}
 
 
-def money_periods(rows, today):
-    """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods()."""
+def _money_total(rows):
+    """Summerar dagar som finns. En dag utan pris eller effekt är inte med och blir inte 0."""
+    s = {k: round(sum(r[k] for r in rows), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
+    s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
+    s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
+    s["days"] = len(rows)
+    return s
+
+
+_money_cache = {"t": 0.0, "day": None, "val": None}
+
+
+def money_all(conn, today):
+    """Köpt, såld och netto sedan EnergyWizard startade. Samma formel som Idag/7 dagar/Månad.
+    Cachas i tio minuter. Dagar utan pris eller effekt räknas inte som noll."""
+    import time as _t
+    now = _t.time()
+    if _money_cache["val"] is not None and _money_cache["day"] == today and now - _money_cache["t"] < ALL_TTL_S:
+        return _money_cache["val"]
+    rows = sorted(money_rows(conn, days=4000), key=lambda r: r["day"])
+    val = _money_total(rows)
+    val["since"] = rows[0]["day"] if rows else None
+    _money_cache.update(t=now, day=today, val=val)
+    return val
+
+
+def money_cached():
+    """Köpt, såld och netto sedan start ur cachen, aldrig blockerande (None tills bakgrundstråden i cached() har fyllt den)."""
+    return _money_cache["val"]
+
+
+def money_periods(rows, today, all_rows=None):
+    """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods().
+
+    all_rows: hela historiken (dict från money_all, eller rader). Utan den finns ingen period all,
+    så anrop som bara har de senaste dagarna ändras inte."""
     from datetime import date, timedelta
     t = date.fromisoformat(today)
     week_start = (t - timedelta(days=6)).isoformat()
-
-    def tot(rs):
-        s = {k: round(sum(r[k] for r in rs), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
-        s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
-        s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
-        s["days"] = len(rs)
-        return s
     rows = sorted(rows or [], key=lambda r: r["day"])
-    return {"today": tot([r for r in rows if r["day"] == today]),
-            "week": tot([r for r in rows if week_start <= r["day"] <= today]),
-            "month": tot([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+    out = {"today": _money_total([r for r in rows if r["day"] == today]),
+           "week": _money_total([r for r in rows if week_start <= r["day"] <= today]),
+           "month": _money_total([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+    if all_rows is not None:
+        if isinstance(all_rows, dict):
+            out["all"] = all_rows
+        else:
+            ar = sorted(all_rows, key=lambda r: r["day"])
+            out["all"] = {**_money_total(ar), "since": ar[0]["day"] if ar else None}
+    return out

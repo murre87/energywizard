@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.187 (2026-11-27)
+- **Ekonomisidan har perioden Totalt (#599).** Vid sidan av Idag, 7 dagar och Månad summeras köpt el, såld el, netto och sparat genom tajmning sedan EnergyWizard började mäta. Samma formel som de andra perioderna. Dagar utan pris eller effekt räknas inte som noll, och raden säger hur många dagar som ingick och från vilket datum. Diagrammen är kvar som senaste 31 dagarna. Månad för månad och år för år är kvar.
+
 ## 1.2.186 (2026-11-27)
 - **Kupétemperaturen syns under Bil (#610).** Bilfliken i appen och Elbil på webben visar hur varmt det är i bilen, även när kupévärmen är av. Temperaturen tas från bilens egen temperaturgivare om den finns, annars från climate-entitetens current_temperature. Saknas båda visas ingen temperatur.
 
