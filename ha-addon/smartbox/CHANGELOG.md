@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.184 (2026-11-27)
+- **Dubbletter i telemetrins husöversikt (#614).** Två orsaker rättade i insamlaren: (1) en ominstallation där användaren ändrat huvudsäkringen (25 A till 20 A) räknades som ett nytt hus, eftersom säkringen ingick i husets utrustningsavtryck. Säkringen är en inställning och ingår inte längre. (2) En testkopia av ett hus utan versionsnummer som körde samtidigt med det riktiga räknades som ett eget hus. Den slås nu ihop med det riktiga huset om utrustningen är exakt densamma. Två riktiga installationer slås aldrig ihop bara för att de är samtida.
+
 ## 1.2.183 (2026-11-27)
 - **Total nytta sedan start, post för post, på startsidan.** Förut visade startsidan bara prisstyrningen. Nu finns en komplett uppställning: prisstyrning av köpt el, solel som huset använt (värderad till vad den hade kostat att köpa, med moms, nätavgift och skatt), såld solel, och därav sol som gick till elbil och spabad (visas men räknas inte dubbelt). Summan lägger ihop posterna. Prisstyrningen är det EnergyWizard styr, solposterna är vad solcellerna ger med eller utan styrning. Posterna för sol visas bara om huset har solceller. I appen: tryck "Se alla poster". Gäller alla installationer. Hela historiken läses i en bakgrundstråd (flera sekunder), så sidan blir inte långsammare: summan dyker upp när den är klar och uppdateras var 30:e minut.
 

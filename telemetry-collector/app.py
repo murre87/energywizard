@@ -247,6 +247,8 @@ def _fingerprint(drivers: list) -> frozenset:
     out = set()
     for d in drivers:
         cat, _, rest = d.partition(":")
+        if cat == "size" and rest.startswith("fuse"):
+            continue            # huvudsäkringen är en inställning som användare ändrar (#614: 25 A -> 20 A gav två hus)
         if cat in _EQUIPMENT:
             out.add(f"{cat}:{rest.partition('@')[0]}")
     return frozenset(out)
@@ -267,6 +269,18 @@ def _merge_reinstalls(latest: dict, first: dict, last_seen: dict) -> dict:
             if new in latest and _fingerprint(latest[new][1]) == fp and last_seen.get(old, "") <= first.get(new, ""):
                 merged.setdefault(new, []).extend([old] + merged.pop(old, []))
                 latest.pop(old)
+                break
+    # Bygge utan versionsnummer ("unknown": en utvecklings- eller testkopia av ett hus som körs parallellt med det riktiga, #614)
+    # är samma hus även när båda är aktiva samtidigt: slås ihop med ett riktigt hus med exakt samma utrustning. Gäller bara
+    # "unknown", så att två riktiga installationer med liknande utrustning aldrig slås ihop bara för att de är samtida.
+    for dev in [h for h in list(latest) if latest[h][0] in (None, "", "unknown")]:
+        fp = _fingerprint(latest[dev][1])
+        if len(fp) < 5:
+            continue
+        for real in latest:
+            if real != dev and latest[real][0] not in (None, "", "unknown") and _fingerprint(latest[real][1]) == fp:
+                merged.setdefault(real, []).extend([dev] + merged.pop(dev, []))
+                latest.pop(dev)
                 break
     return merged
 
