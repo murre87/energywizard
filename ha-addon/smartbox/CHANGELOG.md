@@ -2,7 +2,7 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.188 (2026-11-27)
+## 1.2.189 (2026-11-27)
 - **Kort för varmvatten och spabad i Home Assistant (#558).** Ett nytt kort visar tankens temperatur, badets temperatur, nästa badtid och om uppvärmningen är planerad. Under en badtid står det att badet hålls varmt och när den slutar. Inom 36 timmar planerar EnergyWizard uppvärmningen inför badtiden. Längre bort planeras den inte än, och en tid som saknas visas inte som noll. Kortet läser bara.
 
 ## 1.2.182 (2026-11-27)
