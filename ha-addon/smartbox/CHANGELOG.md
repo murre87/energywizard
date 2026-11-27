@@ -2,7 +2,7 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.185 (2026-11-27)
+## 1.2.186 (2026-11-27)
 - **Kort för ekonomi i Home Assistant (#558).** Ett nytt kort visar köpt och såld el för idag, de senaste 7 dagarna och den här månaden, med snittpris, plus sparat genom tajmning och vad styrningen gett utöver ett batteri i självförbrukningsläge. Samma formler som Ekonomisidan och appen. Dagar utan pris eller effekt räknas inte som noll, och en period utan sådana dagar visas som tom, inte som 0 kr. Saknas jämförelsen mot självförbrukning (inget batteri, avstängd styrning eller för lite mätdata) visas den raden inte. Sedan start är kvar på startsidan och ingår inte i kortet.
 
 ## 1.2.182 (2026-11-27)
