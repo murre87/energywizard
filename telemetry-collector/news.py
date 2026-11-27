@@ -21,7 +21,7 @@ from urllib.parse import parse_qs
 from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from news_core import SCHEMA, SENDS_SCHEMA, BASE, LANGS, NEWS_DIR, _now, issue_time, published_issues, valid_email  # noqa: F401  (NEWS_DIR m.fl. nås som news.NEWS_DIR i testerna)
+from news_core import SCHEMA, SENDS_SCHEMA, BASE, from_header, LANGS, NEWS_DIR, _now, issue_time, published_issues, valid_email  # noqa: F401  (NEWS_DIR m.fl. nås som news.NEWS_DIR i testerna)
 RESEND_MIN_S = 600          # samma adress får ett nytt bekräftelsemejl högst var tionde minut
 HOURLY_MAIL_CAP = 60        # skydd mot att tjänsten missbrukas för att mejla andra: högst så många bekräftelsemejl per timme
 TXT = {

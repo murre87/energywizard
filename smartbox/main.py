@@ -48,6 +48,7 @@ import system_test         # "Testa ditt system": kontrollerar att batteriet gö
 import ev_schedule_auto    # nivå för automatiskt skapade laddscheman (#576)
 import spa_bath_learn      # logg över badtillfällen och förslag på badtider
 import aux_heat_watch    # tillsats (elpatron) i värmepumpen -> notis
+import heat_capacity         # lärt tak för börvärdet som pumpen klarar utan tillsats (2026-11-27)
 import car_preheat           # tid i förväg för bilvärmen, lärd ur bilens värmepass (#598)
 import car_climate_schedule   # kupévärme: normalisering och hålltid efter sluttiden (#598)
 import spa_error_watch     # nytt fel från spabadet (Gecko: error-sensorn) -> notis
@@ -1068,9 +1069,11 @@ while True:
 
         # Håll vid liv i 10-sekundersloopen, inte bara i kvartsstyrningen: Solis RC släpper efter sin RC Timeout
         # (standard 5 min) och kvartsloopen hann inte före den - laddning/håll föll tillbaka till växelriktarens läge.
-        # Bara drivrutiner med keepalive_s (den självbegränsar); FTW:s vakthund sköts redan i kvartsstyrningen.
+        # Reservnivåns håll förnyas också (#615). Övriga säkerhetsregler förnyas inte. Bara drivrutiner med
+        # keepalive_s (den självbegränsar); FTW:s vakthund sköts redan i kvartsstyrningen.
         if (battery_cfg["control"] == "styr" and getattr(battery_driver, "_keepalive", None)
-                and _battery.get("decision_rule") not in battery_control.SAFETY_RULES and not system_test.active()):
+                and battery_control.keepalive_allowed(_battery.get("decision_rule"), _battery.get("last"))
+                and not system_test.active()):
             try:
                 battery_driver.refresh()
             except Exception as _bre:
@@ -2298,15 +2301,17 @@ while True:
             # ============================================================
             gpm_state = {
                 'now': now, 'current_price': current_price, 'all_prices': all_prices,
-                'pv_power_w': solar_now, 'avg_net_w': avg_net, 'house_consumption_w': house_consumption_w,
-                'predicted_base_load_kw': dynamic_predicted_base_load_kw, 'grid_import_w': grid_import_w,
-                'consumed_kwh_this_hour': float(consumed_kwh_this_hour), 'power_limit_kw': current_target_limit,
-                'predicted_cooling_rate': predicted_cooling_rate, 'base_load_profile': dynamic_base_load_profile,
+                'pv_power_w': solar_now, 'avg_net_w': avg_net,
+                'predicted_base_load_kw': dynamic_predicted_base_load_kw,
+                'consumed_kwh_this_hour': float(consumed_kwh_this_hour),
+                'predicted_cooling_rate': predicted_cooling_rate,
                 'peak_shaving_enabled': cfg.get("peak_shaving_enabled", True), 'solar_is_shaky': solar_is_shaky,
                 'solar_auto_export': str(all_overrides.get("solar_auto_export", "true")).lower() != "false",
                 'sun_soon': _sun_cache.get("soon"), 'sun_day': _sun_cache.get("day"),
                 'indoor_temp': indoor_temp, 'indoor_humidity': ha_temps.get('indoor_humidity'), 'indoor_min': cfg.get("indoor_min", 19.0),
-                'indoor_low2': indoor_low2, 'degree_minutes': (pump_data or {}).get('degree_minutes'), 'heat_aux_guard_dm': _ew_settings.get('heat_aux_guard_dm'), 'heat_ml_w': heat_ml.model(now) if _ew_settings.get('heat_feedback') == "på" else None,
+                'indoor_low2': indoor_low2, 'degree_minutes': (pump_data or {}).get('degree_minutes'), 'heat_aux_guard_dm': _ew_settings.get('heat_aux_guard_dm'),
+                'forward_temp': (pump_data or {}).get('forward_temp'), 'calc_forward_temp': (pump_data or {}).get('calc_forward_temp'),
+                'pump_setpoint': (pump_data or {}).get('room_temp_setpoint'), 'heat_cap_sp': (heat_capacity.cap(logger.get_db, (pump_data or {}).get('outdoor_temp')) if _ew_settings.get('heat_feedback') == "på" else None), 'heat_ml_w': heat_ml.model(now) if _ew_settings.get('heat_feedback') == "på" else None,
                 'heat_horizon': _heat_horizon(now, dynamic_limit), 'heat_ml_bias': _heat_bias.value,
                 'indoor_cold_confirmed': _cold_gpm_watch.update(indoor_temp is not None and indoor_temp < cfg.get("indoor_min", 19.0), now), 'indoor_max': cfg.get("indoor_max", 22.5),
                 'water_temp': water_temp or 50.0, 'water_target_normal': wt_norm,
@@ -2334,7 +2339,7 @@ while True:
                 'max_fuse_a': cfg.get('fuse_size_a', decisions.MAX_FUSE_A), 'house_load_a': house_load_excluding_ev_a, 'ev_actual_a': 0,
                 'ev_fuse_cap_a': ev_fuse_cap_a, 'ev_load_cap_a': ev_load_cap_a,
                 'current_solar_limit_pct': current_solar_limit_pct, 'current_target_limit': current_target_limit,
-                'ev_min_charge_a': EV_MIN_CHARGE_AMPS, 'ev_max_charge_a': EV_MAX_CHARGE_AMPS, 'ev_plan': ev_charge_plan,
+                'ev_plan': ev_charge_plan,
                 # Bilarna ur installationen: vilka som finns och deras laddboxars faser/maxström (gpm har inga bilnamn)
                 'car_ids': list(car_ids), 'car_specs': CAR_SPECS, 'has_spa': HAS_SPA,
             }
@@ -2520,8 +2525,8 @@ while True:
                         gpm_actions["log"].append(f"🔋 (BATTERI): {_alpha}")
                         print(f"🔋 {_alpha}")
                     battery_driver.set_balancing(_bdec.get("rule") == "balance")
-                    if _bdec.get("rule") not in battery_control.SAFETY_RULES and not system_test.active():
-                        battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
+                    if battery_control.keepalive_allowed(_bdec.get("rule"), _battery.get("last")) and not system_test.active():
+                        battery_driver.refresh()       # håller pågående tvångsladdning och reservnivåns håll vid liv (Solis RC m.fl.)
                     if not system_test.active() and battery_control.should_apply(    # pausas medan systemtestet pågår
                             _bdec, _battery["last"], _battery["at"], now, battery_cfg["min_change_minutes"]):
                         if battery_commands.apply(_battery_commands, battery_driver, _bdec["intent"], _bdec.get("power_w")):

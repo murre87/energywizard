@@ -188,6 +188,7 @@ def test_tom_logg_nekas_och_gamla_raderas_efter_sju_dagar(monkeypatch):
 
 # ---- veckobrevet: anmälan med dubbel opt-in, avregistrering, skydd mot missbruk ----
 def _news(monkeypatch):
+    monkeypatch.setenv("SMTP_FROM", "info@example.com")
     client, mod = _client(monkeypatch, smtp_host="smtp.example.com", alert_to="")
     sent = []
     inst = MagicMock()
@@ -209,6 +210,7 @@ def test_anmalan_kraver_bekraftelse_och_ger_status(monkeypatch):
         assert r.status_code == 200 and r.json()["ok"] and r.json()["t"]
         ct = r.json()["t"]
         assert len(sent) == 1 and sent[0]["To"] == "anna@example.com" and "Bekräfta" in sent[0]["Subject"]
+        assert sent[0]["From"] == "EnergyWizards skapare <info@example.com>"
         assert client.get("/news/status", params={"t": ct}).json()["status"] == "pending"
         tok = _mail_token(sent[0], "confirm")
         assert "Du är anmäld" not in client.get("/news/confirm", params={"t": "fel"}).text          # fel länk bekräftar inget

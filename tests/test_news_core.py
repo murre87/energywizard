@@ -22,6 +22,12 @@ ISSUE = {"id": "2099-w01", "period": {"sv": "1–8 jan", "en": "1–8 Jan"}, "ve
          "items": {"sv": [["Rubrik <b>", "Text & mer"]], "en": [["Heading", "Body"]]}}
 
 
+def test_avsandaren_ar_skaparen_och_behaller_bara_adressen():
+    assert nc.from_header("info@example.com") == "EnergyWizards skapare <info@example.com>"
+    assert nc.from_header("Någon Annan <info@example.com>") == "EnergyWizards skapare <info@example.com>"
+    assert nc.from_header("") == "" and nc.from_header(None) == ""
+
+
 def test_adresskontroll():
     assert nc.valid_email("anna@example.com") and nc.valid_email("a.b+c@sub.example.se")
     for bad in ("", None, "x", "a@b", "a b@example.com", "a@@example.com", "a@example..com", ".a@example.com", "<a>@example.com", "a@-x.com", "a@example.c", "a" * 300 + "@example.com"):
@@ -89,7 +95,8 @@ def _issue(tmp_path):
     return str(p)
 
 
-def test_utskick_bara_bekraftade_en_gang_per_utgava(db, tmp_path):
+def test_utskick_bara_bekraftade_en_gang_per_utgava(db, tmp_path, monkeypatch):
+    monkeypatch.setenv("SMTP_FROM", "info@example.com")
     smtp, path = FakeSmtp(), _issue(tmp_path)
     assert ns.run(path, go=False, db=db, smtp_factory=lambda: smtp) == (0, 0, 3) and smtp.sent == []
     assert ns.run(path, go=True, now=True, sleep=0, db=db, smtp_factory=lambda: smtp) == (3, 0, 0)
@@ -97,6 +104,7 @@ def test_utskick_bara_bekraftade_en_gang_per_utgava(db, tmp_path):
     m = [x for x in smtp.sent if x["To"] == "a@example.com"][0]
     assert m["List-Unsubscribe"].endswith("/news/unsubscribe?t=tok-a@example.com>") and m["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
     assert m["Subject"] == "Veckans nyheter"
+    assert m["From"] == "EnergyWizards skapare <info@example.com>"              # avsändaren är skaparen (Emil 2026-11-27)
     assert ns.run(path, go=True, now=True, sleep=0, db=db, smtp_factory=lambda: smtp) == (0, 0, 0) and len(smtp.sent) == 3
     with db() as c:
         c.execute("INSERT INTO news_subscribers (email, lang, status, token, client_token, created_at) VALUES ('d@example.com','en','confirmed','tok-d','ct-d','x')")
