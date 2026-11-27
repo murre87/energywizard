@@ -1,6 +1,6 @@
 # EnergyWizard-kort för Home Assistant
 
-Fem kort som visar EnergyWizard direkt i Home Assistant: **Hemmet** (energiflöde, elpris med plan, bilar), **Värme** (termostatratt, varmvatten, billiga och dyra pass), **Bil** (laddnivå och planerade pass över elpriset), **Ekonomi** (köpt och såld el, sparat genom tajmning och mot självförbrukning) och **Sol och batteri** (produktion, prognos och batteriets plan).
+Sex kort som visar EnergyWizard direkt i Home Assistant: **Hemmet** (energiflöde, elpris med plan, bilar), **Värme** (termostatratt, varmvatten, billiga och dyra pass), **Bil** (laddnivå och planerade pass över elpriset), **Ekonomi** (köpt och såld el, sparat genom tajmning och mot självförbrukning) **Sol och batteri** (produktion, prognos och batteriets plan) och **Varmvatten och spabad** (tank- och badtemperatur, nästa badtid och om uppvärmningen är planerad).
 De ser ut som appen och fungerar likadant för **HA-tillägget** och för **Docker**, eftersom de bara läser en sensor,
 `sensor.energywizard_kort`, som EnergyWizard publicerar. Kortet når aldrig EnergyWizards egen webb och behöver ingen inloggning.
 
@@ -68,6 +68,12 @@ period: today       # today | week | month, startperiod (valfritt)
 type: custom:energywizard-battery-card
 ```
 
+**Varmvatten och spabad** visar tankens temperatur, badets temperatur, nästa badtid och om uppvärmningen är planerad. En tid som saknas visas inte som noll. Uppvärmningens exakta starttimme räknas inte på kortet: inom 36 timmar planerar EnergyWizard den, längre bort inte än.
+
+```yaml
+type: custom:energywizard-bath-card
+```
+
 Korten läser bara. Styrning (starta, pausa, strategi) sker i EnergyWizard.
 
 Tider visas alltid som 24-timmarsklocka (TT:MM), aldrig AM/PM.
@@ -79,6 +85,6 @@ Källan är `ha-cards/energywizard-cards.js`. Efter en ändring kopieras den til
 `preview.html` visar kortet med exempeldata, utan Home Assistant. Öppna den i en webbläsare. Parametrar: `?theme=light`,
 `?tab=plan`, `?lang=en`, `?empty=1` (ingen data), `?missing=1` (sensorn saknas).
 
-?card=heat, ?card=car, ?card=economy och ?card=battery visar de andra korten. `?period=week` och `?nobat=1` hör till ekonomikortet.
+?card=heat, ?card=car, ?card=economy, ?card=battery och ?card=bath visar de andra korten. `?period=week` och `?nobat=1` hör till ekonomikortet.
 
 Sensorns schema står överst i `smartbox/ha_card_feed.py`.

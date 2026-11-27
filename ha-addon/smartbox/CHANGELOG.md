@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.195 (2026-11-27)
+- **Kort för varmvatten och spabad i Home Assistant (#558).** Ett nytt kort visar tankens temperatur, badets temperatur, nästa badtid och om uppvärmningen är planerad. Under en badtid står det att badet hålls varmt och när den slutar. Inom 36 timmar planerar EnergyWizard uppvärmningen inför badtiden. Längre bort planeras den inte än, och en tid som saknas visas inte som noll. Kortet läser bara.
+
 ## 1.2.194 (2026-11-27)
 - **Kort för ekonomi i Home Assistant (#558).** Ett nytt kort visar köpt och såld el för idag, de senaste 7 dagarna och den här månaden, med snittpris, plus sparat genom tajmning och vad styrningen gett utöver ett batteri i självförbrukningsläge. Samma formler som Ekonomisidan och appen. Dagar utan pris eller effekt räknas inte som noll, och en period utan sådana dagar visas som tom, inte som 0 kr. Saknas jämförelsen mot självförbrukning (inget batteri, avstängd styrning eller för lite mätdata) visas den raden inte. Sedan start är kvar på startsidan och ingår inte i kortet.
 

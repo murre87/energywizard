@@ -102,6 +102,26 @@ def test_sol_och_batteri_med_niva_och_prognos():
     assert c["batt"] is None and c["solar"] is None and c["battery"] is False
 
 
+def test_varmvatten_och_spabad_utan_gissad_tid():
+    """#558: kortet visar temperatur och nästa badtid. Uppvärmning planeras bara inom 36 timmar."""
+    friday = NOW
+    soon = [{"on": False}] * 5 + [{"on": True, "from": "18:00", "to": "21:00"}, {"on": False}]
+    far = [{"on": True, "from": "10:00", "to": "12:00"}] + [{"on": False}] * 6
+    row = {"water_temp": 48.4, "water_setpoint": 50, "spa_temp": 32.25}
+    near = ha_card_feed.bath_view(friday, row, soon, spa_set=38)
+    assert near["water"] == 48 and near["water_set"] == 50 and near["spa"] == 32.2 and near["spa_set"] == 38
+    assert near["in_bath"] is False and near["heat"] == "before" and "T18:00" in near["next"] and near["until"] is None
+    later = ha_card_feed.bath_view(friday, row, far, spa_set=38)
+    assert later["heat"] == "later" and "T10:00" in later["next"]
+    bathing = ha_card_feed.bath_view(friday, {"spa_temp": 37.6},
+                                     [{"on": False}] * 4 + [{"on": True, "from": "12:00", "to": "16:00"}] + [{"on": False}] * 2)
+    assert bathing["in_bath"] is True and bathing["heat"] == "now" and "T16:00" in bathing["until"] and bathing["next"] is None
+    assert ha_card_feed.bath_view(friday, {}, None) is None
+    _, a = ha_card_feed.build(FLOW, PC, now=friday, bath=near)
+    assert a["bath"]["heat"] == "before"
+    assert ha_card_feed.build(FLOW, PC, now=friday)[1]["bath"] is None
+
+
 def test_tom_data_kraschar_inte():
     state, a = ha_card_feed.build({}, {}, now=NOW)
     assert state == "okänt" and a["flow"] == [] and a["slots"] == [] and a["price"]["now"] is None and a["cars"] == []
