@@ -8,6 +8,8 @@ from uuid import uuid4
 
 import psycopg
 import pytest
+
+pytestmark = pytest.mark.no_planner_input_guard      # testar att planeringen tål minimal och konstig indata, inte kontraktet
 from sqlalchemy import create_engine
 
 import gpm

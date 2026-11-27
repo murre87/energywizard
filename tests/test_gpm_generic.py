@@ -91,6 +91,7 @@ def _engine():
     ('auto', 1, 3), ('auto', '1', 3), ('auto', 'SinglePhase', 3),
     ('1', 1, None), ('auto', 3, None), ('auto', None, None),
 ])
+@pytest.mark.no_planner_input_guard            # minimal bilspec utan name/max_a: testar fasåterställningen, inte kontraktet
 def test_phase_reset_accepts_numeric_driver_states(configured, reported, expected):
     actions = _engine().evaluate({
         'now': datetime(2026, 11, 11, 12, tzinfo=timezone.utc),

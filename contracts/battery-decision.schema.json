@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/battery-decision.schema.json",
+  "title": "Battery decision (planner -> core)",
+  "description": "Batteriets beslut för det här varvet (i dag battery_control.decide): vad batteriet ska göra, med vilken effekt och varför. Core verkställer det inom säkerhetsspärrarna och bara om drivrutinen stöder avsikten.",
+  "x-api-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "intent",
+    "power_w",
+    "reason",
+    "rule"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "intent": {
+      "enum": [
+        "auto",
+        "hold",
+        "idle",
+        "charge",
+        "discharge",
+        "standby",
+        null
+      ],
+      "description": "null = ingen ändring (batteristyrningen är av)."
+    },
+    "power_w": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Förklaring på svenska, visas efter översättning."
+    },
+    "rule": {
+      "enum": [
+        "av",
+        "balance",
+        "cheap_hour",
+        "default",
+        "ev_grid",
+        "ev_solar",
+        "fuse",
+        "fuse_cap",
+        "negative",
+        "peak",
+        "plan",
+        "reserve",
+        "samarbete",
+        "soc_limit",
+        "solar_order",
+        "stale",
+        "topup"
+      ],
+      "description": "Vilken regel som avgjorde. Listan hämtas ur battery_control.py och kontrolleras av tests/test_contracts_drivers.py: en ny regel kräver att schemat ändras."
+    }
+  }
+}

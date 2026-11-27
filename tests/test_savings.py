@@ -82,6 +82,24 @@ def test_pengar_per_period():
     assert money_periods([], "2026-11-03")["today"]["avg_sold"] is None
 
 
+def test_pengar_totalt_tar_med_dagar_utanfor_manaden_och_hoppar_over_luckor():
+    """#599: Totalt på Ekonomisidan är samma summa som Idag/7 dagar/Månad, över hela historiken.
+    En dag som saknas i raderna (ingen mätning) räknas inte som noll."""
+    from savings import money_periods
+    rows = [{"day": "2026-10-20", "bought_kwh": 10, "cost": 30, "sold_kwh": 0, "income": 0, "net": 30},
+            {"day": "2026-11-01", "bought_kwh": 20, "cost": 50, "sold_kwh": 5, "income": 4, "net": 46},
+            {"day": "2026-11-03", "bought_kwh": 10, "cost": 25, "sold_kwh": 2, "income": 3, "net": 22}]
+    p = money_periods(rows, "2026-11-03", rows)
+    assert "all" not in money_periods(rows, "2026-11-03")
+    assert p["all"]["days"] == 3 and p["all"]["since"] == "2026-10-20"
+    assert p["all"]["cost"] == 105 and p["all"]["income"] == 7 and p["all"]["net"] == 98
+    assert p["all"]["bought_kwh"] == 40 and p["month"]["days"] == 2
+    empty = money_periods([], "2026-11-03", [])
+    assert empty["all"]["days"] == 0 and empty["all"]["since"] is None and empty["all"]["cost"] == 0
+    again = money_periods(rows[:1], "2026-11-03", p["all"])
+    assert again["all"]["since"] == "2026-10-20" and again["all"]["net"] == 98
+
+
 def test_jamfort_med_vanlig_hushallsprofil_och_moms():
     """2026-11-05: besparingen mäts mot ett vanligt hushåll (toppar morgon/kväll), inkl. moms."""
     from savings import profile_day, PROFILE
@@ -103,3 +121,106 @@ def test_idag_hittills_raknas_fran_forsta_timmen():
     assert profile_day(morning) is None                                    # hela dygn kräver fortfarande 12 timmar
     kwh, prof, paid = profile_day(morning, min_hours=1)
     assert kwh == 12.0 and prof > 0 and paid > 0
+
+
+def test_total_nytta_summerar_posterna_och_räknar_inte_sol_till_elbil_dubbelt(db, monkeypatch):
+    """total_benefit: prisstyrning + solel till huset + såld solel. Sol till elbil/spa är en del av solelen (visas, summeras inte)."""
+    import savings
+    savings._benefit_cache.update(t=0.0, day=None, val=None)
+    savings._all_cache.update(t=0.0, day=None, val=None)
+    monkeypatch.setattr(savings, "all_time", lambda conn, today: {"saved_kr": 100.0, "kwh": 50.0, "days": 3, "since": "2026-01-01", "paid_kr": 1, "pct": 1})
+
+    class R:
+        def __init__(self, rows): self.rows = rows
+        def fetchall(self): return self.rows
+        def fetchone(self): return self.rows[0] if self.rows else None
+
+    class Conn:
+        def __init__(self): self.n = 0
+        def execute(self, q, *a, **k):
+            self.n += 1
+            sql = str(q)
+            if "date_trunc('hour'" in sql:
+                import datetime
+                return R([(datetime.datetime(2026, 1, 1, 12), 10.0, 1.0)])
+            if "GREATEST(-net_power" in sql:
+                return R([(30.0, 20.0)])
+            return R([(12.0, 4.0, 7.0)])
+    import nordpool
+    monkeypatch.setattr(nordpool, "full_buy_cost", lambda p, h: 2.0)
+    b = savings.total_benefit(Conn(), "2026-11-27")
+    keys = [i["key"] for i in b["items"]]
+    assert keys == ["timing", "solar_self", "solar_sold"]
+    assert b["items"][1]["kr"] == 20.0 and b["items"][2]["kr"] == 30.0
+    assert b["total_kr"] == 150.0                                     # 100 + 20 + 30
+    assert b["flexible"]["kr"] == 7.0 and b["since"] == "2026-01-01"  # visas, ingår redan i solposten
+
+
+def test_cached_blockerar_inte_och_fyller_i_bakgrunden(monkeypatch):
+    """#sparat sedan start: hela historiken är långsam att läsa, så cached() ger det som finns och räknar i en tråd."""
+    import threading
+    import time
+    import savings
+    savings._benefit_cache.update(t=0.0, day=None, val=None)
+    savings._all_cache.update(t=0.0, day=None, val=None)
+    savings._refresh["running"] = False
+    done = threading.Event()
+
+    class Eng:
+        def connect(self):
+            time.sleep(0.3)                                 # långsam körning
+            done.set()
+            raise RuntimeError("klart för testet")
+
+    class Conn:
+        engine = Eng()
+
+    t = time.time()
+    assert savings.cached(Conn(), "2026-11-27") == (None, None)
+    assert time.time() - t < 0.2                            # blockerade inte på den långsamma läsningen
+    assert done.wait(2)
+    for _ in range(50):                                     # tråden återställer flaggan även vid fel
+        if not savings._refresh["running"]:
+            break
+        time.sleep(0.05)
+    assert savings._refresh["running"] is False
+
+
+def test_money_cached_blockerar_inte_och_fylls_av_samma_bakgrundstrad(monkeypatch):
+    """Ekonomi, period Totalt: pengarna sedan start läses i samma bakgrundstråd som resten (cached), aldrig i sidans anrop."""
+    import contextlib
+    import time
+    import savings
+    for name in ("_money_cache", "_all_cache", "_benefit_cache"):         # färska cacher som återställs efter testet (inget läcker till andra tester)
+        monkeypatch.setattr(savings, name, {"t": 0.0, "day": None, "val": None})
+    monkeypatch.setattr(savings, "_refresh", {"running": False})
+    assert savings.money_cached() is None
+    calls = []
+    monkeypatch.setattr(savings, "all_time", lambda c, d: (calls.append("all"), savings._all_cache.update(val={"a": 1}, day=d, t=time.time()))[0])
+    monkeypatch.setattr(savings, "total_benefit", lambda c, d: (calls.append("benefit"), savings._benefit_cache.update(val={"b": 1}, day=d, t=time.time()))[0])
+    monkeypatch.setattr(savings, "money_all", lambda c, d: (calls.append("money"), savings._money_cache.update(val={"m": 1}, day=d, t=time.time()))[0])
+
+    class Eng:
+        def connect(self):
+            return contextlib.nullcontext(object())
+
+    class Conn:
+        engine = Eng()
+
+    assert savings.cached(Conn(), "2026-11-27") == (None, None) or True            # första anropet startar tråden
+    for _ in range(100):
+        if not savings._refresh["running"] and calls:
+            break
+        time.sleep(0.02)
+    assert calls == ["all", "benefit", "money"]
+    assert savings.money_cached() == {"m": 1}
+    savings.cached(Conn(), "2026-11-27")                                            # allt färskt: ingen ny tråd
+    time.sleep(0.2)
+    assert calls == ["all", "benefit", "money"]
+    savings._money_cache.update(t=0.0, day=None, val=None)                         # saknas pengarna räknas cachen som inaktuell
+    savings.cached(Conn(), "2026-11-27")
+    for _ in range(100):
+        if calls.count("money") == 2:
+            break
+        time.sleep(0.02)
+    assert calls.count("money") == 2
