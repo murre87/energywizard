@@ -137,7 +137,8 @@ def cached(conn, today):
     import time as _t
     now = _t.time()
     fresh = (_benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S
-             and _all_cache["val"] is not None and _money_cache["val"] is not None and _money_cache["day"] == today)
+             and _all_cache["val"] is not None and _money_cache["val"] is not None and _money_cache["day"] == today
+             and _hist_cache["money"] is not None and _hist_cache["day"] == today)
     if not fresh and not _refresh["running"]:
         _refresh["running"] = True
         engine = conn.engine
@@ -148,6 +149,7 @@ def cached(conn, today):
                     all_time(c2, today)
                     total_benefit(c2, today)
                     money_all(c2, today)                        # pengarna sedan start (Ekonomi, period Totalt) fylls av samma tråd
+                    history_fill(c2, today)                     # månader och år på Ekonomi fylls av samma tråd
             except Exception as e:
                 print(f"⚠️ Total nytta: {type(e).__name__}: {str(e)[:120]}")
             finally:
@@ -316,6 +318,16 @@ def money_cached():
     return _money_cache["val"]
 
 
+def _empty_money():
+    """En period utan rader är tom, inte noll: en månad som saknas ska inte se ut som gratis el."""
+    return {"bought_kwh": None, "cost": None, "sold_kwh": None, "income": None, "net": None,
+            "avg_paid": None, "avg_sold": None, "days": 0}
+
+
+def _empty_timing():
+    return {"saved_kr": None, "kwh": None, "paid_kr": None, "pct": None, "days": 0}
+
+
 def money_periods(rows, today, all_rows=None):
     """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods().
 
@@ -335,3 +347,83 @@ def money_periods(rows, today, all_rows=None):
             ar = sorted(all_rows, key=lambda r: r["day"])
             out["all"] = {**_money_total(ar), "since": ar[0]["day"] if ar else None}
     return out
+
+
+def _period_keys(start, end, width):
+    """Alla månader (width 7) eller år (width 4) från start t.o.m. end, inklusive luckor."""
+    keys = []
+    if width == 7:
+        y, m = start.year, start.month
+        while (y, m) <= (end.year, end.month):
+            keys.append(f"{y:04d}-{m:02d}")
+            m += 1
+            if m == 13:
+                y, m = y + 1, 1
+    else:
+        keys = [f"{y:04d}" for y in range(start.year, end.year + 1)]
+    return keys
+
+
+def history_buckets(money_rows, timing_rows, today):
+    """Köpt/såld el och sparad tajmning, månad för månad och år för år, från första dagen med data t.o.m. idag.
+
+    En månad eller ett år utan rader får belopp None och days 0. Det är inte samma sak som en period som
+    faktiskt summerar till 0. Dagar efter today räknas inte. Saknas all data är listorna tomma."""
+    from datetime import date
+    if money_rows is None or timing_rows is None:
+        return {"months": [], "years": [], "pending": True}          # bakgrundstråden är inte klar än
+    today_d = date.fromisoformat(today)
+
+    def kept(rows):
+        out = []
+        for r in rows or []:
+            day = r.get("day")
+            if not day or day > today:
+                continue
+            try:
+                date.fromisoformat(day)
+            except ValueError:
+                continue
+            out.append(r)
+        return out
+
+    money_rows, timing_rows = kept(money_rows), kept(timing_rows)
+    days = [date.fromisoformat(r["day"]) for r in money_rows + timing_rows]
+    if not days:
+        return {"months": [], "years": []}
+    start, end = min(days), today_d
+
+    def pack(width):
+        money_by, timing_by = {}, {}
+        for r in money_rows:
+            money_by.setdefault(r["day"][:width], []).append(r)
+        for r in timing_rows:
+            timing_by.setdefault(r["day"][:width], []).append(r)
+        buckets = []
+        for key in _period_keys(start, end, width):
+            ms, ts = money_by.get(key) or [], timing_by.get(key) or []
+            buckets.append({
+                "key": key,
+                "money": _money_total(ms) if ms else _empty_money(),
+                "timing": _summary(ts) if ts else _empty_timing(),
+            })
+        return buckets
+
+    return {"months": pack(7), "years": pack(4)}
+
+
+_hist_cache = {"t": 0.0, "day": None, "money": None, "timing": None}
+
+
+def history_fill(conn, today, days=4000):
+    """Hela historiken för ekonomisidans månader och år. Läser flera sekunder, så den anropas bara från bakgrundstråden i cached()."""
+    import time as _t
+    money = money_rows(conn, days=days)
+    timing = daily_rows(conn, days=days)
+    _hist_cache.update(t=_t.time(), day=today, money=money, timing=timing)
+    return money, timing
+
+
+def history_cached():
+    """(köpt/sålt-rader, tajmningsrader) ur cachen, aldrig blockerande. (None, None) tills bakgrundstråden har fyllt den."""
+    return _hist_cache["money"], _hist_cache["timing"]

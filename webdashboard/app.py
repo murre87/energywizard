@@ -1587,6 +1587,7 @@ async def api_economy():
         timing = savings.daily_rows(c, days=40)
         everything, _benefit = savings.cached(c, today)          # bakgrundstråd: blockerar inte sidan
         everything_money = savings.money_cached()               # fylls av samma tråd; None tills den är klar (då visas ingen period "Totalt")
+        long_money, long_timing = savings.history_cached()      # fylls av samma tråd; (None, None) tills den är klar
     span = savings.price_span(today_prices)
     spot, buy = span["spot"], span["buy"]
     settings = nordpool.cost_settings()
@@ -1597,7 +1598,8 @@ async def api_economy():
             "symbol": settings["symbol"], "money_days": money[-31:],
             "electricity_support_area": eligible_area(settings, now),
             "money": savings.money_periods(money, today, everything_money),
-            "timing": savings.summarize_periods(timing, today, everything)}
+            "timing": savings.summarize_periods(timing, today, everything),
+            "history": savings.history_buckets(long_money, long_timing, today)}
 
 
 @app.get("/api/economy/electricity-support")

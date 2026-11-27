@@ -44,6 +44,7 @@ def test_ekonomisidans_api_bygger_svaret(monkeypatch):
     assert out["ok"] is True and out["price"] == 1.5 and "money" in out and "timing" in out
     assert out["money"]["all"]["days"] == 0 and out["money"]["all"]["since"] is None
     assert "all" in out["timing"]
+    assert out["history"]["months"] == [] and out["history"]["years"] == []      # månader och år fylls av bakgrundstråden (pending tills den är klar)
 
 
 def test_ingen_modulattribut_pa_funktionen_local_sql():

@@ -68,6 +68,32 @@ def test_prisintervall_utan_rader():
     assert price_span([(None, None)], buy_cost=lambda spot, t: spot)["spot"]["max"] is None
 
 
+def test_manader_och_ar_har_luckor_som_tomma_inte_noll():
+    """#599: månader och år utan data är tomma. En period som summerar till 0 är fortfarande 0."""
+    from savings import history_buckets
+    money = [{"day": "2024-12-15", "bought_kwh": 10, "cost": 20, "sold_kwh": 1, "income": 2, "net": 18},
+             {"day": "2026-01-02", "bought_kwh": 4, "cost": 0, "sold_kwh": 0, "income": 0, "net": 0},
+             {"day": "2026-03-01", "bought_kwh": 9, "cost": 9, "sold_kwh": 0, "income": 0, "net": 9}]
+    timing = [build_day("2026-01-02", 4.0, 1.0, 1.0)]
+    h = history_buckets(money, timing, "2026-02-01")
+    months = {b["key"]: b for b in h["months"]}
+    assert list(months)[0] == "2024-12" and list(months)[-1] == "2026-02"
+    assert "2026-03" not in months                                          # efter today
+    assert months["2025-06"]["money"]["cost"] is None and months["2025-06"]["money"]["days"] == 0
+    assert months["2025-06"]["timing"]["saved_kr"] is None
+    assert months["2024-12"]["money"]["net"] == 18 and months["2024-12"]["timing"]["saved_kr"] is None
+    assert months["2026-01"]["money"]["net"] == 0 and months["2026-01"]["money"]["days"] == 1
+    assert months["2026-01"]["timing"]["days"] == 1 and months["2026-01"]["timing"]["saved_kr"] == 0
+    years = {b["key"]: b for b in h["years"]}
+    assert list(years) == ["2024", "2025", "2026"]
+    assert years["2025"]["money"]["days"] == 0 and years["2025"]["money"]["bought_kwh"] is None
+    assert years["2024"]["money"]["cost"] == 20
+    assert years["2026"]["money"]["bought_kwh"] == 4                         # mars ligger efter today
+    assert history_buckets([], [], "2026-02-01") == {"months": [], "years": []}
+    assert history_buckets([{"day": "2026-05-01", "bought_kwh": 1, "cost": 1, "sold_kwh": 0, "income": 0, "net": 1}],
+                           [], "2026-02-01") == {"months": [], "years": []}
+
+
 def test_pengar_per_period():
     from savings import money_periods
     rows = [{"day": "2026-10-20", "bought_kwh": 10, "cost": 30, "sold_kwh": 0, "income": 0, "net": 30},
@@ -194,6 +220,8 @@ def test_money_cached_blockerar_inte_och_fylls_av_samma_bakgrundstrad(monkeypatc
     for name in ("_money_cache", "_all_cache", "_benefit_cache"):         # färska cacher som återställs efter testet (inget läcker till andra tester)
         monkeypatch.setattr(savings, name, {"t": 0.0, "day": None, "val": None})
     monkeypatch.setattr(savings, "_refresh", {"running": False})
+    monkeypatch.setattr(savings, "_hist_cache", {"t": 0.0, "day": None, "money": None, "timing": None})
+    monkeypatch.setattr(savings, "history_fill", lambda c, d: savings._hist_cache.update(money=[], timing=[], day=d, t=time.time()))     # månader och år: samma tråd
     assert savings.money_cached() is None
     calls = []
     monkeypatch.setattr(savings, "all_time", lambda c, d: (calls.append("all"), savings._all_cache.update(val={"a": 1}, day=d, t=time.time()))[0])
@@ -224,3 +252,38 @@ def test_money_cached_blockerar_inte_och_fylls_av_samma_bakgrundstrad(monkeypatc
             break
         time.sleep(0.02)
     assert calls.count("money") == 2
+
+
+def test_manader_och_ar_fylls_av_bakgrundstraden_och_ar_pending_tills_dess(monkeypatch):
+    """Månader och år läser hela historiken (flera sekunder): sidan får (None, None) och "pending" först, tråden fyller cachen sedan."""
+    import contextlib
+    import time
+    import savings
+    for name in ("_money_cache", "_all_cache", "_benefit_cache"):
+        monkeypatch.setattr(savings, name, {"t": 0.0, "day": None, "val": None})
+    monkeypatch.setattr(savings, "_hist_cache", {"t": 0.0, "day": None, "money": None, "timing": None})
+    monkeypatch.setattr(savings, "_refresh", {"running": False})
+    assert savings.history_cached() == (None, None)
+    assert savings.history_buckets(None, None, "2026-11-27") == {"months": [], "years": [], "pending": True}
+    calls = []
+    monkeypatch.setattr(savings, "all_time", lambda c, d: savings._all_cache.update(val={"a": 1}, day=d, t=time.time()))
+    monkeypatch.setattr(savings, "total_benefit", lambda c, d: savings._benefit_cache.update(val={"b": 1}, day=d, t=time.time()))
+    monkeypatch.setattr(savings, "money_all", lambda c, d: savings._money_cache.update(val={"m": 1}, day=d, t=time.time()))
+    monkeypatch.setattr(savings, "money_rows", lambda conn, days=40: calls.append("money_rows") or [])
+    monkeypatch.setattr(savings, "daily_rows", lambda conn, days=40, min_hours=12: calls.append("daily_rows") or [])
+
+    class Eng:
+        def connect(self):
+            return contextlib.nullcontext(object())
+
+    class Conn:
+        engine = Eng()
+
+    savings.cached(Conn(), "2026-11-27")
+    for _ in range(100):
+        if not savings._refresh["running"] and calls:
+            break
+        time.sleep(0.02)
+    assert calls == ["money_rows", "daily_rows"]
+    assert savings.history_cached() == ([], [])                          # fylld (tom historik är inte samma sak som inte beräknad)
+    assert savings.history_buckets(*savings.history_cached(), "2026-11-27") == {"months": [], "years": []}

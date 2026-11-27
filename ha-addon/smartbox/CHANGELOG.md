@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.193 (2026-11-27)
+- **Ekonomi månad för månad och år för år (#599).** Vid sidan av Idag, 7 dagar och Månad finns Månader och År. Korten och diagrammen visar köpt el, såld el, netto och sparat genom tajmning för den valda perioden, från första dagen med data till och med idag. En månad eller ett år utan mätvärden är tom, inte noll. Diagrammen för de senaste 31 dagarna är kvar när Idag, 7 dagar eller Månad är valt.
+
 ## 1.2.192 (2026-11-27)
 - **Välj själv vilken sensor som är bilens laddnivå (#596).** Entitetsväljaren visar bilens batterisensorer, med värdet de har just nu. Traktionsbatteriet är förvalt. Under Inställningar kan du byta sensor direkt när installationen sparar från webben, till exempel om en Kia eller Hyundai fått 12 V-batteriet. Bytet skriver bara den raden i `house_config.yaml`.
 
