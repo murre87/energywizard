@@ -17,11 +17,9 @@ import importlib
 # modul -> de attribut drivrutinerna använder (uppmätt före steg 5a)
 SURFACE = {
     "homeassistant": {
-        "_BASE", "_HEADERS", "_VERIFY", "_get_numeric_attribute", "_get_numeric_state", "_get_raw_state", "_read_easee_charger", "_states_cache",
-        "all_entity_names", "call_service", "get_attribute", "get_power_w", "get_solaredge_limit", "press_button", "read_gecko", "read_solaredge",
-        "read_spa_activities", "read_spa_power", "set_car_climate", "set_climate_temperature", "set_easee_phases", "set_ev_dynamic_limit", "set_gecko_economy",
-        "set_gecko_target", "set_number", "set_select", "set_solaredge_limit", "set_switch", "toggle_spa_plug", "turn_off_charger", "turn_on_charger",
-        "update_states"},
+        "_climate_now", "_get_numeric_attribute", "_get_numeric_state", "_get_raw_state", "_states_cache", "all_entity_names", "call_service",
+        "get_attribute", "get_power_w", "post_service", "press_button", "report_failure", "set_climate_temperature", "set_number", "set_select",
+        "set_switch", "update_states"},
     "shadow": {"active", "record"},
     "hot_water_observation": {"temperature"},
     "ew_settings": {"PATH", "get"},

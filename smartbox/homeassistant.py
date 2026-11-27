@@ -152,10 +152,8 @@ def read_load_meter():
 # --- SOLAREDGE / GECKO ---
 # Entiteterna kommer ur installationen (solar.entities / spa.entities i house_config.yaml) - inga husspecifika
 # namn här. För SolarEdge finns bara de officiella integrationernas egna standardnamn som reserv.
-SOLAREDGE_DEFAULT_PV = ["sensor.solaredge_i1_ac_power", "sensor.solaredge_current_power", "sensor.solaredge_ac_power"]
-SOLAREDGE_DEFAULT_TODAY = ["sensor.solaredge_energy_today"]
-SOLAREDGE_DEFAULT_STATUS = ["sensor.solaredge_i1_status", "sensor.solaredge_status"]
-SOLAREDGE_DEFAULT_LIMIT = "number.solaredge_modbus_active_power_limit"   # solaredge_modbus-integrationens namn
+from drivers.ha_solaredge import DEFAULT_PV as SOLAREDGE_DEFAULT_PV, DEFAULT_TODAY as SOLAREDGE_DEFAULT_TODAY, \
+    DEFAULT_STATUS as SOLAREDGE_DEFAULT_STATUS, DEFAULT_LIMIT as SOLAREDGE_DEFAULT_LIMIT   # steg 5b: bor hos drivrutinen
 
 
 def _as_list(v):
@@ -309,6 +307,17 @@ def _fail(text: str, err) -> None:
     print(f"{'⚠️' if net else '❌'} {text}")
 
 
+report_failure = _fail   # steg 5b: drivrutinerna rapporterar fel på samma sätt (⚠️ för drift, ❌ för programfel)
+
+
+def post_service(service_path: str, payload: dict, timeout: float = 5):
+    """POST /services/<domän>/<tjänst> (t.ex. "switch/turn_on") mot HA. Ger svaret, och kastar vid fel (raise_for_status) så att
+    anroparen avgör hur felet rapporteras. Går genom skuggläget som alla skrivningar. Generiskt: märkeskunskapen bor i drivrutinerna."""
+    r = requests.post(f"{_BASE}/services/{service_path}", headers=_HEADERS, json=payload, timeout=timeout, verify=_VERIFY)
+    r.raise_for_status()
+    return r
+
+
 def _get_raw_state(entity_id):
     """Hämtar rå-strängen från en sensor utan att konvertera den till siffror."""
     # Tom cache: hämta - men inte om HA nyss inte svarade. Annars försöker varje enskild avläsning igen och väntar ut sin
@@ -408,69 +417,12 @@ def read_humidities():
     """Luftfuktighet (%) per innegivare som har en fuktentitet, samma nycklar som read_temperatures."""
     return {s["key"]: _get_numeric_state(s["humidity"]) for s in indoor_sensors() if s.get("humidity") and not is_own_entity(s["humidity"])}
 
-# Fasläge: HA:s Easee-integration (0.9.74, efter HA-uppdateringen 2026-10-14) har inga select-entiteter längre (select.*_allowed_charging_phases finns inte),
-# så fasläget går inte att läsa. Vi minns det senast satta värdet per laddare; utan minne (efter omstart) returneras None (okänt).
-_PHASE_STATE: dict = {}
 
 
 def _read_easee_charger(entities: dict, charger_id: str | None = None):
-    try:
-        result = {}
-        for key, entity in entities.items(): 
-            if key in ("status", "reason_no_current"):
-                result[key] = _get_raw_state(entity)
-            else:
-                result[key] = _get_numeric_state(entity)
-
-        # Fasströmmar: integrationen har en enda ström-sensor; fasernas strömmar ligger som attribut (T3/T4/T5 = L1/L2/L3).
-        # Nyare Easee-integration (2026) döper dem state_inCurrentT3 osv. - båda namnen läses (2026-11-07: fasströmmarna
-        # blev None för alla med Easee, och bilarnas faser/maxström kunde inte läras in).
-        _ce = entities.get("current_a")
-        if _ce:
-            for _k, _t in (("current_l1", "T3"), ("current_l2", "T4"), ("current_l3", "T5")):
-                if result.get(_k) is None:
-                    v = _get_numeric_attribute(_ce, f"state_inCurrent{_t}")
-                    result[_k] = v if v is not None else _get_numeric_attribute(_ce, f"inCurrent{_t}")
-
-        raw_power = result.get("power_kw")
-        power_kw = (raw_power / 1000.0) if raw_power is not None and raw_power > 100 else raw_power
-
-        # FIX #9 (konservativ, bakåtkompatibel): faktiskt uppmätt fasström.
-        # current_l1/l2/l3 lästes tidigare in i result men returnerades aldrig,
-        # trots att main.py (rad 953-958) hämtar dem för lastbalansering -> de blev alltid None.
-        # Vi inkluderar dem nu i return-dicten (för BÅDA laddarna; saknas entiteten blir den None).
-        cur_l1 = result.get("current_l1")
-        cur_l2 = result.get("current_l2")
-        cur_l3 = result.get("current_l3")
-
-        # current_a pekade på maximum_allowed_charge_current (gränsvärde, ej uppmätt ström).
-        # Om en faktisk strömsensor finns (current_l1/l2/l3) använder vi den uppmätta strömmen
-        # (max över faserna) så att loggad ev_current_a speglar verkligheten.
-        # Saknas mätsensorer behålls det gamla beteendet (gränsvärdet) -> inget bryts.
-        measured_phases = [c for c in (cur_l1, cur_l2, cur_l3) if c is not None]
-        current_a = max(measured_phases) if measured_phases else result.get("current_a")
-
-        return {
-            "power_kw":        power_kw,
-            "current_a":       current_a,
-            "current_l1":      cur_l1,
-            "current_l2":      cur_l2,
-            "current_l3":      cur_l3,
-            "dynamic_limit_a": result.get("dynamic_limit"),
-            "output_limit_a":  result.get("output_limit"),
-            "max_limit_a":     result.get("max_limit"),
-            "circuit_limit_a": result.get("circuit_limit"),          # #385: lastbalanseringens kretsgräns (Equalizer)
-            "circuit_rated_a": _get_numeric_attribute(entities["status"], "circuit_ratedCurrent") if entities.get("status") else None,
-            "session_kwh":     result.get("session_kwh"),
-            "lifetime_kwh":    result.get("lifetime_kwh"),
-            "status":          result.get("status"),
-            "online":          bool(result.get("online")),
-            "reason_no_current": result.get("reason_no_current"),
-            "phases":          _get_raw_state(entities.get("phases")) or _PHASE_STATE.get(charger_id)   # per laddbox
-        }
-    except Exception as e:
-        _fail(f"HA: Fel vid läsning av laddare: {e}", e)
-        return None
+    """Vidarekoppling: koden bor i drivers/ha_easee.py (steg 5b)."""
+    from drivers import ha_easee
+    return ha_easee.read_charger(entities, charger_id)
 
 
 
@@ -600,56 +552,14 @@ read_tibber_data = read_power_meter      # gammalt namn, kvar för bakåtkompati
 
 
 def read_solaredge(entities=None):
-    """Solproduktion från SolarEdge via Home Assistant. entities (solar.entities i installationen):
-    pv_power_w, today_kwh, status - var och en en entitet eller en lista (första som har ett värde vinner).
-    Lägg den snabba Modbus-entiteten först och moln-integrationen efter (molnet uppdateras bara var 15:e minut och kan
-    ligga flera kW fel när det växlar molnigt/soligt, 2026-09-20). De officiella integrationernas standardnamn
-    prövas sist."""
-    e = entities or {}
-
-    def get_first_numeric(ents):
-        for x in ents:
-            val = _get_numeric_state(x)
-            if val is not None:
-                return val
-        return None
-
-    def get_first_raw(ents):
-        for x in ents:
-            val = _get_raw_state(x)
-            if val is not None:
-                return val
-        return None
-
-    def _chain(own, defaults):
-        own = _as_list(own)
-        return own + [d for d in defaults if d not in own]
-
-    return {
-        "pv_power_w": get_first_numeric(_chain(e.get("pv_power_w"), SOLAREDGE_DEFAULT_PV)),
-        "today_kwh": get_first_numeric(_chain(e.get("today_kwh"), SOLAREDGE_DEFAULT_TODAY)),
-        "status": get_first_raw(_chain(e.get("status"), SOLAREDGE_DEFAULT_STATUS)),
-    }
+    """Vidarekoppling: koden bor i drivers/ha_solaredge.py (steg 5b)."""
+    from drivers import ha_solaredge
+    return ha_solaredge.read(entities)
 
 def read_gecko(entities=None):
-    """Spabadets temperaturer och värmarens läge. entities (spa.entities): current_temp, target_temp (sensorer),
-    climate (climate-entiteten - dess temperature-attribut är den sanna måltemperaturen), water_heater, economy_mode."""
-    e = entities or {}
-    data = {k: (_get_numeric_state(e[k]) if e.get(k) else None) for k in ("current_temp", "target_temp", "economy_mode")}
-    # En climate- eller water_heater-entitet som "temperatur" (så skrev upptäckten förut, #570): dess tillstånd är text ("heat"),
-    # temperaturen ligger i attributen current_temperature (vattnet) och temperature (målet).
-    for _key, _attr in (("current_temp", "current_temperature"), ("target_temp", "temperature")):
-        if e.get(_key) and str(e[_key]).split(".", 1)[0] in ("climate", "water_heater"):
-            _v = _get_numeric_attribute(e[_key], _attr)
-            data[_key] = float(_v) if _v is not None else None
-    if e.get("climate"):
-        t = _get_numeric_attribute(e["climate"], "temperature")
-        if t is not None:
-            data["target_temp"] = float(t)
-        if data["current_temp"] is None:
-            data["current_temp"] = _get_numeric_attribute(e["climate"], "current_temperature")
-    data["heater_state"] = _get_raw_state(e["water_heater"]) if e.get("water_heater") else None
-    return data
+    """Vidarekoppling: koden bor i drivers/ha_gecko.py (steg 5b)."""
+    from drivers import ha_gecko
+    return ha_gecko.read(entities)
 
 def all_entity_names():
     """{entity_id: friendly_name} för alla entiteter i HA:s tillståndscache (hämtar den om den är tom)."""
@@ -659,176 +569,54 @@ def all_entity_names():
 
 
 def read_spa_power(entities=None):
-    """Spabadets effekt. entities: power_phases (lista med en sensor per fas) eller power_w (en sensor). Värdena tas
-    som belopp (en CT-klämma åt fel håll ger negativt). safety: {nyckel: binary_sensor} - overcurrent, overvoltage,
-    overheated, power_exceeded. Returnerar per-fas + total effekt (W) och säkerhetsflaggorna."""
-    e = entities or {}
-
-    def _abs(eid):
-        v = _get_numeric_state(eid) if eid else None
-        return abs(float(v)) if v is not None else None
-    phases = [_abs(x) for x in _as_list(e.get("power_phases"))[:3]]
-    phases += [None] * (3 - len(phases))
-    present = [x for x in phases if x is not None]
-    total = sum(present) if present else (_abs(e.get("power_w")) if e.get("power_w") else None)
-    safety = e.get("safety") or {}
-    out = {'phase_a_w': phases[0], 'phase_b_w': phases[1], 'phase_c_w': phases[2], 'total_w': total}
-    for k in ('overcurrent', 'overvoltage', 'overheated', 'power_exceeded'):
-        out[k] = bool(safety.get(k)) and str(_get_raw_state(safety[k])).lower() == 'on'
-    return out
+    """Vidarekoppling: koden bor i drivers/ha_gecko.py (steg 5b)."""
+    from drivers import ha_gecko
+    return ha_gecko.read_power(entities)
 
 def read_spa_activities(entities=None):
-    """Vilka av spabadets funktioner som är PÅ just nu - entities.activities: {namn: entitet}, t.ex. heating,
-    circ_pump, pump1, blower, waterfall, lights, ozone. Används för att lära sig vilken fas som driver vad."""
-    def _on(eid):
-        return str(_get_raw_state(eid)).lower() in ('on', 'heating', 'true')
-    return {k: _on(v) for k, v in ((entities or {}).get("activities") or {}).items() if v}
+    """Vidarekoppling: koden bor i drivers/ha_gecko.py (steg 5b)."""
+    from drivers import ha_gecko
+    return ha_gecko.read_activities(entities)
 
 def set_gecko_economy(enable: bool, entity: str | None = None):
-    """Slår på eller av Economy Mode för Spabadet via HA (spa.entities.economy_mode)."""
-    if not entity:
-        return False
-    try:
-        r = requests.post(
-            f"{_BASE}/services/switch/turn_{'on' if enable else 'off'}",
-            headers=_HEADERS,
-            json={"entity_id": entity},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        print(f"🛁 Spabad: Economy Mode {'AKTIVERAT' if enable else 'AVAKTIVERAT'}")
-        return True
-    except Exception as e:
-        _fail(f"Spabad: Fel vid ändring av Economy Mode: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_gecko.py (steg 5b)."""
+    from drivers import ha_gecko
+    return ha_gecko.set_economy(enable, entity)
 
 def set_gecko_target(temp: float, entity: str | None = None):
-    """Sätter spabadets måltemperatur via HA (spa.entities.climate)."""
-    if not entity:
-        return False
-    try:
-        r = requests.post(
-            f"{_BASE}/services/climate/set_temperature",
-            headers=_HEADERS,
-            json={"entity_id": entity, "temperature": float(temp)},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        print(f"🛁 Spabad: Måltemperatur satt till {temp}°C")
-        return True
-    except Exception as e:
-        _fail(f"Spabad: Fel vid sättning av temp: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_gecko.py (steg 5b)."""
+    from drivers import ha_gecko
+    return ha_gecko.set_target(temp, entity)
 
 def set_ev_dynamic_limit(charger_id: str, ampere: int, reason: str = None):
-    if int(ampere) > 0:
-        ampere = max(6, min(int(ampere), 32)) 
-    else:
-        ampere = 0
-    try:
-        r = requests.post(
-            f"{_BASE}/services/easee/set_charger_dynamic_limit",
-            headers=_HEADERS,
-            json={"charger_id": charger_id, "current": ampere},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        if ampere == 0 and reason:
-            print(f"⚡ Easee: Dynamisk gräns satt till 0 A. Anledning: {reason}")
-        else:
-            print(f"⚡ Easee: Dynamisk gräns satt till {ampere} A")
-        return True
-    except requests.exceptions.HTTPError as e:
-        print(f"❌ Easee: Fick 500 Server Error. Är Laddar-ID '{charger_id}' korrekt? Lägg in EASEE_CHARGER_ID=ditt_id i .env filen! Felet var: {e}")
-        return False
-    except Exception as e:
-        _fail(f"Easee: Fel vid sättning av strömgräns: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_easee.py (steg 5b)."""
+    from drivers import ha_easee
+    return ha_easee.set_dynamic_limit(charger_id, ampere, reason)
 
 def set_easee_phases(charger_id: str, phases: int):
-    """Sätter laddaren till 1-fas eller 3-fas via Easee-integrationens tjänst easee.set_charger_phase_mode (select-entiteten finns inte längre).
-    Lyckas bara om HA svarar OK; då sparas det nya läget som 'nuvarande' (det går inte att läsa tillbaka), så att GPM inte begär samma byte varje minut."""
-    if phases not in [1, 3]:
-        print(f"❌ Easee: Ogiltigt fasval: {phases}. Måste vara 1 eller 3.")
-        return False
-    mode = "3_phase" if phases == 3 else "1_phase"
-    try:
-        r = requests.post(
-            f"{_BASE}/services/easee/set_charger_phase_mode",
-            headers=_HEADERS,
-            json={"charger_id": charger_id, "phase_mode": mode},
-            timeout=10, verify=_VERIFY)
-        r.raise_for_status()
-        _PHASE_STATE[charger_id] = "ThreePhase" if phases == 3 else "SinglePhase"
-        print(f"⚡ Easee ({charger_id}): Fasläge satt till {phases}-fas (tjänst, {mode}).")
-        return True
-    except Exception as e:
-        _fail(f"Easee ({charger_id}): Fel vid sättning av fasläge: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_easee.py (steg 5b)."""
+    from drivers import ha_easee
+    return ha_easee.set_phases(charger_id, phases)
 
 def turn_on_charger(charger_id: str, entity_id: str | None = None):
-    """Tvingar laddaren att starta om den står i awaiting_start eller paused."""
-    if not entity_id:                                # påslagsbrytaren kommer ur installationen (charger.enable_switch)
-        print(f"ℹ️ Easee ({charger_id}): ingen påslagsbrytare (enable_switch) i installationen - kan inte slå på/av laddboxen.")
-        return False
-    try:
-        r = requests.post(
-            f"{_BASE}/services/switch/turn_on",
-            headers=_HEADERS,
-            json={"entity_id": entity_id},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        print(f"⚡ Easee ({charger_id}): Skickade 'turn_on' för att tvinga igång laddningen.")
-        return True
-    except Exception as e:
-        _fail(f"Easee ({charger_id}): Fel vid turn_on: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_easee.py (steg 5b)."""
+    from drivers import ha_easee
+    return ha_easee.turn_on(charger_id, entity_id)
 
 def turn_off_charger(charger_id: str, entity_id: str | None = None):
-    """Tvingar laddaren att stanna."""
-    if not entity_id:                                # påslagsbrytaren kommer ur installationen (charger.enable_switch)
-        print(f"ℹ️ Easee ({charger_id}): ingen påslagsbrytare (enable_switch) i installationen - kan inte slå på/av laddboxen.")
-        return False
-    try:
-        r = requests.post(
-            f"{_BASE}/services/switch/turn_off",
-            headers=_HEADERS,
-            json={"entity_id": entity_id},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        print(f"⚡ Easee ({charger_id}): Skickade 'turn_off' för att stoppa laddningen.")
-        return True
-    except Exception as e:
-        _fail(f"Easee ({charger_id}): Fel vid turn_off: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_easee.py (steg 5b)."""
+    from drivers import ha_easee
+    return ha_easee.turn_off(charger_id, entity_id)
 
 def get_solaredge_limit(entity: str | None = None):
-    """Hämtar Active Power Limit (%) för SolarEdge (solar.curtailment.entity, annars integrationens standardnamn)."""
-    return _get_numeric_state(entity or SOLAREDGE_DEFAULT_LIMIT)
+    """Vidarekoppling: koden bor i drivers/ha_solaredge.py (steg 5b)."""
+    from drivers import ha_solaredge
+    return ha_solaredge.get_limit(entity)
 
 def set_solaredge_limit(limit: int, entity: str | None = None):
-    """Sätter Active Power Limit (%) för SolarEdge."""
-    try:
-        r = requests.post(
-            f"{_BASE}/services/number/set_value",
-            headers=_HEADERS,
-            json={"entity_id": entity or SOLAREDGE_DEFAULT_LIMIT, "value": str(limit)},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        print(f"☀️ SolarEdge: Active Power Limit satt till {limit} %")
-        return True
-    except Exception as e:
-        _fail(f"SolarEdge: Fel vid sättning av limit: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_solaredge.py (steg 5b)."""
+    from drivers import ha_solaredge
+    return ha_solaredge.set_limit(limit, entity)
 
 def press_button(entity_id: str, timeout: float = 5):
     """Trycker på en knapp i HA (t.ex. button.tesla_model_y_wake_up). Returnerar True om anropet gick igenom."""
@@ -846,24 +634,13 @@ def press_button(entity_id: str, timeout: float = 5):
         _fail(f"Kunde inte trycka på {entity_id}: {e}", e)
         return False
 
-CAR_CLIMATE_TIMEOUT_S = 60       # #190: HA väcker bilen och svarar först när den tagit emot kommandot (15-40 s)
+from drivers.ha_car import CLIMATE_TIMEOUT_S as CAR_CLIMATE_TIMEOUT_S
 
 
 def refresh_entity(entity_id: str, button: str | None = None) -> bool:
-    """Ber Home Assistant läsa om en entitet nu (homeassistant.update_entity), eller trycker bilens uppdateringsknapp.
-    Används när ett läge kan vara gammalt, t.ex. en sovande Teslas klimat (2026-11-07)."""
-    try:
-        if button:
-            r = requests.post(f"{_BASE}/services/button/press", headers=_HEADERS, json={"entity_id": button},
-                              verify=_VERIFY, timeout=CAR_CLIMATE_TIMEOUT_S)
-        else:
-            r = requests.post(f"{_BASE}/services/homeassistant/update_entity", headers=_HEADERS,
-                              json={"entity_id": entity_id}, verify=_VERIFY, timeout=CAR_CLIMATE_TIMEOUT_S)
-        r.raise_for_status()
-        return True
-    except Exception as e:
-        print(f"ℹ️ Kunde inte läsa om {entity_id}: {e}")
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_car.py (steg 5b)."""
+    from drivers import ha_car
+    return ha_car.refresh_entity(entity_id, button)
 
 
 def _climate_now(entity_id: str):
@@ -877,32 +654,9 @@ def _climate_now(entity_id: str):
 
 
 def set_car_climate(entity_id: str, hvac_mode: str, temperature: float = None):
-    """Startar eller stoppar klimatanläggningen i bilen. #190 (Lars): HA svarar först när bilen vaknat och tagit emot
-    kommandot - tidsgränsen är 60 s, och blir det ändå tidsgräns räknas kommandot som lyckat om entiteten står på
-    önskat läge (förut ett falskt fel fast värmen startade)."""
-    try:
-        url = f"{_BASE}/services/climate/set_hvac_mode"
-        try:
-            r = requests.post(url, headers=_HEADERS, json={"entity_id": entity_id, "hvac_mode": hvac_mode}, verify=_VERIFY,
-                              timeout=CAR_CLIMATE_TIMEOUT_S)
-            r.raise_for_status()
-        except requests.exceptions.Timeout:
-            if _climate_now(entity_id) != hvac_mode:
-                raise
-            print(f"ℹ️ Klimat: {entity_id} svarade sent men står på {hvac_mode}.")
-        if temperature is not None and hvac_mode != "off":
-            url_temp = f"{_BASE}/services/climate/set_temperature"
-            try:
-                r_temp = requests.post(url_temp, headers=_HEADERS, json={"entity_id": entity_id, "temperature": temperature},
-                                       verify=_VERIFY, timeout=CAR_CLIMATE_TIMEOUT_S)
-                r_temp.raise_for_status()
-            except requests.exceptions.Timeout:
-                print(f"ℹ️ Klimat: {entity_id} svarade inte på temperaturen i tid - läget är satt.")
-        print(f"🚗 Klimat: {entity_id} satt till {hvac_mode} ({temperature}°C)")
-        return True
-    except Exception as e:
-        _fail(f"Fel vid inställning av bilklimat: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_car.py (steg 5b)."""
+    from drivers import ha_car
+    return ha_car.set_climate(entity_id, hvac_mode, temperature)
 
 
 def turn_on_lights(entity_ids: list):
@@ -924,26 +678,9 @@ def turn_on_lights(entity_ids: list):
         return False
 
 def toggle_spa_plug(turn_on: bool, entity: str | None = None):
-    """Slår på eller av strömmen till spabadets smartplug (spa.entities.smart_plug). Samma
-    mönster som turn_on_charger - main.py:s egen ha_toggle_switch() gör samma sak
-    men via sina egna råa env-anrop (bygger inte på _VERIFY/SUPERVISOR_TOKEN); den
-    här versionen används av SpaDriver istället, inte en ersättning för den befintliga."""
-    if not entity:
-        return False
-    service = "turn_on" if turn_on else "turn_off"
-    try:
-        r = requests.post(
-            f"{_BASE}/services/switch/{service}",
-            headers=_HEADERS,
-            json={"entity_id": entity},
-            timeout=5,
-            verify=_VERIFY,
-        )
-        r.raise_for_status()
-        return True
-    except Exception as e:
-        _fail(f"Fel vid styrning av spabadets plugg: {e}", e)
-        return False
+    """Vidarekoppling: koden bor i drivers/ha_gecko.py (steg 5b)."""
+    from drivers import ha_gecko
+    return ha_gecko.toggle_plug(turn_on, entity)
 
 
 def set_climate_temperature(entity_id: str, target_c: float) -> bool:

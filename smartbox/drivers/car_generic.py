@@ -1,6 +1,7 @@
 """Konkreta CarDriver-implementationer. Fas 1: tunna omslag kring homeassistant.py:s
 befintliga läsfunktioner - samma kod, bara flyttad bakom gränssnittet, inte omskriven."""
 from drivers.host import homeassistant
+from drivers import ha_car
 from drivers.car import CarDriver
 
 
@@ -35,7 +36,7 @@ class GenericEvCarDriver(CarDriver):
     def set_climate(self, hvac_mode: str, temperature: float | None = None) -> None:
         climate_e = self._e.get("climate")
         if climate_e:
-            homeassistant.set_car_climate(climate_e, hvac_mode, temperature)
+            ha_car.set_climate(climate_e, hvac_mode, temperature)
 
 
 class NissanCarDriver(GenericEvCarDriver):

@@ -20,7 +20,7 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | 4c | Köra skuggläget mot din egen installation i några dygn och se paritet på riktig data (inga skillnader efter uppvärmning) | |
 | 4d | Läget `remote`: planerarens process styr, den gamla vägen är fallback (senaste giltiga plan, sedan den gamla vägen); notiser flyttas dit | |
 | 5a | Sömmen: drivrutinerna når Core bara genom en modul (`drivers/host.py`) som Core binder vid start; kontraktstester mot en falsk värd | |
-| 5b | Märkesspecifik kod ut ur `homeassistant.py` (Easee, SolarEdge, Gecko, bilens klimat, spabad) in i drivrutinerna | |
+| 5b | Märkesspecifik kod ut ur `homeassistant.py` (Easee, SolarEdge, Gecko, bilens klimat, spabad) in i drivrutinerna | klart: `drivers/ha_easee.py`, `ha_solaredge.py`, `ha_gecko.py`, `ha_car.py` |
 | 5c | Drivrutinerna flyttas till `energywizard-drivers` (med `host.py`, falsk värd, kontraktstester och CI); Core hämtar dem med fast version | |
 | 5d | Resten av beroendena (`pump`, `hot_water_*`, `spa_entities`, `telemetry`, `notifier`, `support_bundle`) bakom värden | |
 | 6 | API i Core (REST/WebSocket); appen och webben flyttas över ett område i taget, med den gamla vägen kvar tills den nya är verifierad | |
@@ -68,6 +68,17 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
   `notifier.send_emil`, `hot_water_reservations.boost_fields`, `pump.*` (8 funktioner, Thermia), `spa_entities.complete_gecko`.
 
 Sömmen (5a) är alltså en liten värdmodul med ungefär 15 generella funktioner; resten är kod som flyttar med drivrutinerna.
+
+## Märkeskoden ut ur värden (steg 5b)
+
+Märkesspecifik kod låg i `homeassistant.py`. Den bor nu hos drivrutinerna, och värden har bara den generella delen kvar:
+
+- `drivers/ha_easee.py` (läsa laddbox, dynamisk gräns, fasläge, på/av), `ha_solaredge.py` (läsa, exportgräns, standardnamnen), `ha_gecko.py` (läsa, effekt, aktiviteter, måltemperatur, Economy Mode, smartplugg), `ha_car.py` (bilklimat, uppdatera entitet).
+- Värden fick två generella primitiver: `post_service("domän/tjänst", payload, timeout)` (går genom skuggläget som alla skrivningar, kastar vid fel) och `report_failure(text, fel)` (⚠️ för drift, ❌ för programfel). Allt märkesspecifikt (tjänstenamn, fasströmsattribut, fasläget som inte går att läsa tillbaka) är drivrutinens.
+- `homeassistant.py` har tunna vidarekopplingar med de gamla namnen (`set_ev_dynamic_limit`, `set_easee_phases`, `turn_on_charger`, `turn_off_charger`, `_read_easee_charger`, `read_solaredge`, `get/set_solaredge_limit`, `read_gecko`, `set_gecko_*`, `toggle_spa_plug`, `read_spa_*`, `set_car_climate`, `refresh_entity`), så `main.py`, appen, webben och äldre tester fungerar oförändrat.
+- `set_climate_temperature` blev kvar i värden: det är en generell `climate.set_temperature` som flera drivrutiner delar (värmepump, spa), inte märkeskod. Det avviker från den ursprungliga listan.
+- Värdens yta för `homeassistant` krympte från 32 till 17 namn (`_BASE`, `_HEADERS` och `_VERIFY` behövs inte längre), vilket är det drivrutinsrepot måste erbjuda i steg 5c.
+- Bevis: `tests/test_ha_brands.py` (märkesmodulerna mot en falsk värd utan motorns `homeassistant`, exakt samma HA-anrop och tidsgränser som förut, vidarekopplingarna, och att ytan inte längre har märkesnamn).
 
 ## Så håller vi ihop releaserna när delarna ligger i olika repon
 
