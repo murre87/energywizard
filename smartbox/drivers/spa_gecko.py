@@ -17,6 +17,7 @@ read_state() returnerar rådata (heater_state som HA visar den) - main.py:s vill
 import time
 
 from drivers.host import homeassistant
+from drivers import ha_gecko
 from drivers.host import spa_entities
 from drivers.spa import SpaDriver
 
@@ -45,7 +46,7 @@ class GeckoSpaDriver(SpaDriver):
         return self._full
 
     def read_state(self) -> dict:
-        d = homeassistant.read_gecko(self._ents()) or {}
+        d = ha_gecko.read(self._ents()) or {}
         return {
             "current_temp": d.get("current_temp"),
             "target_temp": d.get("target_temp"),
@@ -54,19 +55,19 @@ class GeckoSpaDriver(SpaDriver):
         }
 
     def set_target_temp(self, temp_c: float) -> None:
-        homeassistant.set_gecko_target(temp_c, self._ents().get("climate"))
+        ha_gecko.set_target(temp_c, self._ents().get("climate"))
 
     def set_economy(self, enable: bool) -> None:
-        homeassistant.set_gecko_economy(enable, self._ents().get("economy_mode"))
+        ha_gecko.set_economy(enable, self._ents().get("economy_mode"))
 
     def read_power_w(self) -> float | None:
         return (self.read_power_detail() or {}).get("total_w")
 
     def read_power_detail(self) -> dict:
-        return homeassistant.read_spa_power(self._ents()) or {}
+        return ha_gecko.read_power(self._ents()) or {}
 
     def read_activities(self) -> dict:
-        return homeassistant.read_spa_activities(self._ents()) or {}
+        return ha_gecko.read_activities(self._ents()) or {}
 
     def set_plug_power(self, on: bool) -> bool:
-        return homeassistant.toggle_spa_plug(on, self._ents().get("smart_plug"))
+        return ha_gecko.toggle_plug(on, self._ents().get("smart_plug"))
