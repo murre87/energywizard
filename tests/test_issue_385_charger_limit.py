@@ -44,6 +44,6 @@ def test_kopplat_i_motor_läsare_guide_och_app():
     root = os.path.join(os.path.dirname(__file__), "..")
     rd = lambda *p: open(os.path.join(root, *p), encoding="utf-8").read()
     assert "charger_limit.explain(last_sent_ev_limit.get(car_id), charger_data)" in rd("smartbox", "main.py")
-    assert '"circuit_rated_a": _get_numeric_attribute(entities["status"], "circuit_ratedCurrent")' in rd("smartbox", "homeassistant.py")
+    assert '"circuit_rated_a": ha._get_numeric_attribute(entities["status"], "circuit_ratedCurrent")' in rd("smartbox", "drivers", "ha_easee.py")
     assert '"circuit_limit": pick("sensor", r"dynamisk.?krets|dynamic.?circuit")' in rd("smartbox", "discovery.py")
     assert '"limit_note":' in rd("ewapp", "app.py") and "c.limit_note" in rd("ewapp", "static", "app.js")

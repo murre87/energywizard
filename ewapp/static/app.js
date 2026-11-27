@@ -109,7 +109,11 @@ function actions(c, big) {
 }
 const ageTxt = (h) => (h < 1 ? Math.round(h * 60) + " min" : h < 48 ? Math.round(h) + " h" : Math.round(h / 24) + " dygn");
 const staleChip = (c) => (c.age_h != null && c.age_h > 2 ? `<button class="chip warn" data-a="cardata" data-c="${c.key}" title="Bilen har inte skickat nya värden. Öppna för att väcka den och uppdatera.">Data ${ageTxt(c.age_h)} gammal</button>` : "");
-const heatChip = (c) => (c.climate_on ? `<span class="chip heat">🔥 Värmen är på${c.inside != null ? " · " + f1(c.inside) + " °" : ""}</span>` : "");
+const heatChip = (c) => {
+  const temp = c.inside != null ? f1(c.inside, 0) + " °" : "";
+  if (c.climate_on) return `<span class="chip heat">🔥 Värmen är på${temp ? " · " + temp : ""}</span>`;
+  return temp ? `<span class="chip">Kupé ${temp}</span>` : "";
+};
 const planPill = (c) => { const sm = c.plan_all && c.plan_all.summary; if (!sm) return null;
   return `<a class="plink pill" data-a="planlist" data-c="${c.key}" role="button" tabindex="0" title="Visa alla laddblock"><span class="pi">⚡</span><b>${sm.day === "idag" ? "" : esc(sm.day) + " "}${sm.start} → ${sm.end}</b>${sm.soc0 != null ? `<em>${sm.soc0} → ${sm.soc1} %</em>` : ""}<span class="pc">›</span></a>`; };
 const planLink = (c, t) => (c.home && t.startsWith("Planerad") && planPill(c) ? planPill(c) : c.home && c.plugged && (t.startsWith("☀") || t.startsWith("Ingen laddning") || (c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length)) ? `<a class="plink" data-a="planlist" data-c="${c.key}" role="button" tabindex="0">${esc(t)} ›</a>` : esc(t));
@@ -136,7 +140,7 @@ function hero(c) {
 function compact(c) {
   const si = statusInfo(c);
   return `<section class="card${c.climate_on ? " heating" : ""}"><div class="chead"><div class="cname">${esc(c.name)} ${ER() === "family" ? "" : `<button class="link" data-a="cardata" data-c="${c.key}">Alla data</button>`}</div><div class="csoc" data-a="refreshsoc" data-c="${c.key}" title="Tryck för att uppdatera">${c.soc ?? "–"}<small>%</small>${c.age_h != null && c.age_h > 2 ? `<small style="color:var(--warn);display:block;font-size:.62rem;font-weight:500">${ageTxt(c.age_h)} gammal</small>` : ""}</div></div><div class="bar"><i style="width:${c.soc ?? 0}%"></i></div>
-  <div class="note compact-note" style="margin-bottom:8px">${esc(si.t)}${c.climate_on ? " · 🔥 värmen är på" : ""}</div>${c.limit_note ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.limit_note)}</div>` : ""}${c.goal_risk ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.goal_risk)}</div>` : ""}<div class="crow">${c.home ? actions(c, false) : ""}${c.home ? `<button class="mini" data-a="${c.climate_on ? "heat_off" : "heat_on"}" data-c="${c.key}">${c.climate_on ? "Stoppa värme" : "Starta värme"}</button>` : ""}${c.mode !== "auto" ? `<button class="mini" data-a="auto" data-c="${c.key}">Auto</button>` : ""}${c.access ? `<button class="mini" data-a="access">Lås</button>` : ""}</div></section>`;
+  <div class="note compact-note" style="margin-bottom:8px">${esc(si.t)}${c.climate_on ? " · 🔥 värmen är på" : ""}${c.inside != null ? " · Kupé " + f1(c.inside, 0) + " °" : ""}</div>${c.limit_note ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.limit_note)}</div>` : ""}${c.goal_risk ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.goal_risk)}</div>` : ""}<div class="crow">${c.home ? actions(c, false) : ""}${c.home ? `<button class="mini" data-a="${c.climate_on ? "heat_off" : "heat_on"}" data-c="${c.key}">${c.climate_on ? "Stoppa värme" : "Starta värme"}</button>` : ""}${c.mode !== "auto" ? `<button class="mini" data-a="auto" data-c="${c.key}">Auto</button>` : ""}${c.access ? `<button class="mini" data-a="access">Lås</button>` : ""}</div></section>`;
 }
 const SUN_MIN_W = 2500;                                   // ca 2,5 kW sol = över 1,4 kW överskott efter husets last (solladdningens startgräns)
 function sunWindow(p) {                                   // första sammanhängande soltimmarna från nu: {a, b} index i p.hours, eller null
@@ -230,7 +234,20 @@ function svLine() {                                       // besparingen på en 
 function svSince() {                                      // sparat sedan EnergyWizard startade, alltid synligt (samma för alla)
   const a = SV && SV.periods && SV.periods.all;
   if (!a || !a.days || svPeriod === "all") return "";
-  return `<div class="note" style="flex-basis:100%">Sedan start${a.since ? " (" + a.since + ")" : ""}: <b style="color:${a.saved_kr >= 0 ? "var(--acc)" : "var(--bad)"}">${a.saved_kr > 0 ? "+" : a.saved_kr < 0 ? "−" : ""}${f1(Math.abs(a.saved_kr), 0)} ${moneyUnit()}</b></div>`;
+  const b = SV.benefit && SV.benefit.items && SV.benefit.items.length > 1 ? SV.benefit : null;
+  const v = b ? b.total_kr : a.saved_kr, lbl = b ? "Total nytta sedan start" : "Sedan start";
+  return `<div class="note" style="flex-basis:100%">${lbl}${a.since ? " (" + a.since + ")" : ""}: <b style="color:${v >= 0 ? "var(--acc)" : "var(--bad)"}">${v > 0 ? "+" : v < 0 ? "−" : ""}${f1(Math.abs(v), 0)} ${moneyUnit()}</b>${b ? ` <button class="link" data-a="benefit">Se alla poster</button>` : ""}</div>`;
+}
+const BEN_LBL = { timing: ["Prisstyrning av köpt el", "jämfört med ett vanligt hushåll utan styrning"], solar_self: ["Solel som huset använt", "värderad till vad den hade kostat att köpa"], solar_sold: ["Såld solel", "intäkt för el som exporterats"] };
+function benefitSheet() {
+  const b = SV && SV.benefit; if (!b) return;
+  const sg = (v) => (v > 0 ? "+" : v < 0 ? "−" : "");
+  sheet(`<h3>Total nytta sedan start${b.since ? " (" + b.since + ")" : ""}</h3>
+    <div class="v" style="color:${b.total_kr >= 0 ? "var(--acc)" : "var(--bad)"};margin-bottom:8px">${sg(b.total_kr)}${f1(Math.abs(b.total_kr), 0)}<small> ${moneyUnit()}</small></div>
+    ${b.items.map((it) => `<div class="plrow"><div class="plw"><b>${sg(it.kr)}${f1(Math.abs(it.kr), 0)}</b></div><div><b>${BEN_LBL[it.key] ? BEN_LBL[it.key][0] : it.key}</b><div class="note">${BEN_LBL[it.key] ? BEN_LBL[it.key][1] : ""}${it.kwh ? " · " + f1(it.kwh, 0) + " kWh" : ""}</div></div></div>`).join("")}
+    ${b.flexible ? `<div class="note" style="margin-top:6px">Varav sol som gick till elbil och spabad: ${f1(b.flexible.kr, 0)} ${moneyUnit()} (${f1(b.flexible.ev_kwh, 0)} kWh elbil, ${f1(b.flexible.spa_kwh, 0)} kWh spabad).</div>` : ""}
+    <div class="note" style="margin-top:6px">Prisstyrningen är det EnergyWizard styr. Solposterna är vad solcellerna ger, med eller utan styrning, och summan lägger ihop alla poster.</div>
+    <button class="mini" data-a="closesheet">Stäng</button>`);
 }
 function svBattery() {                                   // #398: vad styrningen gav utöver batteriet i självförbrukningsläge
   const b = SV && SV.battery_vs_selfuse && SV.battery_vs_selfuse[svPeriod];
@@ -1014,6 +1031,7 @@ document.addEventListener("click", async (e) => {
   if (a === "viewas") { VIEWAS = v; LS.set("ew_viewas", v); grAt = 0; closeSheet(); loadGreeting(); return; }
   if (a === "trip") return tripSheet(c);
   if (a === "report") return reportSheet();
+  if (a === "benefit") return benefitSheet();
   if (a === "closesheet") return closeSheet();
   if (a === "nowsheet") return nowSheet();
   if (a === "newsopen") return newsSheet();

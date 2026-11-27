@@ -17,7 +17,7 @@ Skydd:
 """
 import time
 
-import homeassistant
+from drivers.host import homeassistant
 from drivers.spa import SpaDriver
 
 HYSTERESIS_C = 0.5

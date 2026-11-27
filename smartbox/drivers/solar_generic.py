@@ -18,7 +18,7 @@ Två former av exportgräns stöds, beroende på vad integrationen exponerar:
                     "Export power limit"-switch styr registret för gränsläget). Slås på när
                     vi stryper, av igen vid 100 %, så växelriktaren lämnas som den var.
 """
-import homeassistant
+from drivers.host import homeassistant
 from drivers.solar import SolarDriver
 
 

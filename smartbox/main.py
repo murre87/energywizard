@@ -38,6 +38,7 @@ import telemetry        # Strikt opt-in: fel + aktiva drivrutinkategorier, se te
 from urllib.parse import urlsplit, urlunsplit
 import decisions        # Besluts- och styrlogik för pump och radiatorer
 import gpm              # Global Priority Manager (Master Logic Tree)
+import planner_bridge   # planeringen som egen process (steg 4b): EW_PLANNER_MODE=local (standard) eller shadow
 import ha_publisher      # Publicerar härledda värden (priser, effektfördelning, COP, besparing) till HA
 import health            # Sensor-/länkövervakning (varnar när en sensor tystnat, sammanfattar HA-avbrott)
 import learning         # AI-modeller för temperatur och avsvalning
@@ -142,6 +143,10 @@ weather.init_weather_db()
 
 # Initiera GPM Motorn och Watchdog-heartbeat
 gpm_engine = gpm.GlobalPriorityManager()
+import contracts
+from drivers import host as _drivers_host
+_drivers_host.check_compat(contracts.API_VERSION)    # drivrutinerna är skrivna mot en kontraktsversion: starta inte med fel huvudversion (steg 5c, PLAN.md)
+_planner = planner_bridge.Bridge()      # EW_PLANNER_MODE: local (standard, ingen skillnad) eller shadow (jämför med planerarens egen process, påverkar inget)
 last_heartbeat = datetime.now(SWE_TZ)
 
 # ============================================================
@@ -1069,9 +1074,11 @@ while True:
 
         # Håll vid liv i 10-sekundersloopen, inte bara i kvartsstyrningen: Solis RC släpper efter sin RC Timeout
         # (standard 5 min) och kvartsloopen hann inte före den - laddning/håll föll tillbaka till växelriktarens läge.
-        # Bara drivrutiner med keepalive_s (den självbegränsar); FTW:s vakthund sköts redan i kvartsstyrningen.
+        # Reservnivåns håll förnyas också (#615). Övriga säkerhetsregler förnyas inte. Bara drivrutiner med
+        # keepalive_s (den självbegränsar); FTW:s vakthund sköts redan i kvartsstyrningen.
         if (battery_cfg["control"] == "styr" and getattr(battery_driver, "_keepalive", None)
-                and _battery.get("decision_rule") not in battery_control.SAFETY_RULES and not system_test.active()):
+                and battery_control.keepalive_allowed(_battery.get("decision_rule"), _battery.get("last"))
+                and not system_test.active()):
             try:
                 battery_driver.refresh()
             except Exception as _bre:
@@ -2299,10 +2306,10 @@ while True:
             # ============================================================
             gpm_state = {
                 'now': now, 'current_price': current_price, 'all_prices': all_prices,
-                'pv_power_w': solar_now, 'avg_net_w': avg_net, 'house_consumption_w': house_consumption_w,
-                'predicted_base_load_kw': dynamic_predicted_base_load_kw, 'grid_import_w': grid_import_w,
-                'consumed_kwh_this_hour': float(consumed_kwh_this_hour), 'power_limit_kw': current_target_limit,
-                'predicted_cooling_rate': predicted_cooling_rate, 'base_load_profile': dynamic_base_load_profile,
+                'pv_power_w': solar_now, 'avg_net_w': avg_net,
+                'predicted_base_load_kw': dynamic_predicted_base_load_kw,
+                'consumed_kwh_this_hour': float(consumed_kwh_this_hour),
+                'predicted_cooling_rate': predicted_cooling_rate,
                 'peak_shaving_enabled': cfg.get("peak_shaving_enabled", True), 'solar_is_shaky': solar_is_shaky,
                 'solar_auto_export': str(all_overrides.get("solar_auto_export", "true")).lower() != "false",
                 'sun_soon': _sun_cache.get("soon"), 'sun_day': _sun_cache.get("day"),
@@ -2337,7 +2344,7 @@ while True:
                 'max_fuse_a': cfg.get('fuse_size_a', decisions.MAX_FUSE_A), 'house_load_a': house_load_excluding_ev_a, 'ev_actual_a': 0,
                 'ev_fuse_cap_a': ev_fuse_cap_a, 'ev_load_cap_a': ev_load_cap_a,
                 'current_solar_limit_pct': current_solar_limit_pct, 'current_target_limit': current_target_limit,
-                'ev_min_charge_a': EV_MIN_CHARGE_AMPS, 'ev_max_charge_a': EV_MAX_CHARGE_AMPS, 'ev_plan': ev_charge_plan,
+                'ev_plan': ev_charge_plan,
                 # Bilarna ur installationen: vilka som finns och deras laddboxars faser/maxström (gpm har inga bilnamn)
                 'car_ids': list(car_ids), 'car_specs': CAR_SPECS, 'has_spa': HAS_SPA,
             }
@@ -2383,7 +2390,7 @@ while True:
                     f'{_c}_hold': all_overrides.get(f"{_c}_hold") == "on",          # EnergyWizard Mobil: manuell paus
                 })
             
-            gpm_actions = gpm_engine.evaluate(gpm_state)
+            gpm_actions = _planner.evaluate(gpm_engine, gpm_state)      # local: samma som gpm_engine.evaluate; shadow: dessutom jämförelse mot planerarens egen process
             gpm_actions["log"] = legionella_text.explain(gpm_actions["log"], days_since_leg, leg_max_days, leg_temp, shadow.active())   # #583
             for _eh_line in electric_heat.plan((house_cfg or {}).get("electric_heat"), gpm_actions.get("pump_mode"),
                                               homeassistant.get_power_w):
@@ -2523,8 +2530,8 @@ while True:
                         gpm_actions["log"].append(f"🔋 (BATTERI): {_alpha}")
                         print(f"🔋 {_alpha}")
                     battery_driver.set_balancing(_bdec.get("rule") == "balance")
-                    if _bdec.get("rule") not in battery_control.SAFETY_RULES and not system_test.active():
-                        battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
+                    if battery_control.keepalive_allowed(_bdec.get("rule"), _battery.get("last")) and not system_test.active():
+                        battery_driver.refresh()       # håller pågående tvångsladdning och reservnivåns håll vid liv (Solis RC m.fl.)
                     if not system_test.active() and battery_control.should_apply(    # pausas medan systemtestet pågår
                             _bdec, _battery["last"], _battery["at"], now, battery_cfg["min_change_minutes"]):
                         if battery_commands.apply(_battery_commands, battery_driver, _bdec["intent"], _bdec.get("power_w")):

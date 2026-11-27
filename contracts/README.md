@@ -7,6 +7,11 @@ det som gör att en del kan flyttas till en egen process eller ett eget repo uta
 | --- | --- | --- |
 | `planner-decision.schema.json` | planering -> Core | `gpm.GlobalPriorityManager.evaluate` |
 | `ev-plan.schema.json` | planering -> Core | `decisions.calculate_ev_charge_plan` |
+| `planner-input.schema.json` | Core -> planering | `gpm_state` i `main.py` (det delade tillståndet) |
+| `battery-decision.schema.json` | planering -> Core | `battery_control.decide` |
+| `battery-plan.schema.json` | planering -> Core | `battery_plan.plan_from_db` |
+| `driver-state.schema.json` | drivrutiner -> Core | `read_state`/`read_sensors`/`read_production` (`#/$defs/<typ>`) |
+| `driver-command.schema.json` | Core -> drivrutiner | de skrivande metoderna på drivrutinsgränssnitten |
 
 ## Regler
 
@@ -25,3 +30,31 @@ den gamla (i processen) och den nya sida vid sida, och bytet görs först när s
     assert report.ok, report.summary()
 
 Scenarierna kan vara `tests/gpm_golden_gen.scenarios()`. Se `tests/test_contracts.py` för ett körbart exempel.
+
+## Kontraktsvakten
+
+`tests/contract_guard.py` kontrollerar varje drivrutinssvar, varje batteriplan och varje batteribeslut under HELA testsviten mot schemat. De tusentals
+befintliga testerna är alltså mätkorpus: lämnar en drivrutin en ny nyckel med fel typ, eller ändras batteribeslutets form, blir just det testet rött med
+exakt vad som avviker. Ett test som med flit lämnar ogiltiga data märks `@pytest.mark.no_contract_guard`. Mock-objekt hoppas över.
+
+Drivrutinerna har några få sluddriga typer (heltal som bool, statuskod som tal). `contracts.normalize_driver_state` rättar bara de uppräknade fälten
+(`BOOL_FIELDS`, `STR_FIELDS`) och lämnar allt annat orört, så en ny avvikelse syns i stället för att döljas.
+
+## Så här ändrar du ett gränssnitt
+
+- **Ny publik metod på ett drivrutinsgränssnitt:** `tests/test_contracts_drivers.py` kräver att den klassas som kommando (`contracts.COMMANDS`, plus schemat) eller icke-kommando (`NON_COMMANDS`).
+- **Ny regel i batteribeslutet:** läggs till i `battery-decision.schema.json` (testet jämför mot koden).
+- **Ny nyckel i ett beslut eller en plan:** schemat ändras och `x-api-version` höjs (ny valfri nyckel = MINOR, ändrad eller borttagen = MAJOR).
+
+## Indatakontraktet (det delade tillståndet)
+
+`planner-input.schema.json` beskriver allt Core lämnar till planeringen. `x-evidence` säger hur säker typen är: `golden` (uppmätt i de 2 600 scenarierna),
+`main-code` (läst ur `main.py:s` uttryck) eller `unverified`. Alla nycklar är valfria, och `null` betyder att en givare saknas. `tests/test_contracts_input.py` jämför
+nyckeluppsättningen mot koden åt båda håll (vad `gpm.py` läser, vad `main.py` skickar), så en ny, borttagen eller omdöpt nyckel ändrar kontraktet eller testet blir rött.
+Ett test som med flit ger planeringen minimal eller konstig indata märks `@pytest.mark.no_planner_input_guard`.
+
+## Över processgränsen
+
+`contracts.planner_input_to_wire` och `contracts.planner_input_from_wire` är de två halvorna av omvandlingen: det Core skickar (JSON) blir det `gpm.evaluate`
+förväntar sig (datetime, DataFrame, tupelnycklar). `tests/test_planner_wire.py` visar att samma beslut kommer ut som med den ursprungliga indatan. Se
+`docs/uppdelning/PLAN.md` för planeringstjänsten och bryggan (`EW_PLANNER_MODE`).

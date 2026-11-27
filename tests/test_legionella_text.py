@@ -43,5 +43,5 @@ def test_alla_varianter_ar_oversatta_till_en_och_cs():
 def test_motorn_skriver_om_raden_efter_gpm():
     src = (Path(__file__).resolve().parent.parent / "smartbox" / "main.py").read_text()
     assert "import legionella_text" in src
-    i = src.index("gpm_actions = gpm_engine.evaluate(gpm_state)")
+    i = src.index("gpm_actions = _planner.evaluate(gpm_engine, gpm_state)")
     assert "legionella_text.explain(gpm_actions[\"log\"]" in src[i:i + 600]

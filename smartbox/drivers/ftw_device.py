@@ -55,13 +55,13 @@ class FtwDevice:
     """En körande FTW-drivrutin för en enhet. Delas mellan batteri- och solomslaget för samma enhet."""
 
     def __init__(self, name, host, port=502, unit_id=1, config=None, allow_write=False):
-        from lua_host import LuaDriver
+        from drivers import lua_host
         path = os.path.join(FTW_DIR, os.path.basename(str(name)) + ".lua")
         if not os.path.exists(path):
             raise ValueError(f"FTW-drivrutinen '{name}' finns inte (finns: {', '.join(available())})")
         self.name, self.emits, self.ok_at, self.error = name, {}, None, None
         self.host, self.port = host, port
-        self.drv = LuaDriver(path, host=host, port=port, unit_id=unit_id, config=config or {}, allow_write=allow_write)
+        self.drv = lua_host.LuaDriver(path, host=host, port=port, unit_id=unit_id, config=config or {}, allow_write=allow_write)
         self._stop = False
         self._cmd_lock = threading.Lock()
         threading.Thread(target=self._loop, daemon=True, name=f"ftw-{name}").start()
@@ -84,7 +84,7 @@ class FtwDevice:
         return self.ok_at is not None and time.time() - self.ok_at < max_age
 
     def command(self, action, power_w=0, balance=False):
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record(f"FTW {self.name}", f"{action} {power_w} W" + (" (balance)" if balance else ""))
             return True
@@ -95,7 +95,7 @@ class FtwDevice:
             return self.drv.command(action, power_w, context)
 
     def default_mode(self):
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record(f"FTW {self.name}", "default mode")
             return True
@@ -106,7 +106,7 @@ class FtwDevice:
 
 def poll_failure_note(name, host, exc) -> str:
     """Sanerad rad till supportutdraget. Lua-texten behövs för att se felet (#297); värd och sökväg följer inte med."""
-    import support_bundle
+    from drivers.host import support_bundle
     # Scan each token once; nested path repetitions can backtrack exponentially.
     def strip_lua_path(match):
         token = match.group(0)
@@ -122,12 +122,12 @@ def poll_failure_note(name, host, exc) -> str:
 def note_poll_failure(name, host, exc) -> None:
     """Spara raden innan felrapporten byggs, så utdraget innehåller Lua-texten och inte bara feltypen."""
     try:
-        import support_bundle
+        from drivers.host import support_bundle
         support_bundle.note_error_line(poll_failure_note(name, host, exc))
     except Exception:
         pass
     try:                                     # syns i insamlaren (högst en gång i timmen per feltyp), aldrig osanerad feltext
-        import telemetry
+        from drivers.host import telemetry
         telemetry.report_error({}, f"ftw_{name}.poll", type(exc).__name__)
     except Exception:
         pass
@@ -212,7 +212,7 @@ class FtwBatteryDriver(BatteryDriver):
             ok = self._dev.command("battery", 0)
         else:
             return False
-        import shadow
+        from drivers.host import shadow
         # Simulated requests must not become keepalive authority when shadow
         # mode is later disabled; a fresh controller decision is required.
         self._last = (intent, p) if ok and not shadow.active() else None
