@@ -57,3 +57,71 @@ def ev_plan_to_wire(df) -> dict:
     for rec in df[cols].to_dict("records"):
         rows.append({k: plain(v) for k, v in rec.items()})
     return {"rows": rows}
+
+
+# ---- batteri: plan och beslut ----
+def battery_plan_to_wire(plan: dict) -> dict:
+    """Batteriplanen (battery_plan.plan_from_db) som JSON-säker dict enligt battery-plan.schema.json."""
+    return plain(dict(plan))
+
+
+def battery_decision_to_wire(decision: dict) -> dict:
+    """Batteribeslutet (battery_control.decide) som JSON-säker dict enligt battery-decision.schema.json."""
+    return plain(dict(decision))
+
+
+# ---- drivrutiner: state och kommandon ----
+STATE_KINDS = ("battery", "car", "charger", "heatpump_state", "heatpump_sensors", "solar", "spa_state", "spa_activities", "spa_power_detail")
+# De få fält där drivrutiner i dag lämnar sluddriga typer. Omvandlingen är medvetet liten och uppräknad: allt annat lämnas som det är,
+# så att en ny avvikelse syns i kontraktstestet i stället för att döljas här.
+BOOL_FIELDS = {"car": {"plugged_in"}, "charger": {"current_is_limit"}, "heatpump_state": {"running", "defrosting"},
+               "heatpump_sensors": {"compressor_running", "alarm_active", "hot_water_boost_active"}}
+STR_FIELDS = {"solar": {"status"}, "battery": {"mode"}, "heatpump_state": {"mode", "fault"}, "heatpump_sensors": {"operating_mode"}}
+DROPPED_FIELDS = {"_raw"}                   # rådata från enheten: stort, märkesspecifikt och inte en del av kontraktet
+
+
+def _boolish(v):
+    if v is None or isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return bool(v)
+    if isinstance(v, str):
+        t = v.strip().lower()
+        return True if t in {"1", "true", "on", "yes"} else False if t in {"0", "false", "off", "no"} else None
+    return None
+
+
+def normalize_driver_state(kind: str, state: dict) -> dict:
+    """En drivrutins read_state/read_sensors/read_production som JSON-säker dict enligt driver-state.schema.json (#/$defs/<kind>)."""
+    if kind not in STATE_KINDS:
+        raise ValueError(f"okänd typ: {kind}")
+    out = {k: v for k, v in dict(state or {}).items() if k not in DROPPED_FIELDS}
+    for k in BOOL_FIELDS.get(kind, ()):
+        if k in out:
+            out[k] = _boolish(out[k])
+    for k in STR_FIELDS.get(kind, ()):
+        if k in out and out[k] is not None and not isinstance(out[k], str):
+            out[k] = str(out[k])
+    return plain(out)
+
+
+# Kommandon per enhet: namn -> argumentnamn i den ordning drivrutinsmetoden tar dem. Allt annat på gränssnitten är läsning, förmåga
+# eller livscykel (NON_COMMANDS). tests/test_contracts_drivers.py kräver att varje publik metod står i exakt en av listorna.
+COMMANDS = {
+    "battery": {"apply_intent": ("intent", "power_w"), "set_mode": ("mode",)},
+    "car": {"set_climate": ("hvac_mode", "temperature")},
+    "charger": {"set_limit_a": ("amps", "reason"), "set_phases": ("phases",), "turn_on": (), "turn_off": ()},
+    "heatpump": {"adjust_curve": ("delta",), "set_curve_offset": ("offset",), "reset_curve_offset": (), "pause": ("minutes", "now"), "resume": (),
+                 "set_hot_water_boost": ("active",), "set_operating_mode": ("mode",), "set_room_temp": ("target_c",),
+                 "set_heating_start_temp": ("target_c",), "set_water_start_temp": ("target_c",), "set_water_stop_temp": ("target_c",)},
+    "solar": {"set_export_limit_pct": ("pct",)},
+    "spa": {"set_target_temp": ("temp_c",), "set_economy": ("enable",), "set_plug_power": ("on",)},
+}
+NON_COMMANDS = {
+    "battery": {"read_state", "refresh", "set_balancing", "supported_intents", "supports_control", "supports_maintenance"},
+    "car": {"read_state"},
+    "charger": {"read_state"},
+    "heatpump": {"capabilities", "read_hot_water_boost", "read_room_target", "read_sensors", "read_state", "tick"},
+    "solar": {"get_export_limit_pct", "read_production", "supports_curtailment"},
+    "spa": {"read_activities", "read_power_detail", "read_power_w", "read_state"},
+}
