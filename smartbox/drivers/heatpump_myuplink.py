@@ -177,7 +177,7 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
         print(f"⚠️ MyUplinkHeatPumpDriver: myUplink nekar inloggningen, HTTP {status}. Logga in på nytt med "
               "scripts/myuplink_authorize.py och byt MYUPLINK_REFRESH_TOKEN. Värmepumpen styrs inte så länge.")
         try:
-            import notifier
+            from drivers.host import notifier
             notifier.send_emil("⚠️ myUplink: logga in igen",
                                "myUplink nekar EnergyWizards inloggning, så värmepumpen styrs inte just nu. "
                                "Logga in på nytt och byt MYUPLINK_REFRESH_TOKEN.")
@@ -231,13 +231,13 @@ class MyUplinkHeatPumpDriver(HeatPumpDriver):
             pid = self._entities.get(key)
             if pid and pid in by_id:
                 self._writable[key] = bool(by_id[pid].get("writable"))
-        from hot_water_observation import temperature
+        from drivers.host import temperature
         water = by_id.get(str(self._entities.get("water_temp")), {})
         out["water_temp_observation"] = temperature(out.get("water_temp"), water.get("timestamp"), "source")
         return out
 
     def _write_point(self, write_key: str, value) -> bool:
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record("myUplink", f"{write_key}={value}")
             return True

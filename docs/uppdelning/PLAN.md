@@ -68,3 +68,17 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
   `notifier.send_emil`, `hot_water_reservations.boost_fields`, `pump.*` (8 funktioner, Thermia), `spa_entities.complete_gecko`.
 
 Sömmen (5a) är alltså en liten värdmodul med ungefär 15 generella funktioner; resten är kod som flyttar med drivrutinerna.
+
+## Så håller vi ihop releaserna när delarna ligger i olika repon
+
+Frågan (FlebbsRulez, Discord 2026-11-27): en fix i Core som delen Planner beror på måste levereras innan fix B i Planner kan påbörjas, annars blir det krockar.
+
+1. **Kontraktet först, utöka och byt sedan ta bort.** En ändring som rör två delar görs i tre PR:er som inte låser varandra: (a) Core lägger till ett *valfritt* fält i kontraktet (MINOR, bakåtkompatibelt), (b) varje del börjar använda det, oberoende av varandra, (c) när alla använder det tas det gamla bort. Bara brytande ändringar (MAJOR) kräver att delarna släpps tillsammans.
+2. **Core äger releasen.** En fil med fastlåsta versioner (release-manifest) i Core pekar ut exakta versioner av drivrutiner, planering och webb, och Core bygger dem in i en enda image. Användaren uppdaterar aldrig delarna var för sig. Fix B utgår från den version av A som manifestet pekar på, inte från A:s gren. En ändring i en del räknas som levererad först när Core-PR:en som höjer versionen är mergad och integrationstesterna är gröna.
+3. **Krockarna begränsas av filplaceringen.** Delarna delar inga filer, bara kontraktet (`contracts/`), som Core äger.
+4. **Beroenden mellan PR:er syns.** PR-mallen får en rad "Beror på: repo#nummer", och en CI-kontroll vägrar merge tills den PR:en är mergad.
+5. **Kompatibilitet kontrolleras.** Varje del jämför kontraktets huvudversion vid start och vägrar starta vid fel (planeringstjänstens `/health` ger redan `api_version`). Varje delrepos CI kör kontraktstester mot Cores senaste och föregående kontrakt.
+6. **Ändringslogg utan krockar.** Under 2026-11-27 krockade alla tio öppna PR:er på `ha-addon/smartbox/CHANGELOG.md` (varje PR lägger en versionspost överst) och tog flera timmar att reda ut. Varje PR bör i stället lägga en egen liten fil (`changelog.d/`) och versionen sätts vid släpp. Det rör släppkedjan (tilläggsbotten läser översta rubriken) och görs därför som ett eget, försiktigt steg.
+7. **Grind innan fler delar delas ut.** Drivrutinerna delas först. Efter det mäts hur ofta en ändring rör flera repon. Är det ofta är en monorepo med kataloger, kodägare och en privat del som undermodul ett bättre svar än fler repon, och då slås delarna ihop igen (kontrakten och värdmodulen behövs ändå).
+
+Detta är en plan. Release-manifestet, versionskontrollen vid start, `Beror på`-kontrollen och ändringsloggsfilerna är **inte byggda än** (steg 5c och framåt).

@@ -7,7 +7,7 @@ tagit (main.py anropar den så idag). En riktig normaliserad enum-mappning (stri
 är ett medvetet senare steg (Fas 5, när ett andra värmepumpsmärke faktiskt behöver en
 annan mappning att jämföra mot) - att gissa en mappning nu utan att verifiera den mot en
 riktig andra implementation hade varit att införa en bugg, inte ta bort en."""
-import pump
+from drivers.host import pump
 from drivers.heatpump import HeatPumpDriver
 
 

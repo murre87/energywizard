@@ -13,7 +13,7 @@ att inte bygga den, men en anledning att vara tydlig om det.
 set_economy() mappar till Balboa:s låg/hög-temperaturområde-select (närmaste analog
 till "economy" i den officiella integrationen) - en rimlig tolkning av dokumentationens
 egen terminologi, inte en gissning på rått protokollnivå som Gecko-misstagen var."""
-import homeassistant
+from drivers.host import homeassistant
 from drivers.spa import SpaDriver
 
 

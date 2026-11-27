@@ -30,7 +30,7 @@ Finns både current_limit (number) och current_limit_service används number-ent
 """
 import time
 
-import homeassistant
+from drivers.host import homeassistant
 from drivers.charger import ChargerDriver
 
 MIN_CHARGE_A = 6

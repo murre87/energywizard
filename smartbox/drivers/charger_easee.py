@@ -7,7 +7,7 @@ läsa tillbaka) hanteras i homeassistant._read_easee_charger / set_easee_phases.
 Inga inbyggda laddboxar: allt kommer ur installationen (2026-11-07)."""
 import requests
 
-import homeassistant
+from drivers.host import homeassistant
 from drivers.charger import ChargerDriver
 
 

@@ -62,7 +62,7 @@ class HeishaMonHeatPumpDriver(HeatPumpDriver):
     def _command(self, name: str, value) -> bool:
         if not self._host:
             return False
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record("HeishaMon", f"{name}={value}")
             return True

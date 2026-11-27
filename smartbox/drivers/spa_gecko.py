@@ -16,8 +16,8 @@ En ofullständig konfiguration (t.ex. skriven av den äldre upptäckten, som bar
 read_state() returnerar rådata (heater_state som HA visar den) - main.py:s villkor bor kvar där."""
 import time
 
-import homeassistant
-import spa_entities
+from drivers.host import homeassistant
+from drivers.host import spa_entities
 from drivers.spa import SpaDriver
 
 _REFRESH_S = 900          # entiteterna i HA ändras sällan; kolla igen med några minuters mellanrum om något fortfarande saknas

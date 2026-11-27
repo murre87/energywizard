@@ -22,7 +22,7 @@ drivrutinen bara, och styrningen svarar ärligt False.
 """
 import re
 
-import homeassistant
+from drivers.host import homeassistant
 from drivers.heatpump import HeatPumpDriver
 
 _READ = ("indoor_temp", "outdoor_temp", "forward_temp", "return_temp", "water_temp", "degree_minutes")
@@ -67,7 +67,7 @@ class HaEntitiesHeatPumpDriver(HeatPumpDriver):
                                                        lambda: homeassistant._get_raw_state(self._e["compressor"]))
         out["compressor_power_kw"] = None
         out["compressor_power_w"] = self._power_w()
-        from hot_water_observation import temperature
+        from drivers.host import temperature
         raw = homeassistant._states_cache.get(self._e.get("water_temp")) or {}
         out["water_temp_observation"] = temperature(
             out.get("water_temp"), raw.get("last_reported") or raw.get("last_updated"), "ha_report")
@@ -94,7 +94,7 @@ class HaEntitiesHeatPumpDriver(HeatPumpDriver):
                                     "(heat_pump.entities.room_target) - läser bara, styr inte.")
             return False
         v = round(min(max(float(target_c), 5.0), 30.0), 1)
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record("Värmepump (HA)", f"{ent}={v}")
             return True
@@ -110,7 +110,7 @@ class HaEntitiesHeatPumpDriver(HeatPumpDriver):
         steps = num("offset_normal", 0.0) + num("offset_steps_per_c", 2.0) * (float(target_c) - num("offset_base_c", 20.5))
         off = int(round(min(max(steps, num("offset_min", -5.0)), num("offset_max", 5.0))))
         ent = self._e["curve_offset"]
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record("Värmepump (HA, kurva)", f"{ent}={off}")
             return True

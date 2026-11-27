@@ -13,7 +13,7 @@ ALDRIG KÖRD MOT EN RIKTIG PUMP. Bara det källan bekräftar används; övrigt s
 number.set_value på integrationens egna number-entiteter (integrationen skriver registret till pumpen över MQTT).
 Skuggläge: inget skickas, bara loggas.
 """
-import homeassistant
+from drivers.host import homeassistant
 from drivers.heatpump import HeatPumpDriver
 
 
@@ -66,7 +66,7 @@ class ThermIQHeatPumpDriver(HeatPumpDriver):
             return False
         v = round(min(max(float(value), lo), hi), 1)
         ent = self._e("number", key)
-        import shadow
+        from drivers.host import shadow
         if shadow.active():
             shadow.record("ThermIQ", f"{ent}={v}")
             return True
