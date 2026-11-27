@@ -19,7 +19,10 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | 4b | Planeringen som egen process i samma image (Python), i **skuggläge**: den gamla vägen styr, den nya körs bredvid och jämförs (`EW_PLANNER_MODE=shadow`, standard `local`) | klart: `planner_service.py`, `planner_bridge.py`, `contracts.planner_input_from_wire` |
 | 4c | Köra skuggläget mot din egen installation i några dygn och se paritet på riktig data (inga skillnader efter uppvärmning) | |
 | 4d | Läget `remote`: planerarens process styr, den gamla vägen är fallback (senaste giltiga plan, sedan den gamla vägen); notiser flyttas dit | |
-| 5 | Drivrutinerna till eget repo, med mall och kontraktstester | |
+| 5a | Sömmen: drivrutinerna når Core bara genom en modul (`drivers/host.py`) som Core binder vid start; kontraktstester mot en falsk värd | |
+| 5b | Märkesspecifik kod ut ur `homeassistant.py` (Easee, SolarEdge, Gecko, bilens klimat, spabad) in i drivrutinerna | |
+| 5c | Drivrutinerna flyttas till `energywizard-drivers` (med `host.py`, falsk värd, kontraktstester och CI); Core hämtar dem med fast version | |
+| 5d | Resten av beroendena (`pump`, `hot_water_*`, `spa_entities`, `telemetry`, `notifier`, `support_bundle`) bakom värden | |
 | 6 | API i Core (REST/WebSocket); appen och webben flyttas över ett område i taget, med den gamla vägen kvar tills den nya är verifierad | |
 | 7 | Release-kanaler (stable/dev), synlig version och versionskoll | |
 | 8 | Flytta det som får vara privat (efter avtal) | |
@@ -48,3 +51,20 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 - **Tyst tjänst:** i skuggläge ersätts `gpm.notifier` så att inga notiser skickas dubbelt. `--loud` (steg 4d) låter tjänsten skicka.
 - **Minne:** tjänsten är en egen Python-process som laddar `gpm` och dess beroenden (bland annat scikit-learn), så skuggläget kostar ungefär lika mycket minne som motorn en gång till. Håll det av på små enheter tills steg 4c har visat att det behövs.
 - **Bevis:** `tests/test_planner_wire.py` (alla 4 680 facit-steg ger samma beslut efter en tur genom JSON) och `tests/test_planner_service.py` (samma beslut över riktig HTTP och med en riktig underprocess, bryggans beteende med falska delar).
+
+## Kopplingen mellan drivrutinerna och resten (uppmätt före steg 5)
+
+30 drivrutinsfiler (plus 98 FTW-Lua-drivrutiner som redan är fristående) importerar 13 moduler ur resten av motorn. Bara fem moduler importerar tillbaka
+(`main`, `house_config`, `battery_plan`, `battery_shadow`, `nibe_hot_water_audit`), så ingångarna är få. Utgående beroenden (modul: antal drivrutiner):
+
+- `homeassistant` (14): ungefär 30 funktioner. Läsning av state (`_get_numeric_state`, `_get_raw_state`, `get_attribute`, `get_power_w`) och skrivning
+  (`set_number`, `set_switch`, `set_select`, `call_service`, `press_button`) är generella. Resten är **märkesspecifik kod som bor i `homeassistant.py`**:
+  `set_ev_dynamic_limit`, `set_easee_phases`, `turn_on_charger`, `turn_off_charger`, `_read_easee_charger`, `read_solaredge`, `get/set_solaredge_limit`,
+  `read_gecko`, `set_gecko_target`, `set_gecko_economy`, `toggle_spa_plug`, `read_spa_power`, `read_spa_activities`, `set_car_climate`,
+  `set_climate_temperature`. De hör hemma i drivrutinerna (steg 5b), och bara den generella delen blir kvar i värden.
+- `shadow` (7): `active()` och `record()` (skuggläget).
+- `hot_water_observation` (4): `temperature`. `ew_settings` (2): `get`, `PATH`.
+- Enstaka: `nordpool.price_timezone`, `hot_water_runtime.Journal`, `support_bundle.sanitize/note_error_line`, `lua_host.LuaDriver`, `telemetry.report_error`,
+  `notifier.send_emil`, `hot_water_reservations.boost_fields`, `pump.*` (8 funktioner, Thermia), `spa_entities.complete_gecko`.
+
+Sömmen (5a) är alltså en liten värdmodul med ungefär 15 generella funktioner; resten är kod som flyttar med drivrutinerna.
