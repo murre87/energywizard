@@ -2,7 +2,7 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.183 (2026-11-27)
+## 1.2.187 (2026-11-27)
 - **Välj själv vilken sensor som är bilens laddnivå (#596).** Entitetsväljaren visar bilens batterisensorer, med värdet de har just nu. Traktionsbatteriet är förvalt. Under Inställningar kan du byta sensor direkt när installationen sparar från webben, till exempel om en Kia eller Hyundai fått 12 V-batteriet. Bytet skriver bara den raden i `house_config.yaml`.
 
 ## 1.2.182 (2026-11-27)
