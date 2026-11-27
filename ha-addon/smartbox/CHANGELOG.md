@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.185 (2026-11-27)
+- **Solis RC håller kvar reservnivån (#615).** När batteriet låg på reservnivån skrev EnergyWizard håll en gång och förnyade det inte. Solis släpper fjärrstyrningen efter RC Timeout (5–7 minuter) och batteriet laddade då ur under reservnivån. Håll på reservnivån skrivs nu om lika ofta som övriga håll. En laddning eller urladdning som ännu inte hunnit bytas till håll förlängs inte. Övriga säkerhetsregler (gammal data, säkring, effekttak och laddtak) förnyas fortfarande inte.
+
 ## 1.2.184 (2026-11-27)
 - **Dubbletter i telemetrins husöversikt (#614).** Två orsaker rättade i insamlaren: (1) en ominstallation där användaren ändrat huvudsäkringen (25 A till 20 A) räknades som ett nytt hus, eftersom säkringen ingick i husets utrustningsavtryck. Säkringen är en inställning och ingår inte längre. (2) En testkopia av ett hus utan versionsnummer som körde samtidigt med det riktiga räknades som ett eget hus. Den slås nu ihop med det riktiga huset om utrustningen är exakt densamma. Två riktiga installationer slås aldrig ihop bara för att de är samtida.
 
