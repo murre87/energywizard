@@ -7,6 +7,10 @@ det som gör att en del kan flyttas till en egen process eller ett eget repo uta
 | --- | --- | --- |
 | `planner-decision.schema.json` | planering -> Core | `gpm.GlobalPriorityManager.evaluate` |
 | `ev-plan.schema.json` | planering -> Core | `decisions.calculate_ev_charge_plan` |
+| `battery-decision.schema.json` | planering -> Core | `battery_control.decide` |
+| `battery-plan.schema.json` | planering -> Core | `battery_plan.plan_from_db` |
+| `driver-state.schema.json` | drivrutiner -> Core | `read_state`/`read_sensors`/`read_production` (`#/$defs/<typ>`) |
+| `driver-command.schema.json` | Core -> drivrutiner | de skrivande metoderna på drivrutinsgränssnitten |
 
 ## Regler
 
@@ -25,3 +29,18 @@ den gamla (i processen) och den nya sida vid sida, och bytet görs först när s
     assert report.ok, report.summary()
 
 Scenarierna kan vara `tests/gpm_golden_gen.scenarios()`. Se `tests/test_contracts.py` för ett körbart exempel.
+
+## Kontraktsvakten
+
+`tests/contract_guard.py` kontrollerar varje drivrutinssvar, varje batteriplan och varje batteribeslut under HELA testsviten mot schemat. De tusentals
+befintliga testerna är alltså mätkorpus: lämnar en drivrutin en ny nyckel med fel typ, eller ändras batteribeslutets form, blir just det testet rött med
+exakt vad som avviker. Ett test som med flit lämnar ogiltiga data märks `@pytest.mark.no_contract_guard`. Mock-objekt hoppas över.
+
+Drivrutinerna har några få sluddriga typer (heltal som bool, statuskod som tal). `contracts.normalize_driver_state` rättar bara de uppräknade fälten
+(`BOOL_FIELDS`, `STR_FIELDS`) och lämnar allt annat orört, så en ny avvikelse syns i stället för att döljas.
+
+## Så här ändrar du ett gränssnitt
+
+- **Ny publik metod på ett drivrutinsgränssnitt:** `tests/test_contracts_drivers.py` kräver att den klassas som kommando (`contracts.COMMANDS`, plus schemat) eller icke-kommando (`NON_COMMANDS`).
+- **Ny regel i batteribeslutet:** läggs till i `battery-decision.schema.json` (testet jämför mot koden).
+- **Ny nyckel i ett beslut eller en plan:** schemat ändras och `x-api-version` höjs (ny valfri nyckel = MINOR, ändrad eller borttagen = MAJOR).

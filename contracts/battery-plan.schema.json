@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/battery-plan.schema.json",
+  "title": "Battery plan (planner -> core)",
+  "description": "Batteriets plan i kvartsrutor (i dag battery_plan.plan_from_db): kostnad mot baslinjen, besparing, balanseringsläge och en rad per ruta. Facit är de planer som testerna bygger. Valfria nycklar finns bara i vissa planvarianter (jämförelse, simulering, styrning).",
+  "x-api-version": "1.0.0",
+  "type": "object",
+  "required": ["allow_export", "balance_deferred", "baseline_cost", "cost", "input_quality", "reversal_cost_sek", "rows", "saving_kr", "style", "wear_cost_sek"],
+  "additionalProperties": false,
+  "properties": {
+    "allow_export": {"type": "boolean"},
+    "balance_deferred": {"type": "boolean"},
+    "baseline_cost": {"type": "number"},
+    "cost": {"type": "number"},
+    "saving_kr": {"type": "number"},
+    "reversal_cost_sek": {"type": "number", "minimum": 0},
+    "wear_cost_sek": {"type": "number", "minimum": 0},
+    "style": {"type": "string"},
+    "input_quality": {"type": "object", "additionalProperties": {"type": "object"}, "description": "Per indata (prices, solar, load, soc, pv_model): källa, täckning och eventuellt tillstånd."},
+    "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}},
+    "action_now": {"type": "string"},
+    "power_now_w": {"type": "number"},
+    "spot_now": {"type": "number"},
+    "balance_now": {"type": "boolean"},
+    "balance_hold_now": {"type": "boolean"},
+    "balance_target_soc": {"type": ["number", "null"]},
+    "control_ready": {"type": "boolean"},
+    "simulation_only": {"type": "boolean"},
+    "plan_id": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": ["t", "action", "battery_kw", "buy", "cost", "direction_reversal", "grid_kw", "soc_kwh", "wear_cost_sek"],
+      "properties": {
+        "t": {"type": "string", "format": "date-time", "description": "Rutans start, ISO 8601."},
+        "action": {"type": "string"},
+        "battery_kw": {"type": "number"}, "buy": {"type": "number"}, "cost": {"type": "number"}, "grid_kw": {"type": "number"},
+        "soc_kwh": {"type": "number"}, "wear_cost_sek": {"type": "number"},
+        "direction_reversal": {"type": "boolean"},
+        "balance": {"type": "boolean"}, "balance_ceiling": {"type": "boolean"}, "balance_hold": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

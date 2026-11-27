@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/driver-state.schema.json",
+  "title": "Driver state (drivers -> core)",
+  "description": "Vad en drivrutin lämnar till Core, per typ. Alla fält är valfria (null = okänt eller saknas hos märket). Okända fält tillåts (drivrutiner lägger till egna), men de kända fälten har bestämda typer. Nycklar som börjar med _ är leveransdata (tidsstämplar, antal punkter) och ingår inte i kontraktet utöver att de får finnas. Kontraktstyper skapas av contracts.normalize_driver_state, som gör om de få kända sluddriga typerna (heltal som bool, statuskod som text).",
+  "x-api-version": "1.0.0",
+  "$defs": {
+    "num": {"type": ["number", "null"]},
+    "observation": {
+      "type": "object",
+      "properties": {"sample_at": {"type": ["number", "null"]}, "timestamp_basis": {"type": "string"}, "value_c": {"type": ["number", "null"]}},
+      "additionalProperties": true
+    },
+    "battery": {
+      "type": "object",
+      "properties": {
+        "soc_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "power_w": {"type": ["number", "null"], "description": "Plus = laddar, minus = laddar ur."},
+        "capacity_kwh": {"type": ["number", "null"], "minimum": 0},
+        "mode": {"type": ["string", "null"]},
+        "modules": {"type": "object"},
+        "power_sample_at": {"type": ["number", "null"]},
+        "soc_sample_at": {"type": ["number", "null"]},
+        "soc_source": {"type": ["string", "null"]},
+        "available_charge_w": {"type": ["number", "null"], "minimum": 0},
+        "available_discharge_w": {"type": ["number", "null"], "minimum": 0}
+      },
+      "patternProperties": {"^_": {}},
+      "additionalProperties": true
+    },
+    "car": {
+      "type": "object",
+      "properties": {
+        "soc": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "plugged_in": {"type": ["boolean", "null"]},
+        "climate_temp": {"type": ["number", "null"]},
+        "climate_state": {"type": ["string", "null"]},
+        "charging_state": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "charger": {
+      "type": "object",
+      "properties": {
+        "status": {"type": ["string", "null"], "description": "Fritt ord per märke (awaiting_start, charging, ...)."},
+        "status_raw": {"type": ["string", "null"]},
+        "current_a": {"type": ["number", "null"], "minimum": 0},
+        "current_is_limit": {"type": "boolean"},
+        "phases": {"enum": [1, 3, null]},
+        "power_kw": {"type": ["number", "null"], "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "heatpump_state": {
+      "type": "object",
+      "properties": {
+        "mode": {"type": ["string", "null"]},
+        "indoor_temp": {"$ref": "#/$defs/num"}, "outdoor_temp": {"$ref": "#/$defs/num"}, "forward_temp": {"$ref": "#/$defs/num"},
+        "return_temp": {"$ref": "#/$defs/num"}, "dhw_temp": {"$ref": "#/$defs/num"},
+        "dhw_temp_observation": {"$ref": "#/$defs/observation"},
+        "curve_offset": {"$ref": "#/$defs/num"}, "cop": {"$ref": "#/$defs/num"}, "heat_output_w": {"$ref": "#/$defs/num"},
+        "power_w": {"$ref": "#/$defs/num"}, "energy_kwh": {"$ref": "#/$defs/num"}, "paused_until": {"$ref": "#/$defs/num"},
+        "defrosting": {"type": ["boolean", "null"]}, "running": {"type": ["boolean", "null"]}, "fault": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "heatpump_sensors": {
+      "type": "object",
+      "properties": {
+        "indoor_temp": {"$ref": "#/$defs/num"}, "outdoor_temp": {"$ref": "#/$defs/num"}, "forward_temp": {"$ref": "#/$defs/num"},
+        "return_temp": {"$ref": "#/$defs/num"}, "water_temp": {"$ref": "#/$defs/num"},
+        "water_temp_observation": {"$ref": "#/$defs/observation"},
+        "compressor_running": {"type": ["boolean", "null"]}, "alarm_active": {"type": ["boolean", "null"]},
+        "hot_water_boost_active": {"type": ["boolean", "null"]},
+        "compressor_frequency_hz": {"$ref": "#/$defs/num"}, "compressor_power_kw": {"$ref": "#/$defs/num"}, "compressor_power_w": {"$ref": "#/$defs/num"},
+        "degree_minutes": {"$ref": "#/$defs/num"}, "electric_used_kwh_1h": {"$ref": "#/$defs/num"}, "heat_produced_kwh_1h": {"$ref": "#/$defs/num"},
+        "hot_water_power_w": {"$ref": "#/$defs/num"}, "hot_water_boost_sample_at": {"$ref": "#/$defs/num"},
+        "operating_mode": {"type": ["string", "null"]}
+      },
+      "patternProperties": {"^_": {}},
+      "additionalProperties": true
+    },
+    "solar": {
+      "type": "object",
+      "properties": {"pv_power_w": {"type": ["number", "null"], "minimum": 0}, "today_kwh": {"type": ["number", "null"], "minimum": 0}, "status": {"type": ["string", "null"]}},
+      "additionalProperties": true
+    },
+    "spa_state": {
+      "type": "object",
+      "properties": {"current_temp": {"$ref": "#/$defs/num"}, "target_temp": {"$ref": "#/$defs/num"}, "heater_state": {"type": ["string", "null"]},
+                     "economy_mode": {"type": ["string", "number", "boolean", "null"]}},
+      "additionalProperties": true
+    },
+    "spa_activities": {"type": "object", "additionalProperties": {"type": ["boolean", "string", "number", "null"]}},
+    "spa_power_detail": {
+      "type": "object",
+      "properties": {"phase_a_w": {"$ref": "#/$defs/num"}, "phase_b_w": {"$ref": "#/$defs/num"}, "phase_c_w": {"$ref": "#/$defs/num"}, "total_w": {"$ref": "#/$defs/num"},
+                     "overcurrent": {"type": "boolean"}, "overvoltage": {"type": "boolean"}, "overheated": {"type": "boolean"}, "power_exceeded": {"type": "boolean"}},
+      "additionalProperties": true
+    }
+  }
+}
