@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.182 (2026-11-27)
+- **Kupétemperaturen syns under Bil (#610).** Bilfliken i appen och Elbil på webben visar hur varmt det är i bilen, även när kupévärmen är av. Temperaturen tas från bilens egen temperaturgivare om den finns, annars från climate-entitetens current_temperature. Saknas båda visas ingen temperatur.
+
 ## 1.2.180 (2026-11-24)
 - **Återbetalning av solcellerna, under Solceller (#599, #602).** Se hur mycket solcellerna sparat och tjänat månad för månad, år för år och totalt, hur många procent av anläggningen som är betald och hur lång tid som återstår. Nyttan är besparingen på egenanvänd el (elpris, påslag, överföring och energiskatt) plus intäkten för såld el (med nätnytta) plus skattereduktionen, som räknas till och med ett slutdatum du anger (2025-12-31 i Sverige). Fasta avgifter och effektavgift räknas inte. Du anger vad anläggningen kostade och när den startade. EnergyWizard räknar med sina egna mätvärden, minut för minut, med dina elpris- och avgiftsinställningar. För tiden innan kan du läsa in månadsuppgifter från en CSV-mall (knappen **Ladda ner mall**), och en månad du skrivit in går alltid före de egna mätvärdena. Färdiga månader sparas och ändras inte när du senare ändrar avgifterna. Solens och nätets mätare avviker några procent från växelriktaren och nätägaren, och egenanvänd el är skillnaden mellan dem, så EnergyWizard kalibrerar mot de månader du skrivit in (minst tre) och säger det på sidan. Tid kvar räknas på nyttan de senaste 12 månaderna.
 

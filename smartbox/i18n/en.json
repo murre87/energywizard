@@ -742,6 +742,8 @@
  "Kunde inte spara:": "Could not save:",
  "Kunde inte spara: #": "Could not save: #",
  "Kunde inte ändra momsinställningen i Home Assistant": "Could not change the VAT setting in Home Assistant",
+ "Kupé # °": "Cabin # °",
+ "Kupé # °C": "Cabin # °C",
  "Kupévärme": "Cabin heat",
  "Kupévärme – varm kl": "Cabin heat – warm at",
  "Kupévärme på/av": "Cabin heat on/off",

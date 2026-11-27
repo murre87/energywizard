@@ -617,7 +617,7 @@ async function renderElbil() {
         <div class="note">${c.stale ? badge("warn", "⚠️ gammalt värde") : badge("on", "live")} ${c.status ? "· " + c.status : ""}</div>
         <div class="note" style="margin-top:6px">⚡ ${fmt(c.power_kw, 1, " kW")} just nu${c.planned_kwh_today != null ? ` · 📅 ${c.planned_kwh_today.toFixed(1)} kWh planerat idag` : ""}</div>
         ${c.limits ? `<div class="note">🔌 ${c.limits.phases === "auto" ? "Faser: auto" : c.limits.phases + "-fas"}${c.limits.phases_src === "inlärt" ? " (inlärt)" : ""} · max ${c.limits.max_a} A${c.limits.max_a_src === "inlärt" ? " (inlärt av laddningarna)" : c.limits.max_a_src === "standard" ? " (standard)" : ""}</div>` : ""}
-        ${c.climate_state ? `<div class="note">🌡️ Klimat: ${c.climate_state}${c.climate_temp != null ? " (" + c.climate_temp.toFixed(0) + "°C)" : ""}</div>` : ""}
+        ${c.climate_temp != null ? `<div class="note">🌡️ Kupé ${c.climate_temp.toFixed(0)} °C${c.climate_state && c.climate_state !== "off" ? " · Värmen är på" : ""}</div>` : (c.climate_state && c.climate_state !== "off" ? `<div class="note">🌡️ Värmen är på</div>` : "")}
         ${(() => { const ma = (c.limits || {}).max_a || 16;           // #182: förklaring på varje knapp
           const t = { start: `Laddar nu med ${ma} A, före planen och elpriset. Gäller tills du trycker Auto eller Stoppa. Säkringsskyddet gäller fortfarande.`,
             max: `Laddar med full ström (${ma} A) direkt, oavsett elpris. Gäller tills du trycker Auto eller Stoppa. Säkringsskyddet gäller fortfarande.`,

@@ -109,7 +109,11 @@ function actions(c, big) {
 }
 const ageTxt = (h) => (h < 1 ? Math.round(h * 60) + " min" : h < 48 ? Math.round(h) + " h" : Math.round(h / 24) + " dygn");
 const staleChip = (c) => (c.age_h != null && c.age_h > 2 ? `<button class="chip warn" data-a="cardata" data-c="${c.key}" title="Bilen har inte skickat nya värden. Öppna för att väcka den och uppdatera.">Data ${ageTxt(c.age_h)} gammal</button>` : "");
-const heatChip = (c) => (c.climate_on ? `<span class="chip heat">🔥 Värmen är på${c.inside != null ? " · " + f1(c.inside) + " °" : ""}</span>` : "");
+const heatChip = (c) => {
+  const temp = c.inside != null ? f1(c.inside, 0) + " °" : "";
+  if (c.climate_on) return `<span class="chip heat">🔥 Värmen är på${temp ? " · " + temp : ""}</span>`;
+  return temp ? `<span class="chip">Kupé ${temp}</span>` : "";
+};
 const planPill = (c) => { const sm = c.plan_all && c.plan_all.summary; if (!sm) return null;
   return `<a class="plink pill" data-a="planlist" data-c="${c.key}" role="button" tabindex="0" title="Visa alla laddblock"><span class="pi">⚡</span><b>${sm.day === "idag" ? "" : esc(sm.day) + " "}${sm.start} → ${sm.end}</b>${sm.soc0 != null ? `<em>${sm.soc0} → ${sm.soc1} %</em>` : ""}<span class="pc">›</span></a>`; };
 const planLink = (c, t) => (c.home && t.startsWith("Planerad") && planPill(c) ? planPill(c) : c.home && c.plugged && (t.startsWith("☀") || t.startsWith("Ingen laddning") || (c.plan_all && c.plan_all.blocks && c.plan_all.blocks.length)) ? `<a class="plink" data-a="planlist" data-c="${c.key}" role="button" tabindex="0">${esc(t)} ›</a>` : esc(t));
@@ -136,7 +140,7 @@ function hero(c) {
 function compact(c) {
   const si = statusInfo(c);
   return `<section class="card${c.climate_on ? " heating" : ""}"><div class="chead"><div class="cname">${esc(c.name)} ${ER() === "family" ? "" : `<button class="link" data-a="cardata" data-c="${c.key}">Alla data</button>`}</div><div class="csoc" data-a="refreshsoc" data-c="${c.key}" title="Tryck för att uppdatera">${c.soc ?? "–"}<small>%</small>${c.age_h != null && c.age_h > 2 ? `<small style="color:var(--warn);display:block;font-size:.62rem;font-weight:500">${ageTxt(c.age_h)} gammal</small>` : ""}</div></div><div class="bar"><i style="width:${c.soc ?? 0}%"></i></div>
-  <div class="note compact-note" style="margin-bottom:8px">${esc(si.t)}${c.climate_on ? " · 🔥 värmen är på" : ""}</div>${c.limit_note ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.limit_note)}</div>` : ""}${c.goal_risk ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.goal_risk)}</div>` : ""}<div class="crow">${c.home ? actions(c, false) : ""}${c.home ? `<button class="mini" data-a="${c.climate_on ? "heat_off" : "heat_on"}" data-c="${c.key}">${c.climate_on ? "Stoppa värme" : "Starta värme"}</button>` : ""}${c.mode !== "auto" ? `<button class="mini" data-a="auto" data-c="${c.key}">Auto</button>` : ""}${c.access ? `<button class="mini" data-a="access">Lås</button>` : ""}</div></section>`;
+  <div class="note compact-note" style="margin-bottom:8px">${esc(si.t)}${c.climate_on ? " · 🔥 värmen är på" : ""}${c.inside != null ? " · Kupé " + f1(c.inside, 0) + " °" : ""}</div>${c.limit_note ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.limit_note)}</div>` : ""}${c.goal_risk ? `<div class="note limnote" style="margin-bottom:8px">${esc(c.goal_risk)}</div>` : ""}<div class="crow">${c.home ? actions(c, false) : ""}${c.home ? `<button class="mini" data-a="${c.climate_on ? "heat_off" : "heat_on"}" data-c="${c.key}">${c.climate_on ? "Stoppa värme" : "Starta värme"}</button>` : ""}${c.mode !== "auto" ? `<button class="mini" data-a="auto" data-c="${c.key}">Auto</button>` : ""}${c.access ? `<button class="mini" data-a="access">Lås</button>` : ""}</div></section>`;
 }
 const SUN_MIN_W = 2500;                                   // ca 2,5 kW sol = över 1,4 kW överskott efter husets last (solladdningens startgräns)
 function sunWindow(p) {                                   // första sammanhängande soltimmarna från nu: {a, b} index i p.hours, eller null
