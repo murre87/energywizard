@@ -1586,6 +1586,7 @@ async def api_economy():
         money = savings.money_rows(c, days=40)
         timing = savings.daily_rows(c, days=40)
         everything = savings.all_time(c, today)
+        months = savings.economy_months(c, today)
     span = savings.price_span(today_prices)
     spot, buy = span["spot"], span["buy"]
     settings = nordpool.cost_settings()
@@ -1595,7 +1596,8 @@ async def api_economy():
             "price_24h": price_24h,
             "symbol": settings["symbol"], "money_days": money[-31:],
             "electricity_support_area": eligible_area(settings, now),
-            "money": savings.money_periods(money, today), "timing": savings.summarize_periods(timing, today, everything)}
+            "money": savings.money_periods(money, today), "timing": savings.summarize_periods(timing, today, everything),
+            "months": months}
 
 
 @app.get("/api/economy/electricity-support")

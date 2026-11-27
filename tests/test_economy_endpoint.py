@@ -37,8 +37,10 @@ def test_ekonomisidans_api_bygger_svaret(monkeypatch):
     import savings
     monkeypatch.setattr(savings, "money_rows", lambda c, days=40: [])
     monkeypatch.setattr(savings, "daily_rows", lambda c, days=40: [])
+    savings._months_cache.update(t=0.0, day=None, val=None)
     out = asyncio.run(mod.api_economy())
     assert out["ok"] is True and out["price"] == 1.5 and "money" in out and "timing" in out
+    assert out["months"] == []
 
 
 def test_ingen_modulattribut_pa_funktionen_local_sql():

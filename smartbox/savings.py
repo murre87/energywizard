@@ -204,19 +204,66 @@ def price_span(rows, buy_cost=None):
     return {"spot": pack(spots), "buy": pack(buys)}
 
 
+def _money_total(rows):
+    """Summerar dagar som finns. En dag utan rad är inte med och blir inte 0."""
+    s = {k: round(sum(r[k] for r in rows), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
+    s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
+    s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
+    s["days"] = len(rows)
+    return s
+
+
 def money_periods(rows, today):
     """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods()."""
     from datetime import date, timedelta
     t = date.fromisoformat(today)
     week_start = (t - timedelta(days=6)).isoformat()
-
-    def tot(rs):
-        s = {k: round(sum(r[k] for r in rs), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
-        s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
-        s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
-        s["days"] = len(rs)
-        return s
     rows = sorted(rows or [], key=lambda r: r["day"])
-    return {"today": tot([r for r in rows if r["day"] == today]),
-            "week": tot([r for r in rows if week_start <= r["day"] <= today]),
-            "month": tot([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+    return {"today": _money_total([r for r in rows if r["day"] == today]),
+            "week": _money_total([r for r in rows if week_start <= r["day"] <= today]),
+            "month": _money_total([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+
+
+def _by_month(rows, today, summarize):
+    """En post per kalendermånad som har minst en dag <= today. Månader utan rader saknas."""
+    buckets = {}
+    for r in rows or []:
+        day = r.get("day") if isinstance(r, dict) else None
+        if not day or day > today:
+            continue
+        buckets.setdefault(day[:7], []).append(r)
+    out = []
+    for month in sorted(buckets):
+        s = summarize(buckets[month])
+        s["month"] = month
+        out.append(s)
+    return out
+
+
+def money_by_month(rows, today):
+    """Köpt, såld och netto per kalendermånad. Samma summa som Idag/7 dagar/Månad.
+    En månad utan pris eller effekt finns inte med och blir inte 0."""
+    return _by_month(rows, today, _money_total)
+
+
+def timing_by_month(rows, today):
+    """Sparat genom tajmning per kalendermånad. Samma formel som summarize_periods().
+    En månad utan tillräckligt många timmar finns inte med och blir inte 0."""
+    return _by_month(rows, today, _summary)
+
+
+_months_cache = {"t": 0.0, "day": None, "val": None}
+
+
+def economy_months(conn, today):
+    """[{month, money, timing}] sedan start. money eller timing är None när den sidan saknar rader.
+    Cachas i tio minuter. År för år räknas inte här."""
+    import time as _t
+    now = _t.time()
+    if _months_cache["val"] is not None and _months_cache["day"] == today and now - _months_cache["t"] < ALL_TTL_S:
+        return _months_cache["val"]
+    money = {r["month"]: r for r in money_by_month(money_rows(conn, days=4000), today)}
+    timing = {r["month"]: r for r in timing_by_month(daily_rows(conn, days=4000), today)}
+    val = [{"month": k, "money": money.get(k), "timing": timing.get(k)} for k in sorted(set(money) | set(timing))]
+    _months_cache.update(t=now, day=today, val=val)
+    return val

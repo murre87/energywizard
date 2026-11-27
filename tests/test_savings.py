@@ -103,3 +103,40 @@ def test_idag_hittills_raknas_fran_forsta_timmen():
     assert profile_day(morning) is None                                    # hela dygn kräver fortfarande 12 timmar
     kwh, prof, paid = profile_day(morning, min_hours=1)
     assert kwh == 12.0 and prof > 0 and paid > 0
+
+
+def test_manader_tar_med_dagar_som_finns_och_hoppar_over_luckor():
+    """#599: Månader på Ekonomisidan är samma summa som Idag, en stapel per kalendermånad.
+    En månad utan rader visas inte som noll, och en dag efter idag räknas inte."""
+    from savings import build_day, money_by_month, timing_by_month
+    rows = [{"day": "2026-10-20", "bought_kwh": 10, "cost": 30, "sold_kwh": 0, "income": 0, "net": 30},
+            {"day": "2026-11-01", "bought_kwh": 20, "cost": 50, "sold_kwh": 5, "income": 4, "net": 46},
+            {"day": "2026-11-03", "bought_kwh": 10, "cost": 25, "sold_kwh": 2, "income": 3, "net": 22},
+            {"day": "2026-12-01", "bought_kwh": 99, "cost": 99, "sold_kwh": 0, "income": 0, "net": 99}]
+    months = money_by_month(rows, "2026-11-03")
+    assert [m["month"] for m in months] == ["2026-10", "2026-11"]
+    assert months[0]["days"] == 1 and months[0]["cost"] == 30 and months[0]["net"] == 30
+    assert months[1]["days"] == 2 and months[1]["cost"] == 75 and months[1]["income"] == 7 and months[1]["net"] == 68
+    assert "2026-09" not in [m["month"] for m in months]
+    assert money_by_month([], "2026-11-03") == []
+    saved = [build_day(d, 10.0, 1.0, 0.8) for d in ("2026-10-20", "2026-11-01", "2026-11-03", "2026-12-01")]
+    timing = timing_by_month(saved, "2026-11-03")
+    assert [m["month"] for m in timing] == ["2026-10", "2026-11"]
+    assert timing[0]["saved_kr"] == 2.0 and timing[0]["days"] == 1
+    assert timing[1]["saved_kr"] == 4.0 and timing[1]["days"] == 2 and timing[1]["pct"] == 20.0
+
+
+def test_economy_months_slar_ihop_sidorna_och_cachar(monkeypatch):
+    from savings import build_day, economy_months
+    import savings
+    savings._months_cache.update(t=0.0, day=None, val=None)
+    money = [{"day": "2026-10-20", "bought_kwh": 10, "cost": 30, "sold_kwh": 0, "income": 0, "net": 30}]
+    monkeypatch.setattr(savings, "money_rows", lambda c, days=40: money)
+    monkeypatch.setattr(savings, "daily_rows", lambda c, days=40: [build_day("2026-11-02", 10.0, 1.0, 0.8)])
+    out = economy_months(object(), "2026-11-03")
+    assert [r["month"] for r in out] == ["2026-10", "2026-11"]
+    assert out[0]["money"]["cost"] == 30 and out[0]["timing"] is None
+    assert out[1]["money"] is None and out[1]["timing"]["saved_kr"] == 2.0
+    monkeypatch.setattr(savings, "money_rows", lambda c, days=40: (_ for _ in ()).throw(AssertionError("cache")))
+    assert economy_months(object(), "2026-11-03") == out
+    savings._months_cache.update(t=0.0, day=None, val=None)

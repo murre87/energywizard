@@ -92,7 +92,7 @@ function costBars(elId, days, sym) {
     grid: { left: 44, right: 4, top: 6, bottom: 30 },
     tooltip: { trigger: "axis", formatter: (ps) => { const r = days[ps[0].dataIndex];
       return `${r.day}<br>Köpt ${r.cost.toFixed(2)} ${sym} (${r.bought_kwh.toFixed(1)} kWh)<br>Sålt ${r.income.toFixed(2)} ${sym}<br><b>Netto ${r.net.toFixed(2)} ${sym}</b>`; } },
-    xAxis: { type: "category", data: days.map((r) => r.day.slice(5)), axisLabel: { color: "#93a0b8" } },
+    xAxis: { type: "category", data: days.map((r) => barAxis(r.day)), axisLabel: { color: "#93a0b8" } },
     yAxis: { type: "value", splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } }, axisLabel: { color: "#93a0b8" } },
     series: [{ type: "bar", data: days.map((r) => ({ value: r.net, itemStyle: { color: r.net >= 0 ? blue : good, borderRadius: r.net >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3] } })), barMaxWidth: 14 }],
   });
@@ -108,7 +108,7 @@ function savingsBars(elId, days, height) {
   chart.setOption({
     grid: { left: height ? 40 : 4, right: 4, top: 6, bottom: height ? 30 : 4 },
     tooltip: { trigger: "axis", formatter: (ps) => `${ps[0].name}: ${ps[0].value >= 0 ? "+" : ""}${ps[0].value.toFixed(2)} ${moneyUnit()}` },
-    xAxis: { type: "category", data: days.map((r) => r.day.slice(5)), show: !!height, axisLabel: { color: "#93a0b8" } },
+    xAxis: { type: "category", data: days.map((r) => barAxis(r.day)), show: !!height, axisLabel: { color: "#93a0b8" } },
     yAxis: { type: "value", show: !!height, splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } }, axisLabel: { color: "#93a0b8" } },
     series: [{ type: "bar", data: days.map((r) => ({ value: r.saved_kr, itemStyle: { color: r.saved_kr >= 0 ? good : bad, borderRadius: r.saved_kr >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3] } })), barMaxWidth: 14 }],
   });
@@ -1000,6 +1000,18 @@ async function renderSolarForecastSettings() {
 }
 
 let econPeriod = "today";
+let econMonth = "";
+
+// YYYY-MM-DD blir MM-DD. YYYY-MM behåller året, annars krockar november 2025 med november 2026.
+function barAxis(day) { return day && day.length > 7 ? day.slice(5) : day; }
+
+function econMonthName(ym) {
+  const [y, mo] = String(ym || "").split("-").map(Number);
+  if (!y || !mo) return ym || "";
+  const lang = (window.I18N && I18N.lang) || "sv";
+  const loc = lang === "en" ? "en-GB" : lang === "cs" ? "cs-CZ" : "sv-SE";
+  return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString(loc, { month: "short", year: "numeric", timeZone: "UTC" });
+}
 
 function electricitySupportHtml(d) {
   if (!d.available) return '<div class="note">Elstödet kan inte beräknas just nu.</div>';
@@ -1014,10 +1026,20 @@ function electricitySupportHtml(d) {
 
 async function renderEkonomi() {
   const d = await loadPage("api/economy", (d) => {
-    const m = d.money[econPeriod], t = d.timing[econPeriod] || {}, sym = d.symbol || "kr";
+    const months = d.months || [];
+    const perMonth = econPeriod === "months";
+    if (perMonth && !months.some((row) => row.month === econMonth)) econMonth = months.length ? months[months.length - 1].month : "";
+    const picked = months.find((row) => row.month === econMonth);
+    const blankMoney = {cost: null, income: null, net: null, bought_kwh: null, sold_kwh: null, avg_paid: null, avg_sold: null, days: 0};
+    const m = perMonth ? ((picked && picked.money) || blankMoney) : d.money[econPeriod];
+    const t = perMonth ? ((picked && picked.timing) || {}) : (d.timing[econPeriod] || {});
+    const sym = d.symbol || "kr";
     const money = (v) => v == null ? "–" : `${v.toFixed(v >= 100 || v <= -100 ? 0 : 2).replace(".", ",")} ${sym}`;
     const chip = (k, label) => `<button class="icobtn" data-econ="${k}"${k === econPeriod ? ` style="border-color:var(--acc);color:var(--acc)"` : ""}>${label}</button>`;
-    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const label = perMonth ? "vald månad" : { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const monthPick = perMonth && months.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 12px">${
+      [...months].reverse().map((row) => `<button class="icobtn" data-econ-month="${esc(row.month)}" data-noi18n${row.month === econMonth ? ` style="border-color:var(--acc);color:var(--acc)"` : ""}>${esc(econMonthName(row.month))}</button>`).join("")
+    }</div>` : "";
     // #510: snittet på köpt el är inklusive avgifter. Lägst/snitt/högst måste vara samma bas,
     // annars kan snittet se högre ut än dagens högsta (det var bara spotpriset).
     const paidSub = (buy, spot) => {
@@ -1029,11 +1051,12 @@ async function renderEkonomi() {
     const avgPaid = m.avg_paid == null ? "" : ` · <span>snittpris inklusive avgifter</span> <span data-noi18n>${m.avg_paid.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     const avgSold = m.avg_sold == null ? "" : ` · <span>snittpris</span> <span data-noi18n>${m.avg_sold.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     return `
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}${chip("months", "Månader")}</div>
+    ${monthPick}
     <div class="grid" style="margin-bottom:16px">
       ${statTile("🧾 Köpt el", money(m.cost), `${fmt(m.bought_kwh, 1, " kWh")}${avgPaid}`)}
       ${statTile("☀️ Såld el", money(m.income), `${fmt(m.sold_kwh, 1, " kWh")}${avgSold}`)}
-      ${statTile("💰 Netto", money(m.net), "köpt minus sålt")}
+      ${statTile("💰 Netto", money(m.net), perMonth ? `köpt minus sålt · ${m.days} dagar med data` : "köpt minus sålt")}
       ${statTile("🎯 Sparat genom tajmning", t.saved_kr != null ? (t.saved_kr >= 0 ? "+" : "") + money(t.saved_kr) : "–", t.pct != null ? `${t.pct.toFixed(0)} % billigare än ett vanligt hushåll` : "")}
     </div>
     ${d.electricity_support_area ? `<div class="card" style="margin-bottom:16px">
@@ -1043,10 +1066,10 @@ async function renderEkonomi() {
       <div id="electricity-support-result" aria-live="polite" style="margin-top:8px"></div>
       <button class="icobtn" id="electricity-support-calculate" style="margin-top:8px">Beräkna elstöd</button>
     </div>` : ""}
-    <div class="card" style="margin-bottom:16px"><h2>💸 Kostnad per dag</h2>
-      <div class="note">Köpt el inklusive moms, nätavgift och skatt, minus såld el. Senaste 31 dagarna.</div>
+    <div class="card" style="margin-bottom:16px"><h2>💸 ${perMonth ? "Kostnad per månad" : "Kostnad per dag"}</h2>
+      <div class="note">${perMonth ? "Köpt el inklusive moms, nätavgift och skatt, minus såld el. En stapel per månad med data." : "Köpt el inklusive moms, nätavgift och skatt, minus såld el. Senaste 31 dagarna."}</div>
       <div id="econcostbars" style="height:220px;margin-top:10px"></div></div>
-    <div class="card" style="margin-bottom:16px"><h2>📊 Sparat per dag</h2><div class="note">Jämfört med ett vanligt hushåll utan styrning, inkl. moms. Grönt = billigare, rött = dyrare.</div><div id="econsavingsbars" style="height:220px;margin-top:10px"></div></div>
+    <div class="card" style="margin-bottom:16px"><h2>📊 ${perMonth ? "Sparat per månad" : "Sparat per dag"}</h2><div class="note">Jämfört med ett vanligt hushåll utan styrning, inkl. moms. Grönt = billigare, rött = dyrare.</div><div id="econsavingsbars" style="height:220px;margin-top:10px"></div></div>
     <div class="grid" style="margin-bottom:16px">
       ${statTile("💸 Elpris just nu", fmtKrOre(d.price) + "/kWh", "spotpris")}
       ${paidTile("📉", "Lägst idag", d.price_buy_min, d.price_min)}
@@ -1054,7 +1077,7 @@ async function renderEkonomi() {
       ${paidTile("📈", "Högst idag", d.price_buy_max, d.price_max)}
     </div>
     <div class="card"><h2>Elpris senaste dygnet</h2><div id="econpricechart" style="height:240px;margin-top:10px"></div></div>
-    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).</div>`;
+    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).${perMonth && econMonth ? ` <span data-noi18n>(${esc(econMonthName(econMonth))})</span>` : ""}</div>`;
   });
   if (!d) return;
   const supportButton = document.getElementById("electricity-support-calculate");
@@ -1071,9 +1094,16 @@ async function renderEkonomi() {
     }
   };
   document.querySelectorAll("[data-econ]").forEach((b) => b.onclick = () => { econPeriod = b.dataset.econ; renderEkonomi(); });
+  document.querySelectorAll("[data-econ-month]").forEach((b) => b.onclick = () => { econMonth = b.dataset.econMonth; econPeriod = "months"; renderEkonomi(); });
   if (d.price_24h) lineChart("econpricechart", d.price_24h, { step: "end" });
-  costBars("econcostbars", d.money_days || [], d.symbol || "kr");
-  api("api/savings").then((sv) => { if (sv.ok) savingsBars("econsavingsbars", sv.days, 220); }).catch(() => {});
+  if (econPeriod === "months") {
+    const rows = d.months || [];
+    costBars("econcostbars", rows.filter((row) => row.money).map((row) => ({...row.money, day: row.month})), d.symbol || "kr");
+    savingsBars("econsavingsbars", rows.filter((row) => row.timing).map((row) => ({day: row.month, saved_kr: row.timing.saved_kr})), 220);
+  } else {
+    costBars("econcostbars", d.money_days || [], d.symbol || "kr");
+    api("api/savings").then((sv) => { if (sv.ok) savingsBars("econsavingsbars", sv.days, 220); }).catch(() => {});
+  }
 }
 
 // Fasström i A mot huvudsäkringen: full stapel = 150 % av säkringen, gul från 80 %, röd över säkringen (#130)
