@@ -1949,7 +1949,12 @@ async def api_consumption():
                            "extra": [x for x in _json_list(lb.get("extra_w")) if isinstance(x, dict) and x.get("name")]} if lb else None)}
 
 
-@app.get("/api/pump-modes")
+@app.get("/api/consumption-year")
+async def api_consumption_year(year: int = 0):
+    """Årets förbrukning (#603): köpt och använd el per månad, fördelning och ett spann för hela året."""
+    import year_use
+    with ENGINE.connect() as c:
+        return year_use.load(c, year or None)
 async def api_pump_modes(hours: int = 24):
     """Värmepumpens driftläge per tiominuters ruta ur sensor_log: tillsats 2 > tillsats 1 > varmvatten > värme > vilar.
     Tillsatsen kommer från Husdatas register för Add heat step 1/2 (Thermia Diplomat); saknas de visas inget tillsatsläge."""
