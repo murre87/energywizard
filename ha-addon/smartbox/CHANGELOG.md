@@ -2,7 +2,7 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.184 (2026-11-27)
+## 1.2.185 (2026-11-27)
 - **Ekonomisidan visar månad för månad (#599).** Nytt val Månader vid sidan av Idag, 7 dagar och Månad. Korten visar köpt el, såld el, netto och sparat genom tajmning för den månad man valt, med samma formel som Idag. Diagrammen byter till en stapel per kalendermånad. En månad utan mätning visas inte som noll. År för år är kvar.
 
 ## 1.2.182 (2026-11-27)
