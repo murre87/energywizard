@@ -313,6 +313,15 @@ def num(st: dict, e: str):
         return None
 
 
+def cabin_c(st: dict, inside_entity, climate_entity):
+    """Kupétemperaturen under Bil (#610). Egen givare går före. Annars climate-entitetens
+    current_temperature, så temperaturen syns även när kupévärmen är av. Saknas båda: None."""
+    v = num(st, inside_entity)
+    if v is not None:
+        return v
+    return attr_num(st, climate_entity, "current_temperature")
+
+
 def overrides() -> dict:
     try:
         with ENGINE.connect() as c:
@@ -562,7 +571,7 @@ def car_state(key: str, st: dict, ov: dict) -> dict:
             # Klimatet är igång när man kör - det är inte "förvärmning". Bara när bilen står hemma och inte är i körläge.
             "driving": driving(st, c),
             "climate_on": (val(st, c["climate"]) or "off") not in ("off", "unavailable") and home and not driving(st, c),
-            "has_climate": bool(c.get("climate")), "inside": num(st, c["inside"]),
+            "has_climate": bool(c.get("climate")), "inside": cabin_c(st, c["inside"], c.get("climate")),
             "age_h": age_h(st, c["soc"]), "facts": car_facts(key, st), "plan": plan_segments(key, soc, c["cap_kwh"]), "plan_all": plan_blocks_ui(key, soc, c["cap_kwh"]), "plan_slots": plan_slots(key), "solar": solar_info(ov),
             "guest": _guest_of(ov, key),
             "access": ({"locked": val(st, c["lock"]) == "locked", "trunk": bool(c["trunk"]) and val(st, c["trunk"]) == "open",
@@ -1213,8 +1222,7 @@ def savings_api(request: Request):
         except Exception as e:
             print(f"⚠️ Jämförelse mot självförbrukning: {e}")
             c.rollback()
-        everything = savings.all_time(c, today)
-        benefit = savings.total_benefit(c, today)
+        everything, benefit = savings.cached(c, today)       # bakgrundstråd, blockerar inte sidan
     return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today, everything), "battery_vs_selfuse": battery,
             "benefit": benefit}
 

@@ -23,7 +23,7 @@ import os
 import smtplib
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 
 from fastapi import FastAPI, Request
@@ -219,6 +219,35 @@ def _token_ok(request: Request) -> bool:
     return not ADMINS or _admin_name(request) is not None
 
 
+TRIAL_MAX_MIN = 30       # en installation som bara hördes så här kort och sedan tystnade är en testkörning, inte ett hus
+TRIAL_SILENT_H = 6
+
+
+def _is_trial(first_seen: str, last_seen: str, now=None) -> bool:
+    """Kortlivad testkörning (en tillfällig container, en provinstallation): hördes under högst TRIAL_MAX_MIN minuter och har
+    varit tyst i minst TRIAL_SILENT_H timmar. Räknas inte som aktivt hus (#614: ID:n som levde en eller två minuter låg kvar i
+    husöversikten i tre dygn). Pågående korta körningar räknas tills de varit tysta tillräckligt länge."""
+    try:
+        a, b = datetime.fromisoformat(first_seen), datetime.fromisoformat(last_seen)
+        now = now or datetime.now(timezone.utc)
+        if a.tzinfo is None:
+            a = a.replace(tzinfo=timezone.utc)
+        if b.tzinfo is None:
+            b = b.replace(tzinfo=timezone.utc)
+        return (b - a).total_seconds() <= TRIAL_MAX_MIN * 60 and (now - b).total_seconds() >= TRIAL_SILENT_H * 3600
+    except (TypeError, ValueError):
+        return False
+
+
+def _suspected_duplicates(latest: dict, first: dict, min_parts: int = 7) -> list:
+    """Par av aktiva hus som EFTER ihopslagningen ändå har exakt samma utrustning (minst min_parts delar). Det ska vara noll;
+    finns något är det en ny orsak till dubbletter som ska rättas. Returnerar [(hus a, hus b, antal delar)]."""
+    import itertools
+    fps = {h: _fingerprint(v[1]) for h, v in latest.items()}
+    return [(a, b, len(fps[a])) for a, b in itertools.combinations(sorted(latest, key=lambda x: first.get(x, "")), 2)
+            if len(fps[a]) >= min_parts and fps[a] == fps[b]]
+
+
 ACTIVE_DAYS = 3          # smartbox skickar översikten varje dygn: hörd inom 3 dygn = aktiv
 
 
@@ -247,26 +276,113 @@ def _fingerprint(drivers: list) -> frozenset:
     out = set()
     for d in drivers:
         cat, _, rest = d.partition(":")
+        if cat == "size" and rest.startswith("fuse"):
+            continue            # huvudsäkringen är en inställning som användare ändrar (#614: 25 A -> 20 A gav två hus)
         if cat in _EQUIPMENT:
             out.add(f"{cat}:{rest.partition('@')[0]}")
     return frozenset(out)
 
 
+# Ett dygns rapport plus marginal. Samlaren hör huset en gång per dygn, så en ominstallation
+# hinner ofta skicka en sista rapport efter att det nya id:t redan finns (#614).
+_REINSTALL_OVERLAP = timedelta(hours=36)
+# Äldre versioner skickar inte mätare, storlek och land. Saknas de på ena sidan är det samma hus
+# om resten stämmer. Finns de på båda sidor måste de vara lika.
+_FP_OPTIONAL = ("meter", "size", "country")
+
+
+def _parse_ts(value: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _overlap(last_old: str, first_new: str) -> timedelta | None:
+    """Hur länge det gamla id:t hördes efter att det nya dök upp.
+
+    0 om det tystnade innan. None om överlappet är längre än en daglig rapport, eller om tiden saknas.
+    Ett hus som tystnat kopplas till det id som dök upp efteråt, inte till ett tidigare hus inom fönstret."""
+    if not last_old or not first_new:
+        return None
+    if last_old <= first_new:
+        return timedelta(0)
+    old, new = _parse_ts(last_old), _parse_ts(first_new)
+    if old is None or new is None:
+        return None
+    gap = old - new
+    return gap if gap <= _REINSTALL_OVERLAP else None
+
+
+def _split_fingerprint(fp: frozenset) -> tuple[frozenset, dict]:
+    core, optional = set(), {}
+    for item in fp:
+        cat, _, rest = item.partition(":")
+        if cat in _FP_OPTIONAL:
+            optional.setdefault(cat, set()).add(rest)
+        else:
+            core.add(item)
+    return frozenset(core), optional
+
+
+def _same_equipment(a: list, b: list) -> bool:
+    """Samma hus: minst fem gemensamma utrustningsdelar. Mätare, storlek och land som bara den
+    nyare rapporten har räknas inte som en skillnad. Två hus med bara en elmätare slås inte ihop."""
+    fa, fb = _fingerprint(a), _fingerprint(b)
+    if fa == fb:
+        return len(fa) >= 5
+    ca, oa = _split_fingerprint(fa)
+    cb, ob = _split_fingerprint(fb)
+    if ca != cb:
+        return False
+    for cat in set(oa) & set(ob):
+        if oa[cat] != ob[cat]:
+            return False
+    return len(ca) + len(set(oa) & set(ob)) >= 5
+
+
 def _merge_reinstalls(latest: dict, first: dict, last_seen: dict) -> dict:
     """Samma hus med nytt installations-ID (ominstallation, tappad datamapp, eller före 1.2.40 ett ID som kunde
-    skrivas över): ett äldre hus som tystnat innan ett nytt med exakt samma utrustning dök upp räknas som samma.
-    Kräver minst fem utrustningsdelar, så att två vanliga hus med t.ex. bara en elmätare aldrig slås ihop.
-    Tar bort det äldre ur latest och returnerar {nytt hus: [äldre hus ...]}. Inga IP-adresser används."""
+    skrivas över). Det äldre id:t får överlappa det nyare med högst 36 timmar: en sista dygnsrapport efter bytet
+    är samma hus (#614). Ett id som fortfarande hörs mer än så efter att det andra dök upp är ett annat hus
+    och blir kvar. Kräver minst fem utrustningsdelar. Det id som hörts senast behålls.
+    Returnerar {kvarvarande hus: [borttagna hus ...]}. Inga IP-adresser används."""
     merged = {}
     order = sorted(latest, key=lambda h: first.get(h, ""))
     for i, old in enumerate(order):
-        fp = _fingerprint(latest[old][1])
+        if old not in latest:
+            continue
+        best = None
+        for new in order[i + 1:]:
+            if new not in latest or not _same_equipment(latest[old][1], latest[new][1]):
+                continue
+            gap = _overlap(last_seen.get(old, ""), first.get(new, ""))
+            if gap is None:
+                continue
+            rank = (gap, first.get(new, ""), new)
+            if best is None or rank < best:
+                best = rank
+        if best is None:
+            continue
+        new = best[2]
+        if last_seen.get(old, "") > last_seen.get(new, ""):
+            keep, drop = old, new
+        else:
+            keep, drop = new, old
+        merged.setdefault(keep, []).extend([drop] + merged.pop(drop, []))
+        latest.pop(drop)
+    # Bygge utan versionsnummer ("unknown": en utvecklings- eller testkopia av ett hus som körs parallellt med det riktiga, #614)
+    # är samma hus även när båda är aktiva samtidigt: slås ihop med ett riktigt hus med exakt samma utrustning. Gäller bara
+    # "unknown", så att två riktiga installationer med liknande utrustning aldrig slås ihop bara för att de är samtida.
+    for dev in [h for h in list(latest) if latest[h][0] in (None, "", "unknown")]:
+        fp = _fingerprint(latest[dev][1])
         if len(fp) < 5:
             continue
-        for new in order[i + 1:]:
-            if new in latest and _fingerprint(latest[new][1]) == fp and last_seen.get(old, "") <= first.get(new, ""):
-                merged.setdefault(new, []).extend([old] + merged.pop(old, []))
-                latest.pop(old)
+        for real in latest:
+            if real != dev and latest[real][0] not in (None, "", "unknown") and _fingerprint(latest[real][1]) == fp:
+                merged.setdefault(real, []).extend([dev] + merged.pop(dev, []))
+                latest.pop(dev)
                 break
     return merged
 
@@ -298,6 +414,9 @@ async def stats(request: Request, me: str = ""):
             latest[house] = (version, [d for d in (drivers or "").split(",") if d and d != PING_MARK],
                              drivers == PING_MARK)
             last_seen[house] = at
+    trials = [h for h in latest if _is_trial(first.get(h) or "", last_seen.get(h) or "")]
+    for h in trials:                                    # kortlivade testkörningar räknas inte som hus
+        latest.pop(h)
     merged = _merge_reinstalls(latest, first, last_seen)
     # När varje version först sågs (hos något hus): de som dök upp inom 2 dygn från den nyaste räknas som aktuella
     with _db() as c:
@@ -334,14 +453,19 @@ async def stats(request: Request, me: str = ""):
             cat, _, rest = d.partition(":")
             devs.setdefault(cat, []).append(_norm(rest))
         houses.append({"label": f"Hus {i}", "since": since[h][:10],
-                       "reinstalls": len(merged.get(h, [])), "last_seen": last_seen.get(h), "current": _current(latest[h][0]), "mine": bool(me) and h == me, "devices": devs,
+                       "reinstalls": len(merged.get(h, [])), "last_seen": last_seen.get(h), "current": _current(latest[h][0]),
+                       "mine": bool(me) and (h == me or me in merged.get(h, [])), "devices": devs,
                        "ping_only": latest[h][2],     # bara anonymt livstecken (telemetrin av): ID + version
                        # Bara fel från husets nuvarande version: ett fel som rättats i en senare version försvinner
                        # när huset uppdaterats, i stället för att ligga kvar ett dygn
                        "version": latest[h][0], "errors": sorted({e for v, e in errs.get(h, []) if v == latest[h][0]})})
     week = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    label_of = {h: f"Hus {i}" for i, h in enumerate(sorted(latest, key=lambda x: since[x]), start=1)}
+    dups = [{"a": label_of[a], "b": label_of[b], "parts": n} for a, b, n in _suspected_duplicates(latest, first)]
     return {
         "active": len(latest),
+        "trial_runs": len(trials),
+        "suspected_duplicates": dups,
         "active_days": ACTIVE_DAYS,
         "total_known": sum(1 for h in known if _is_real_house(h)) - sum(len(v) for v in merged.values()),
         "new_last_7d": sum(1 for h, f in first.items() if _is_real_house(h) and f >= week)
