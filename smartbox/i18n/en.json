@@ -3261,5 +3261,12 @@
  "(uppskattat)": "(estimated)",
  "Mätt sedan": "Measured since",
  "Sedan start": "Since start",
- "Tillsats idag": "Auxiliary heat today"
+ "Tillsats idag": "Auxiliary heat today",
+ "Kostnad per månad": "Cost per month",
+ "Kostnad per år": "Cost per year",
+ "Sparat per månad": "Saved per month",
+ "Sparat per år": "Saved per year",
+ "Köpt och såld el, och vad tajmningen sparat, månad för månad och år för år.": "Electricity bought and sold, and what timing saved, month by month and year by year.",
+ "Köpt el inklusive moms, nätavgift och skatt, minus såld el. Tom stapel betyder att perioden saknar mätdata.": "Electricity bought incl. VAT, grid fee and tax, minus electricity sold. An empty bar means the period has no measurements.",
+ "Tom stapel betyder att perioden saknar mätdata.": "An empty bar means the period has no measurements."
 }

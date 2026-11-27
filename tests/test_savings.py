@@ -68,6 +68,32 @@ def test_prisintervall_utan_rader():
     assert price_span([(None, None)], buy_cost=lambda spot, t: spot)["spot"]["max"] is None
 
 
+def test_manader_och_ar_har_luckor_som_tomma_inte_noll():
+    """#599: månader och år utan data är tomma. En period som summerar till 0 är fortfarande 0."""
+    from savings import history_buckets
+    money = [{"day": "2024-12-15", "bought_kwh": 10, "cost": 20, "sold_kwh": 1, "income": 2, "net": 18},
+             {"day": "2026-01-02", "bought_kwh": 4, "cost": 0, "sold_kwh": 0, "income": 0, "net": 0},
+             {"day": "2026-03-01", "bought_kwh": 9, "cost": 9, "sold_kwh": 0, "income": 0, "net": 9}]
+    timing = [build_day("2026-01-02", 4.0, 1.0, 1.0)]
+    h = history_buckets(money, timing, "2026-02-01")
+    months = {b["key"]: b for b in h["months"]}
+    assert list(months)[0] == "2024-12" and list(months)[-1] == "2026-02"
+    assert "2026-03" not in months                                          # efter today
+    assert months["2025-06"]["money"]["cost"] is None and months["2025-06"]["money"]["days"] == 0
+    assert months["2025-06"]["timing"]["saved_kr"] is None
+    assert months["2024-12"]["money"]["net"] == 18 and months["2024-12"]["timing"]["saved_kr"] is None
+    assert months["2026-01"]["money"]["net"] == 0 and months["2026-01"]["money"]["days"] == 1
+    assert months["2026-01"]["timing"]["days"] == 1 and months["2026-01"]["timing"]["saved_kr"] == 0
+    years = {b["key"]: b for b in h["years"]}
+    assert list(years) == ["2024", "2025", "2026"]
+    assert years["2025"]["money"]["days"] == 0 and years["2025"]["money"]["bought_kwh"] is None
+    assert years["2024"]["money"]["cost"] == 20
+    assert years["2026"]["money"]["bought_kwh"] == 4                         # mars ligger efter today
+    assert history_buckets([], [], "2026-02-01") == {"months": [], "years": []}
+    assert history_buckets([{"day": "2026-05-01", "bought_kwh": 1, "cost": 1, "sold_kwh": 0, "income": 0, "net": 1}],
+                           [], "2026-02-01") == {"months": [], "years": []}
+
+
 def test_pengar_per_period():
     from savings import money_periods
     rows = [{"day": "2026-10-20", "bought_kwh": 10, "cost": 30, "sold_kwh": 0, "income": 0, "net": 30},

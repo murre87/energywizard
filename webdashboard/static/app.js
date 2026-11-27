@@ -82,24 +82,27 @@ function savingsCardHtml(d) {
 }
 
 // Kostnad per dag (Ekonomi): uppåt = kostnad, nedåt (grönt) = dagar då solen gav mer än elen kostade.
-function costBars(elId, days, sym) {
+function costBars(elId, days, sym, onPick) {
   const el = document.getElementById(elId);
   if (!el || !days.length) return;
   const chart = echarts.init(el, null, { renderer: "svg" });
   const css = getComputedStyle(document.documentElement);
   const blue = css.getPropertyValue("--acc2").trim() || "#38bdf8", good = css.getPropertyValue("--acc").trim() || "#22d3a0";
+  const axis = (r) => r.label || r.day.slice(5);
   chart.setOption({
     grid: { left: 44, right: 4, top: 6, bottom: 30 },
     tooltip: { trigger: "axis", formatter: (ps) => { const r = days[ps[0].dataIndex];
-      return `${r.day}<br>Köpt ${r.cost.toFixed(2)} ${sym} (${r.bought_kwh.toFixed(1)} kWh)<br>Sålt ${r.income.toFixed(2)} ${sym}<br><b>Netto ${r.net.toFixed(2)} ${sym}</b>`; } },
-    xAxis: { type: "category", data: days.map((r) => r.day.slice(5)), axisLabel: { color: "#93a0b8" } },
+      if (!r || r.net == null) return `${r ? axis(r) : ""}<br>Ingen mätdata`;
+      return `${axis(r)}<br>Köpt ${r.cost.toFixed(2)} ${sym} (${r.bought_kwh.toFixed(1)} kWh)<br>Sålt ${r.income.toFixed(2)} ${sym}<br><b>Netto ${r.net.toFixed(2)} ${sym}</b>`; } },
+    xAxis: { type: "category", data: days.map(axis), axisLabel: { color: "#93a0b8" } },
     yAxis: { type: "value", splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } }, axisLabel: { color: "#93a0b8" } },
-    series: [{ type: "bar", data: days.map((r) => ({ value: r.net, itemStyle: { color: r.net >= 0 ? blue : good, borderRadius: r.net >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3] } })), barMaxWidth: 14 }],
+    series: [{ type: "bar", data: days.map((r) => ({ value: r.net == null ? null : r.net, itemStyle: { color: r.net == null ? "transparent" : r.net >= 0 ? blue : good, borderRadius: r.net != null && r.net < 0 ? [0, 0, 3, 3] : [3, 3, 0, 0] } })), barMaxWidth: 14 }],
   });
+  if (onPick) chart.on("click", (p) => { const r = days[p.dataIndex]; if (r) onPick(r); });
   window.addEventListener("resize", () => chart.resize());
 }
 
-function savingsBars(elId, days, height) {
+function savingsBars(elId, days, height, onPick) {
   const el = document.getElementById(elId);
   if (!el || !days || !days.length) return;
   const chart = echarts.init(el, null, { renderer: "svg" });
@@ -107,11 +110,17 @@ function savingsBars(elId, days, height) {
   const good = css.getPropertyValue("--acc").trim() || "#22d3a0", bad = css.getPropertyValue("--bad").trim() || "#f87171";
   chart.setOption({
     grid: { left: height ? 40 : 4, right: 4, top: 6, bottom: height ? 30 : 4 },
-    tooltip: { trigger: "axis", formatter: (ps) => `${ps[0].name}: ${ps[0].value >= 0 ? "+" : ""}${ps[0].value.toFixed(2)} ${moneyUnit()}` },
-    xAxis: { type: "category", data: days.map((r) => r.day.slice(5)), show: !!height, axisLabel: { color: "#93a0b8" } },
+    tooltip: { trigger: "axis", formatter: (ps) => {
+      const r = days[ps[0].dataIndex];
+      const name = r ? (r.label || r.day.slice(5)) : ps[0].name;
+      if (!r || r.saved_kr == null) return `${name}: Ingen mätdata`;
+      return `${name}: ${r.saved_kr >= 0 ? "+" : ""}${r.saved_kr.toFixed(2)} ${moneyUnit()}`;
+    } },
+    xAxis: { type: "category", data: days.map((r) => r.label || r.day.slice(5)), show: !!height, axisLabel: { color: "#93a0b8" } },
     yAxis: { type: "value", show: !!height, splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } }, axisLabel: { color: "#93a0b8" } },
-    series: [{ type: "bar", data: days.map((r) => ({ value: r.saved_kr, itemStyle: { color: r.saved_kr >= 0 ? good : bad, borderRadius: r.saved_kr >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3] } })), barMaxWidth: 14 }],
+    series: [{ type: "bar", data: days.map((r) => ({ value: r.saved_kr == null ? null : r.saved_kr, itemStyle: { color: r.saved_kr == null ? "transparent" : r.saved_kr >= 0 ? good : bad, borderRadius: r.saved_kr != null && r.saved_kr < 0 ? [0, 0, 3, 3] : [3, 3, 0, 0] } })), barMaxWidth: 14 }],
   });
+  if (onPick) chart.on("click", (p) => { const r = days[p.dataIndex]; if (r) onPick(r); });
   new ResizeObserver(() => chart.resize()).observe(el);
 }
 
@@ -1000,6 +1009,7 @@ async function renderSolarForecastSettings() {
 }
 
 let econPeriod = "today";
+let econHistKey = "";
 
 function electricitySupportHtml(d) {
   if (!d.available) return '<div class="note">Elstödet kan inte beräknas just nu.</div>';
@@ -1014,10 +1024,26 @@ function electricitySupportHtml(d) {
 
 async function renderEkonomi() {
   const d = await loadPage("api/economy", (d) => {
-    const m = d.money[econPeriod], t = d.timing[econPeriod] || {}, sym = d.symbol || "kr";
+    const longView = econPeriod === "months" || econPeriod === "years";
+    const buckets = longView ? ((d.history && d.history[econPeriod]) || []) : [];
+    const picked = longView ? (buckets.find((b) => b.key === econHistKey) || buckets[buckets.length - 1] || null) : null;
+    const m = longView ? (picked ? picked.money : { cost: null, income: null, net: null, bought_kwh: null, sold_kwh: null, avg_paid: null, avg_sold: null }) : d.money[econPeriod];
+    const t = longView ? (picked ? picked.timing : { saved_kr: null, pct: null }) : (d.timing[econPeriod] || {});
+    const sym = d.symbol || "kr";
     const money = (v) => v == null ? "–" : `${v.toFixed(v >= 100 || v <= -100 ? 0 : 2).replace(".", ",")} ${sym}`;
     const chip = (k, label) => `<button class="icobtn" data-econ="${k}"${k === econPeriod ? ` style="border-color:var(--acc);color:var(--acc)"` : ""}>${label}</button>`;
-    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const label = longView ? (picked ? picked.key : "") : { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const picker = longView ? `<div style="margin:0 0 12px"><label class="note" for="econhist">${econPeriod === "months" ? "Månad" : "År"}</label>
+      <select id="econhist" style="margin-left:8px">${buckets.map((b) => {
+        const empty = !b.money.days && !b.timing.days;
+        return `<option value="${esc(b.key)}"${picked && b.key === picked.key ? " selected" : ""}>${esc(b.key)}${empty ? " · Ingen mätdata" : ""}</option>`;
+      }).join("") || `<option value="">Ingen mätdata</option>`}</select>
+      <div class="note">Köpt och såld el, och vad tajmningen sparat, månad för månad och år för år.</div></div>` : "";
+    const costTitle = longView ? (econPeriod === "months" ? "Kostnad per månad" : "Kostnad per år") : "Kostnad per dag";
+    const saveTitle = longView ? (econPeriod === "months" ? "Sparat per månad" : "Sparat per år") : "Sparat per dag";
+    const costNote = longView
+      ? "Köpt el inklusive moms, nätavgift och skatt, minus såld el. Tom stapel betyder att perioden saknar mätdata."
+      : "Köpt el inklusive moms, nätavgift och skatt, minus såld el. Senaste 31 dagarna.";
     // #510: snittet på köpt el är inklusive avgifter. Lägst/snitt/högst måste vara samma bas,
     // annars kan snittet se högre ut än dagens högsta (det var bara spotpriset).
     const paidSub = (buy, spot) => {
@@ -1029,7 +1055,8 @@ async function renderEkonomi() {
     const avgPaid = m.avg_paid == null ? "" : ` · <span>snittpris inklusive avgifter</span> <span data-noi18n>${m.avg_paid.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     const avgSold = m.avg_sold == null ? "" : ` · <span>snittpris</span> <span data-noi18n>${m.avg_sold.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     return `
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}${chip("months", "Månader")}${chip("years", "År")}</div>
+    ${picker}
     <div class="grid" style="margin-bottom:16px">
       ${statTile("🧾 Köpt el", money(m.cost), `${fmt(m.bought_kwh, 1, " kWh")}${avgPaid}`)}
       ${statTile("☀️ Såld el", money(m.income), `${fmt(m.sold_kwh, 1, " kWh")}${avgSold}`)}
@@ -1043,10 +1070,10 @@ async function renderEkonomi() {
       <div id="electricity-support-result" aria-live="polite" style="margin-top:8px"></div>
       <button class="icobtn" id="electricity-support-calculate" style="margin-top:8px">Beräkna elstöd</button>
     </div>` : ""}
-    <div class="card" style="margin-bottom:16px"><h2>💸 Kostnad per dag</h2>
-      <div class="note">Köpt el inklusive moms, nätavgift och skatt, minus såld el. Senaste 31 dagarna.</div>
+    <div class="card" style="margin-bottom:16px"><h2>💸 ${costTitle}</h2>
+      <div class="note">${costNote}</div>
       <div id="econcostbars" style="height:220px;margin-top:10px"></div></div>
-    <div class="card" style="margin-bottom:16px"><h2>📊 Sparat per dag</h2><div class="note">Jämfört med ett vanligt hushåll utan styrning, inkl. moms. Grönt = billigare, rött = dyrare.</div><div id="econsavingsbars" style="height:220px;margin-top:10px"></div></div>
+    <div class="card" style="margin-bottom:16px"><h2>📊 ${saveTitle}</h2><div class="note">Jämfört med ett vanligt hushåll utan styrning, inkl. moms. Grönt = billigare, rött = dyrare.</div><div id="econsavingsbars" style="height:220px;margin-top:10px"></div></div>
     <div class="grid" style="margin-bottom:16px">
       ${statTile("💸 Elpris just nu", fmtKrOre(d.price) + "/kWh", "spotpris")}
       ${paidTile("📉", "Lägst idag", d.price_buy_min, d.price_min)}
@@ -1070,10 +1097,25 @@ async function renderEkonomi() {
       supportButton.disabled = false;
     }
   };
-  document.querySelectorAll("[data-econ]").forEach((b) => b.onclick = () => { econPeriod = b.dataset.econ; renderEkonomi(); });
+  document.querySelectorAll("[data-econ]").forEach((b) => b.onclick = () => { econPeriod = b.dataset.econ; econHistKey = ""; renderEkonomi(); });
+  const histSel = document.getElementById("econhist");
+  if (histSel) histSel.onchange = () => { econHistKey = histSel.value; renderEkonomi(); };
   if (d.price_24h) lineChart("econpricechart", d.price_24h, { step: "end" });
-  costBars("econcostbars", d.money_days || [], d.symbol || "kr");
-  api("api/savings").then((sv) => { if (sv.ok) savingsBars("econsavingsbars", sv.days, 220); }).catch(() => {});
+  const longView = econPeriod === "months" || econPeriod === "years";
+  const pickBar = (r) => { if (!r || !r.day) return; econHistKey = r.day; renderEkonomi(); };
+  if (longView) {
+    const buckets = (d.history && d.history[econPeriod]) || [];
+    const points = buckets.map((b) => ({
+      day: b.key, label: b.key,
+      net: b.money.days ? b.money.net : null, cost: b.money.cost, bought_kwh: b.money.bought_kwh, income: b.money.income,
+      saved_kr: b.timing.days ? b.timing.saved_kr : null,
+    }));
+    costBars("econcostbars", points, d.symbol || "kr", pickBar);
+    savingsBars("econsavingsbars", points, 220, pickBar);
+  } else {
+    costBars("econcostbars", d.money_days || [], d.symbol || "kr");
+    api("api/savings").then((sv) => { if (sv.ok) savingsBars("econsavingsbars", sv.days, 220); }).catch(() => {});
+  }
 }
 
 // Fasström i A mot huvudsäkringen: full stapel = 150 % av säkringen, gul från 80 %, röd över säkringen (#130)

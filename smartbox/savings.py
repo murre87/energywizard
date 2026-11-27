@@ -204,19 +204,107 @@ def price_span(rows, buy_cost=None):
     return {"spot": pack(spots), "buy": pack(buys)}
 
 
+def _sum_money(rs):
+    s = {k: round(sum(float(r[k]) for r in rs), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
+    s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
+    s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
+    s["days"] = len(rs)
+    return s
+
+
+def _empty_money():
+    """En period utan rader är tom, inte noll: en månad som saknas ska inte se ut som gratis el."""
+    return {"bought_kwh": None, "cost": None, "sold_kwh": None, "income": None, "net": None,
+            "avg_paid": None, "avg_sold": None, "days": 0}
+
+
+def _empty_timing():
+    return {"saved_kr": None, "kwh": None, "paid_kr": None, "pct": None, "days": 0}
+
+
 def money_periods(rows, today):
     """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods()."""
     from datetime import date, timedelta
     t = date.fromisoformat(today)
     week_start = (t - timedelta(days=6)).isoformat()
-
-    def tot(rs):
-        s = {k: round(sum(r[k] for r in rs), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
-        s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
-        s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
-        s["days"] = len(rs)
-        return s
     rows = sorted(rows or [], key=lambda r: r["day"])
-    return {"today": tot([r for r in rows if r["day"] == today]),
-            "week": tot([r for r in rows if week_start <= r["day"] <= today]),
-            "month": tot([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+    return {"today": _sum_money([r for r in rows if r["day"] == today]),
+            "week": _sum_money([r for r in rows if week_start <= r["day"] <= today]),
+            "month": _sum_money([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+
+
+def _period_keys(start, end, width):
+    """Alla månader (width 7) eller år (width 4) från start t.o.m. end, inklusive luckor."""
+    keys = []
+    if width == 7:
+        y, m = start.year, start.month
+        while (y, m) <= (end.year, end.month):
+            keys.append(f"{y:04d}-{m:02d}")
+            m += 1
+            if m == 13:
+                y, m = y + 1, 1
+    else:
+        keys = [f"{y:04d}" for y in range(start.year, end.year + 1)]
+    return keys
+
+
+def history_buckets(money_rows, timing_rows, today):
+    """Köpt/såld el och sparad tajmning, månad för månad och år för år, från första dagen med data t.o.m. idag.
+
+    En månad eller ett år utan rader får belopp None och days 0. Det är inte samma sak som en period som
+    faktiskt summerar till 0. Dagar efter today räknas inte. Saknas all data är listorna tomma."""
+    from datetime import date
+    today_d = date.fromisoformat(today)
+
+    def kept(rows):
+        out = []
+        for r in rows or []:
+            day = r.get("day")
+            if not day or day > today:
+                continue
+            try:
+                date.fromisoformat(day)
+            except ValueError:
+                continue
+            out.append(r)
+        return out
+
+    money_rows, timing_rows = kept(money_rows), kept(timing_rows)
+    days = [date.fromisoformat(r["day"]) for r in money_rows + timing_rows]
+    if not days:
+        return {"months": [], "years": []}
+    start, end = min(days), today_d
+
+    def pack(width):
+        money_by, timing_by = {}, {}
+        for r in money_rows:
+            money_by.setdefault(r["day"][:width], []).append(r)
+        for r in timing_rows:
+            timing_by.setdefault(r["day"][:width], []).append(r)
+        buckets = []
+        for key in _period_keys(start, end, width):
+            ms, ts = money_by.get(key) or [], timing_by.get(key) or []
+            buckets.append({
+                "key": key,
+                "money": _sum_money(ms) if ms else _empty_money(),
+                "timing": _summary(ts) if ts else _empty_timing(),
+            })
+        return buckets
+
+    return {"months": pack(7), "years": pack(4)}
+
+
+_hist_cache = {"t": 0.0, "day": None, "money": None, "timing": None}
+
+
+def history_rows(conn, today, days=4000):
+    """Hela historiken för ekonomisidans månader och år. Samma cache som all_time, tio minuter."""
+    import time as _t
+    now = _t.time()
+    if (_hist_cache["money"] is not None and _hist_cache["day"] == today
+            and now - _hist_cache["t"] < ALL_TTL_S):
+        return _hist_cache["money"], _hist_cache["timing"]
+    money = money_rows(conn, days=days)
+    timing = daily_rows(conn, days=days)
+    _hist_cache.update(t=now, day=today, money=money, timing=timing)
+    return money, timing

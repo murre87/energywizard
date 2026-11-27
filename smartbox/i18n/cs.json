@@ -3261,5 +3261,12 @@
  "(uppskattat)": "(odhad)",
  "Mätt sedan": "Měřeno od",
  "Sedan start": "Od spuštění",
- "Tillsats idag": "Přídavné topení dnes"
+ "Tillsats idag": "Přídavné topení dnes",
+ "Kostnad per månad": "Náklady za měsíc",
+ "Kostnad per år": "Náklady za rok",
+ "Sparat per månad": "Úspora za měsíc",
+ "Sparat per år": "Úspora za rok",
+ "Köpt och såld el, och vad tajmningen sparat, månad för månad och år för år.": "Nakoupená a prodaná elektřina a co načasování ušetřilo, měsíc po měsíci a rok po roce.",
+ "Köpt el inklusive moms, nätavgift och skatt, minus såld el. Tom stapel betyder att perioden saknar mätdata.": "Nakoupená elektřina včetně DPH, síťového poplatku a daně, minus prodaná elektřina. Prázdný sloupec znamená, že období nemá žádná měření.",
+ "Tom stapel betyder att perioden saknar mätdata.": "Prázdný sloupec znamená, že období nemá žádná měření."
 }
