@@ -1,8 +1,8 @@
 {
   "drivers": {
     "repo": "murre87/energywizard-drivers",
-    "tag": "v0.1.0",
-    "commit": "da6940e3fba9f40cc375cadadfbf136629d4301b",
-    "tree_sha256": "9fd4e34703ac7960d212d177241213eee88fa73ef10442343d99ef15c3f849e4"
+    "tag": "v0.2.0",
+    "commit": "6035c4b52a0cf3fbb4d268854b4f521bbf799baa",
+    "tree_sha256": "a1c1b120d33e4893c03043438f23eb31d5e51653253bbdf4c248a2aae8bc0bca"
   }
 }
