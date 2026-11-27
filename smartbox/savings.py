@@ -109,7 +109,7 @@ def _summary(rows):
 
 
 _all_cache = {"t": 0.0, "day": None, "val": None}
-ALL_TTL_S = 600
+ALL_TTL_S = 1800
 
 
 def all_time(conn, today):
@@ -123,6 +123,89 @@ def all_time(conn, today):
     val = _summary(rows)
     val["since"] = rows[0]["day"] if rows else None
     _all_cache.update(t=now, day=today, val=val)
+    return val
+
+
+_benefit_cache = {"t": 0.0, "day": None, "val": None}
+_refresh = {"running": False}
+
+
+def cached(conn, today):
+    """(sedan_start, total_nytta) ur cachen, aldrig blockerande: hela historiken läses (flera sekunder), så en inaktuell eller tom
+    cache fylls i en bakgrundstråd med egen anslutning, och sidan visar det som finns (None första gången, tills tråden är klar)."""
+    import threading
+    import time as _t
+    now = _t.time()
+    fresh = (_benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S
+             and _all_cache["val"] is not None and _money_cache["val"] is not None and _money_cache["day"] == today
+             and _hist_cache["money"] is not None and _hist_cache["day"] == today)
+    if not fresh and not _refresh["running"]:
+        _refresh["running"] = True
+        engine = conn.engine
+
+        def run():
+            try:
+                with engine.connect() as c2:
+                    all_time(c2, today)
+                    total_benefit(c2, today)
+                    money_all(c2, today)                        # pengarna sedan start (Ekonomi, period Totalt) fylls av samma tråd
+                    history_fill(c2, today)                     # månader och år på Ekonomi fylls av samma tråd
+            except Exception as e:
+                print(f"⚠️ Total nytta: {type(e).__name__}: {str(e)[:120]}")
+            finally:
+                _refresh["running"] = False
+        threading.Thread(target=run, daemon=True, name="savings-refresh").start()
+    return _all_cache["val"], _benefit_cache["val"]
+
+
+def total_benefit(conn, today):
+    """Hela nyttan sedan start, post för post (startsidan): prisstyrning av köpt el, solel som huset använt (värderad till vad den
+    hade kostat att köpa: moms, nätavgift, skatt), såld solel, och därav sol till elbil och spabad. Posterna för sol finns bara
+    om huset har solceller. Summan lägger ihop posterna (sol till elbil/spa är en del av solelen och räknas inte dubbelt).
+    Prisstyrningen är det EnergyWizard styr; solposterna är vad solcellerna ger, med eller utan styrning. Cachas i tio minuter."""
+    import time as _t
+    now = _t.time()
+    if _benefit_cache["val"] is not None and _benefit_cache["day"] == today and now - _benefit_cache["t"] < ALL_TTL_S:
+        return _benefit_cache["val"]
+    timing = all_time(conn, today)
+    items = [{"key": "timing", "kr": round(timing["saved_kr"], 0), "kwh": round(timing["kwh"], 0)}]
+    flexible = None
+    try:
+        import nordpool
+        rows = conn.execute(text("""
+            SELECT date_trunc('hour', timestamp) AS h, sum(pv_power_w + LEAST(net_power, 0)) / 60000.0 AS kwh, avg(price) AS p
+            FROM sensor_log WHERE pv_power_w IS NOT NULL AND net_power IS NOT NULL AND price IS NOT NULL AND pv_power_w > 0
+            GROUP BY 1""")).fetchall()
+        kr = kwh = 0.0
+        for h, k, p in rows:
+            if k is None or p is None or k <= 0:
+                continue
+            kr += float(k) * nordpool.full_buy_cost(float(p), h)
+            kwh += float(k)
+        if kwh > 1:
+            items.append({"key": "solar_self", "kr": round(kr, 0), "kwh": round(kwh, 0)})
+            sold = conn.execute(text(f"""
+                SELECT sum(GREATEST(-net_power, 0) * {nordpool.sql_sell_income_expr('price')}) / 60000.0,
+                       sum(GREATEST(-net_power, 0)) / 60000.0
+                FROM sensor_log WHERE net_power IS NOT NULL AND price IS NOT NULL""")).fetchone()
+            if sold and sold[1] and float(sold[1]) > 1:
+                items.append({"key": "solar_sold", "kr": round(float(sold[0] or 0), 0), "kwh": round(float(sold[1]), 0)})
+            f = conn.execute(text("""
+                SELECT sum(COALESCE(ev_power_kw, 0) + COALESCE(ev_carport_power_kw, 0)) / 60.0,
+                       sum(CASE WHEN spa_heater_running = 1 THEN spa_power_w ELSE 0 END) / 60000.0,
+                       sum((COALESCE(ev_power_kw, 0) + COALESCE(ev_carport_power_kw, 0)) * 1000 * price) / 60000.0
+                         + sum(CASE WHEN spa_heater_running = 1 THEN spa_power_w * price ELSE 0 END) / 60000.0
+                FROM sensor_log WHERE net_power IS NOT NULL AND net_power <= 0 AND price IS NOT NULL""")).fetchone()
+            if f and f[2] is not None and float(f[2]) > 0:
+                flexible = {"kr": round(float(f[2]), 0), "ev_kwh": round(float(f[0] or 0), 0), "spa_kwh": round(float(f[1] or 0), 0)}
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    val = {"since": timing.get("since"), "days": timing["days"], "items": items, "flexible": flexible,
+           "total_kr": round(sum(i["kr"] for i in items), 0)}
+    _benefit_cache.update(t=now, day=today, val=val)
     return val
 
 
@@ -204,12 +287,35 @@ def price_span(rows, buy_cost=None):
     return {"spot": pack(spots), "buy": pack(buys)}
 
 
-def _sum_money(rs):
-    s = {k: round(sum(float(r[k]) for r in rs), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
+def _money_total(rows):
+    """Summerar dagar som finns. En dag utan pris eller effekt är inte med och blir inte 0."""
+    s = {k: round(sum(r[k] for r in rows), 2) for k in ("bought_kwh", "cost", "sold_kwh", "income", "net")}
     s["avg_paid"] = round(s["cost"] / s["bought_kwh"], 3) if s["bought_kwh"] > 0.05 else None
     s["avg_sold"] = round(s["income"] / s["sold_kwh"], 3) if s["sold_kwh"] > 0.05 else None
-    s["days"] = len(rs)
+    s["days"] = len(rows)
     return s
+
+
+_money_cache = {"t": 0.0, "day": None, "val": None}
+
+
+def money_all(conn, today):
+    """Köpt, såld och netto sedan EnergyWizard startade. Samma formel som Idag/7 dagar/Månad.
+    Cachas i tio minuter. Dagar utan pris eller effekt räknas inte som noll."""
+    import time as _t
+    now = _t.time()
+    if _money_cache["val"] is not None and _money_cache["day"] == today and now - _money_cache["t"] < ALL_TTL_S:
+        return _money_cache["val"]
+    rows = sorted(money_rows(conn, days=4000), key=lambda r: r["day"])
+    val = _money_total(rows)
+    val["since"] = rows[0]["day"] if rows else None
+    _money_cache.update(t=now, day=today, val=val)
+    return val
+
+
+def money_cached():
+    """Köpt, såld och netto sedan start ur cachen, aldrig blockerande (None tills bakgrundstråden i cached() har fyllt den)."""
+    return _money_cache["val"]
 
 
 def _empty_money():
@@ -222,15 +328,25 @@ def _empty_timing():
     return {"saved_kr": None, "kwh": None, "paid_kr": None, "pct": None, "days": 0}
 
 
-def money_periods(rows, today):
-    """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods()."""
+def money_periods(rows, today, all_rows=None):
+    """Idag / 7 dagar / innevarande månad, samma perioder som summarize_periods().
+
+    all_rows: hela historiken (dict från money_all, eller rader). Utan den finns ingen period all,
+    så anrop som bara har de senaste dagarna ändras inte."""
     from datetime import date, timedelta
     t = date.fromisoformat(today)
     week_start = (t - timedelta(days=6)).isoformat()
     rows = sorted(rows or [], key=lambda r: r["day"])
-    return {"today": _sum_money([r for r in rows if r["day"] == today]),
-            "week": _sum_money([r for r in rows if week_start <= r["day"] <= today]),
-            "month": _sum_money([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+    out = {"today": _money_total([r for r in rows if r["day"] == today]),
+           "week": _money_total([r for r in rows if week_start <= r["day"] <= today]),
+           "month": _money_total([r for r in rows if r["day"].startswith(today[:7]) and r["day"] <= today])}
+    if all_rows is not None:
+        if isinstance(all_rows, dict):
+            out["all"] = all_rows
+        else:
+            ar = sorted(all_rows, key=lambda r: r["day"])
+            out["all"] = {**_money_total(ar), "since": ar[0]["day"] if ar else None}
+    return out
 
 
 def _period_keys(start, end, width):
@@ -254,6 +370,8 @@ def history_buckets(money_rows, timing_rows, today):
     En månad eller ett år utan rader får belopp None och days 0. Det är inte samma sak som en period som
     faktiskt summerar till 0. Dagar efter today räknas inte. Saknas all data är listorna tomma."""
     from datetime import date
+    if money_rows is None or timing_rows is None:
+        return {"months": [], "years": [], "pending": True}          # bakgrundstråden är inte klar än
     today_d = date.fromisoformat(today)
 
     def kept(rows):
@@ -286,7 +404,7 @@ def history_buckets(money_rows, timing_rows, today):
             ms, ts = money_by.get(key) or [], timing_by.get(key) or []
             buckets.append({
                 "key": key,
-                "money": _sum_money(ms) if ms else _empty_money(),
+                "money": _money_total(ms) if ms else _empty_money(),
                 "timing": _summary(ts) if ts else _empty_timing(),
             })
         return buckets
@@ -297,14 +415,15 @@ def history_buckets(money_rows, timing_rows, today):
 _hist_cache = {"t": 0.0, "day": None, "money": None, "timing": None}
 
 
-def history_rows(conn, today, days=4000):
-    """Hela historiken för ekonomisidans månader och år. Samma cache som all_time, tio minuter."""
+def history_fill(conn, today, days=4000):
+    """Hela historiken för ekonomisidans månader och år. Läser flera sekunder, så den anropas bara från bakgrundstråden i cached()."""
     import time as _t
-    now = _t.time()
-    if (_hist_cache["money"] is not None and _hist_cache["day"] == today
-            and now - _hist_cache["t"] < ALL_TTL_S):
-        return _hist_cache["money"], _hist_cache["timing"]
     money = money_rows(conn, days=days)
     timing = daily_rows(conn, days=days)
-    _hist_cache.update(t=now, day=today, money=money, timing=timing)
+    _hist_cache.update(t=_t.time(), day=today, money=money, timing=timing)
     return money, timing
+
+
+def history_cached():
+    """(köpt/sålt-rader, tajmningsrader) ur cachen, aldrig blockerande. (None, None) tills bakgrundstråden har fyllt den."""
+    return _hist_cache["money"], _hist_cache["timing"]

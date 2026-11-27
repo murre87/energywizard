@@ -69,7 +69,7 @@ Bara de avsikter som finns under modes: används.
 import math
 import time
 
-import homeassistant
+from drivers.host import homeassistant
 from drivers.battery import BatteryDriver, INTENTS
 
 SOLIS_RC_CHARGE = "Solis RC Force Battery Charge"
@@ -84,7 +84,7 @@ def _fill_slot_times(data: dict, now=None) -> dict:
     if not any(isinstance(v, str) and "{slot_" in v for v in data.values()):
         return data
     from datetime import datetime, timedelta
-    import nordpool
+    from drivers.host import nordpool
     now = now or datetime.now(nordpool.price_timezone())
     start = now.replace(minute=now.minute // 15 * 15, second=0, microsecond=0)
     end = start + timedelta(minutes=SLOT_WINDOW_MIN)
@@ -196,7 +196,7 @@ class GenericBatteryDriver(BatteryDriver):
         if self._invert_cfg is not None:
             return bool(self._invert_cfg)
         try:
-            import ew_settings
+            from drivers.host import ew_settings
             return bool(ew_settings.get("battery_power_invert", False))
         except Exception:
             return False

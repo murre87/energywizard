@@ -19,7 +19,7 @@ house_config.yaml.
 Gränsen går inte att läsa tillbaka via tjänsten - get_export_limit_pct() ger senast SKICKADE
 värdet (100 vid start), annars tolkar main.py None som "växelriktaren offline".
 """
-import homeassistant
+from drivers.host import homeassistant
 from drivers.solar import SolarDriver
 
 PRESETS = {

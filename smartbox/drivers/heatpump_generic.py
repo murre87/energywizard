@@ -4,7 +4,7 @@ kräva en handbyggd, registernivå-drivrutin per märke. Husdata/Thermia-drivrut
 finlir (vattenstopp-temp, värmekurva, rumsgivarinflytande) har ingen generisk
 motsvarighet i HA:s climate-domän - de metoderna returnerar ärligt False istället för
 att gissa eller tyst ignorera, med en lograd varning EN gång (inte varje minut)."""
-import homeassistant
+from drivers.host import homeassistant
 from drivers.heatpump import HeatPumpDriver
 
 

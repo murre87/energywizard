@@ -93,7 +93,7 @@ class EnergyHubConnection:
 
 
 def shadow_write(detail):
-    import shadow
+    from drivers.host import shadow
     if shadow.active():
         shadow.record("Ferroamp EnergyHub", detail)
         return True
