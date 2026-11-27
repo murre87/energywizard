@@ -16,7 +16,9 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | 2 | Kontrakt för batteriplanen, batteribeslutet och drivrutinernas state och kommandon, plus en kontraktsvakt över hela testsviten | klart (`contracts/`, `tests/contract_guard.py`) |
 | 3 | Det delade tillståndet (det Core lämnar till planeringen) uttryckligt i kontraktet: `planner-input.schema.json`, jämfört mot koden åt båda håll, plus indatavakt över hela testsviten | klart |
 | 4a | Förarbete: stäng täckningsglappet (utökat facit `tests/gpm_ext_gen.py`) och städa de sex oanvända indatanycklarna | klart |
-| 4b | Planeringen som egen process i samma image (Python), jämförd med den gamla i paritetsverktyget; Core faller tillbaka på senaste plan | |
+| 4b | Planeringen som egen process i samma image (Python), i **skuggläge**: den gamla vägen styr, den nya körs bredvid och jämförs (`EW_PLANNER_MODE=shadow`, standard `local`) | klart: `planner_service.py`, `planner_bridge.py`, `contracts.planner_input_from_wire` |
+| 4c | Köra skuggläget mot din egen installation i några dygn och se paritet på riktig data (inga skillnader efter uppvärmning) | |
+| 4d | Läget `remote`: planerarens process styr, den gamla vägen är fallback (senaste giltiga plan, sedan den gamla vägen); notiser flyttas dit | |
 | 5 | Drivrutinerna till eget repo, med mall och kontraktstester | |
 | 6 | API i Core (REST/WebSocket); appen och webben flyttas över ett område i taget, med den gamla vägen kvar tills den nya är verifierad | |
 | 7 | Release-kanaler (stable/dev), synlig version och versionskoll | |
@@ -35,3 +37,14 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 - **Sex nycklar** skickades av `main.py` men lästes aldrig av `gpm.py` (`base_load_profile`, `ev_max_charge_a`, `ev_min_charge_a`, `grid_import_w`, `house_consumption_w`, `power_limit_kw`). Borttagna i steg 4a: `gpm_state` går bara till `evaluate`, och ingen annan modul läste dem ur den.
 - **Testtäckning (åtgärdad i 4a):** 34 av de 75 nycklar `gpm` läser förekom inte i de 2 600 facit-scenarierna (värmeåterkoppling, bortaläge, varmvattnets ML, spaextra). En ändring av bortalägets frostskydd (15 till 14 °C) passerade `test_gpm_golden.py` utan att synas. Nu täcker `tests/gpm_ext_gen.py` (2 080 beslut) allt utom `heat_glide_hours`, och samma ändring gör `tests/test_gpm_golden_ext.py` rött.
 - **`outdoor_avg_5d`** hade tidigare en buggkommentar i `main.py` ("saknades -> is_summer var alltid False"): just den sortens glapp fångas nu av kontraktstestet.
+
+## Planeringen som egen process (steg 4b)
+
+- **Tjänsten** (`smartbox/planner_service.py`): en liten HTTP-tjänst på 127.0.0.1 med bara stdlib (inga nya beroenden). `POST /decide` tar planner-input och ger planner-decision enligt kontrakten, `POST /reset` ger en ny motor, `GET /health`. Motorn är tillståndsfull, så alla anrop går genom samma instans under lås. Starta: `python planner_service.py --port 8610`.
+- **Bryggan** (`smartbox/planner_bridge.py`), vald med `EW_PLANNER_MODE`:
+  - `local` (standard): ingen skillnad mot förut.
+  - `shadow`: den gamla vägen styr fortfarande och är det som returneras. Samma indata skickas i bakgrunden till tjänsten (som bryggan startar som underprocess och startar om vid behov, högst en gång per 30 s och fem gånger i timmen), och besluten jämförs med paritetsverktyget. Skillnader loggas (högst en gång per tio minuter per skillnad), och en sammanfattning skrivs var 15:e minut. De första 8 svaren efter varje start räknas som uppvärmning, eftersom den nya motorn börjar utan historik.
+- **Bryggan stör aldrig huvudloopen:** den väntar inte på tjänsten (ett pågående anrop gör att nästa hoppas över, ingen kö), fel fångas och räknas, och ett fel i bryggan själv når inte `main.py`.
+- **Tyst tjänst:** i skuggläge ersätts `gpm.notifier` så att inga notiser skickas dubbelt. `--loud` (steg 4d) låter tjänsten skicka.
+- **Minne:** tjänsten är en egen Python-process som laddar `gpm` och dess beroenden (bland annat scikit-learn), så skuggläget kostar ungefär lika mycket minne som motorn en gång till. Håll det av på små enheter tills steg 4c har visat att det behövs.
+- **Bevis:** `tests/test_planner_wire.py` (alla 4 680 facit-steg ger samma beslut efter en tur genom JSON) och `tests/test_planner_service.py` (samma beslut över riktig HTTP och med en riktig underprocess, bryggans beteende med falska delar).

@@ -52,3 +52,9 @@ Drivrutinerna har några få sluddriga typer (heltal som bool, statuskod som tal
 `main-code` (läst ur `main.py:s` uttryck) eller `unverified`. Alla nycklar är valfria, och `null` betyder att en givare saknas. `tests/test_contracts_input.py` jämför
 nyckeluppsättningen mot koden åt båda håll (vad `gpm.py` läser, vad `main.py` skickar), så en ny, borttagen eller omdöpt nyckel ändrar kontraktet eller testet blir rött.
 Ett test som med flit ger planeringen minimal eller konstig indata märks `@pytest.mark.no_planner_input_guard`.
+
+## Över processgränsen
+
+`contracts.planner_input_to_wire` och `contracts.planner_input_from_wire` är de två halvorna av omvandlingen: det Core skickar (JSON) blir det `gpm.evaluate`
+förväntar sig (datetime, DataFrame, tupelnycklar). `tests/test_planner_wire.py` visar att samma beslut kommer ut som med den ursprungliga indatan. Se
+`docs/uppdelning/PLAN.md` för planeringstjänsten och bryggan (`EW_PLANNER_MODE`).
