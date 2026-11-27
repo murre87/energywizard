@@ -2,7 +2,7 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.183 (2026-11-27)
+## 1.2.184 (2026-11-27)
 - **Kort för sol och batteri i Home Assistant (#558).** Ett nytt kort visar solproduktionen just nu, prognosen för resten av idag och för imorgon, batteriets laddnivå och effekt, och om planen laddar, sparar, laddar ur eller säljer. Prognosen är samma solprognos som planen redan använder. Saknas en uppmätt laddnivå används planens nivå. Hus utan sol och batteri får en tom rad. Hemmet, Värme och Bil är oförändrade.
 
 ## 1.2.180 (2026-11-24)
