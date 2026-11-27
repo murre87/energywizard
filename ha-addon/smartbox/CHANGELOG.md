@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.183 (2026-11-27)
+- **Ekonomisidan har perioden Totalt (#599).** Vid sidan av Idag, 7 dagar och Månad summeras köpt el, såld el, netto och sparat genom tajmning sedan EnergyWizard började mäta. Samma formel som de andra perioderna. Dagar utan pris eller effekt räknas inte som noll, och raden säger hur många dagar som ingick och från vilket datum. Diagrammen är kvar som senaste 31 dagarna. Månad för månad och år för år är kvar.
+
 ## 1.2.182 (2026-11-27)
 - **Mindre elpatron (tillsats) i värmen utan att huset blir kallare.** Analys av veckan: varje gång tillsatsen gick hade rumsåterkopplingen satt börvärdet till 23-25 °C, vilket ger en beräknad framledning på 50-55 °C medan kompressorn bara levererar 43-47 °C. Gradminuterna rasar mot -1190 och elpatronen kopplas in. Mätt över 30 dygn gav börvärde 21 4 % tillsats, 22 10 % och 23 82 %, medan framledningen var densamma. Nu (1) lär sig EnergyWizard varje dygn ur loggen högsta börvärdet pumpen klarar utan tillsats vid aktuell utetemperatur (lärt kapacitetstak, bara med rumsåterkoppling på), och (2) gradminutvakten gäller i alla lägen: vid gradminuter under -600 sänks börvärdet så att pumpen hämtar sig, om de kallaste rummen har marginal till golvet. Gränsen kan ändras med `heat_aux_guard_dm`.
 - **Tillsatsen senaste 7 dagarna syns överst på Värmepump-fliken** (tid, uppskattad energi och kostnad), och i appen under Värme inne.

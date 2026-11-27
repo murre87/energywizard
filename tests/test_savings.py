@@ -82,6 +82,24 @@ def test_pengar_per_period():
     assert money_periods([], "2026-11-03")["today"]["avg_sold"] is None
 
 
+def test_pengar_totalt_tar_med_dagar_utanfor_manaden_och_hoppar_over_luckor():
+    """#599: Totalt på Ekonomisidan är samma summa som Idag/7 dagar/Månad, över hela historiken.
+    En dag som saknas i raderna (ingen mätning) räknas inte som noll."""
+    from savings import money_periods
+    rows = [{"day": "2026-10-20", "bought_kwh": 10, "cost": 30, "sold_kwh": 0, "income": 0, "net": 30},
+            {"day": "2026-11-01", "bought_kwh": 20, "cost": 50, "sold_kwh": 5, "income": 4, "net": 46},
+            {"day": "2026-11-03", "bought_kwh": 10, "cost": 25, "sold_kwh": 2, "income": 3, "net": 22}]
+    p = money_periods(rows, "2026-11-03", rows)
+    assert "all" not in money_periods(rows, "2026-11-03")
+    assert p["all"]["days"] == 3 and p["all"]["since"] == "2026-10-20"
+    assert p["all"]["cost"] == 105 and p["all"]["income"] == 7 and p["all"]["net"] == 98
+    assert p["all"]["bought_kwh"] == 40 and p["month"]["days"] == 2
+    empty = money_periods([], "2026-11-03", [])
+    assert empty["all"]["days"] == 0 and empty["all"]["since"] is None and empty["all"]["cost"] == 0
+    again = money_periods(rows[:1], "2026-11-03", p["all"])
+    assert again["all"]["since"] == "2026-10-20" and again["all"]["net"] == 98
+
+
 def test_jamfort_med_vanlig_hushallsprofil_och_moms():
     """2026-11-05: besparingen mäts mot ett vanligt hushåll (toppar morgon/kväll), inkl. moms."""
     from savings import profile_day, PROFILE

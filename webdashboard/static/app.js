@@ -1017,7 +1017,7 @@ async function renderEkonomi() {
     const m = d.money[econPeriod], t = d.timing[econPeriod] || {}, sym = d.symbol || "kr";
     const money = (v) => v == null ? "–" : `${v.toFixed(v >= 100 || v <= -100 ? 0 : 2).replace(".", ",")} ${sym}`;
     const chip = (k, label) => `<button class="icobtn" data-econ="${k}"${k === econPeriod ? ` style="border-color:var(--acc);color:var(--acc)"` : ""}>${label}</button>`;
-    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden", all: "sedan start" }[econPeriod];
     // #510: snittet på köpt el är inklusive avgifter. Lägst/snitt/högst måste vara samma bas,
     // annars kan snittet se högre ut än dagens högsta (det var bara spotpriset).
     const paidSub = (buy, spot) => {
@@ -1029,11 +1029,11 @@ async function renderEkonomi() {
     const avgPaid = m.avg_paid == null ? "" : ` · <span>snittpris inklusive avgifter</span> <span data-noi18n>${m.avg_paid.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     const avgSold = m.avg_sold == null ? "" : ` · <span>snittpris</span> <span data-noi18n>${m.avg_sold.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     return `
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}${chip("all", "Totalt")}</div>
     <div class="grid" style="margin-bottom:16px">
       ${statTile("🧾 Köpt el", money(m.cost), `${fmt(m.bought_kwh, 1, " kWh")}${avgPaid}`)}
       ${statTile("☀️ Såld el", money(m.income), `${fmt(m.sold_kwh, 1, " kWh")}${avgSold}`)}
-      ${statTile("💰 Netto", money(m.net), "köpt minus sålt")}
+      ${statTile("💰 Netto", money(m.net), econPeriod === "all" ? `köpt minus sålt · ${m.days} dagar med data` : "köpt minus sålt")}
       ${statTile("🎯 Sparat genom tajmning", t.saved_kr != null ? (t.saved_kr >= 0 ? "+" : "") + money(t.saved_kr) : "–", t.pct != null ? `${t.pct.toFixed(0)} % billigare än ett vanligt hushåll` : "")}
     </div>
     ${d.electricity_support_area ? `<div class="card" style="margin-bottom:16px">
@@ -1054,7 +1054,7 @@ async function renderEkonomi() {
       ${paidTile("📈", "Högst idag", d.price_buy_max, d.price_max)}
     </div>
     <div class="card"><h2>Elpris senaste dygnet</h2><div id="econpricechart" style="height:240px;margin-top:10px"></div></div>
-    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).</div>`;
+    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).${econPeriod === "all" && m.since ? ` <span data-noi18n>(${esc(m.since)})</span>` : ""}</div>`;
   });
   if (!d) return;
   const supportButton = document.getElementById("electricity-support-calculate");
