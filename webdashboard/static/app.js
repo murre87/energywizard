@@ -608,6 +608,48 @@ function goalText(g) {
   return `Planen räknar nu med: ${goalDay(g.at)} ${hhmm(new Date(g.at))}${g.soc != null ? " · " + g.soc + " %" : ""}`;
 }
 
+// #605: Easees egen månadshistorik. Lösenordet skickas bara vid sparning och kommer aldrig tillbaka.
+const EE_KWH = (v) => v == null ? "–" : v.toLocaleString("sv-SE", { maximumFractionDigits: 0 }) + " kWh";
+async function renderEaseeHistory(preset) {
+  const box = document.getElementById("easeehist"); if (!box) return;
+  let d = preset;
+  if (!d) { try { d = await api("api/easee-history"); } catch (e) { if (box.isConnected) box.innerHTML = `<div class="card"><h2>Easee</h2><div class="note">${esc(e.message)}</div></div>`; return; } }
+  if (!box.isConnected) return;
+  const form = !d.owner ? "" : `<div style="margin-top:10px">
+      <label for="eeuser"><span>E-post till Easee-kontot</span></label>
+      <input id="eeuser" autocomplete="username" value="${esc(d.username || "")}" style="max-width:320px">
+      <label for="eepass" style="display:block;margin-top:8px"><span>${d.configured ? "Nytt lösenord (lämna tomt för att behålla)" : "Lösenord"}</span></label>
+      <input id="eepass" type="password" autocomplete="new-password" value="" style="max-width:320px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        <button class="icobtn" id="eesave">Spara</button>
+        ${d.configured ? `<button class="icobtn" id="eerefresh">Hämta igen</button><button class="icobtn" id="eeclear">Ta bort kontot</button>` : ""}
+      </div>
+      <div class="note" style="margin-top:6px"><span>Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen.</span></div></div>`;
+  const chargers = (d.chargers || []).map((ch) => {
+    const cmp = ch.compare;
+    const years = (ch.years || []).slice().reverse().map((y) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--line)"><span data-noi18n>${esc(y.year)}</span><b data-noi18n>${EE_KWH(y.kwh)}${y.cost != null ? " · " + Math.round(y.cost).toLocaleString("sv-SE") + " " + esc(y.currency || "kr") : ""}</b></div>`).join("");
+    return `<div style="margin-top:12px"><div style="font-weight:700"><span data-noi18n>${esc(ch.name || ch.id)}</span></div>
+      ${cmp ? `<div class="note"><span>Hittills i år</span> <span data-noi18n>${EE_KWH(cmp.this_kwh)}</span> <span>mot</span> <span data-noi18n>${EE_KWH(cmp.last_kwh)}</span> <span>samma månader</span> <span data-noi18n>${esc(cmp.last_year)}</span></div>` : ""}
+      ${years || `<div class="note"><span>Inga månader från laddboxen än.</span></div>`}</div>`;
+  }).join("");
+  box.innerHTML = `<div class="card"><h2>🔌 <span>Easee</span></h2>
+    <div class="note"><span>Laddboxens egen mätare, månad för månad. Den gäller före EnergyWizards uppskattning av elbilens förbrukning. Senaste timmen kan saknas, för boxen rapporterar en gång i timmen.</span></div>
+    ${d.error ? `<div class="note" style="margin-top:8px">${esc(d.error)}</div>` : ""}
+    ${d.fetched_at ? `<div class="note" style="margin-top:6px"><span>Hämtad</span> <span data-noi18n>${esc(String(d.fetched_at).slice(0, 16).replace("T", " "))}</span></div>` : ""}
+    ${chargers}
+    ${form}</div>`;
+  if (!d.owner) return;
+  const save = box.querySelector("#eesave");
+  if (save) save.onclick = async () => {
+    try { const r = await postJSON("api/easee-history", { username: box.querySelector("#eeuser").value, password: box.querySelector("#eepass").value });
+      toast(r.error || "Sparat"); renderEaseeHistory(r); } catch (e) { toast(e.message); }
+  };
+  const refresh = box.querySelector("#eerefresh");
+  if (refresh) refresh.onclick = async () => { try { renderEaseeHistory(await api("api/easee-history?refresh=1")); } catch (e) { toast(e.message); } };
+  const clear = box.querySelector("#eeclear");
+  if (clear) clear.onclick = async () => { try { renderEaseeHistory(await postJSON("api/easee-history", { clear: true })); } catch (e) { toast(e.message); } };
+}
+
 async function renderElbil() {
   const heat = await api("api/schedule/climate").catch(() => ({}));
   const heatCard = (c) => {
@@ -692,8 +734,10 @@ async function renderElbil() {
     </div>
     <div class="card" style="margin-bottom:16px"><h2>🔌 Laddplanen</h2><div class="note">Planerad laddeffekt per kvart mot elpriset. Håll muspekaren över en stapel för batterinivån.</div>${d.plan && d.plan.length ? `<div id="evplanchart" style="height:260px;margin-top:10px"></div>` : `<div class="note" style="margin-top:8px">Ingen laddning planerad just nu.</div>`}</div>
     <div class="note">Laddström: ${fmt(d.current_a, 0, " A")} · Dynamisk gräns: ${fmt(d.dynamic_limit_a, 0, " A")} · Målgräns just nu: ${fmt(d.current_target_limit, 0, " A")}</div>
+    <div id="easeehist" style="margin-top:16px"></div>
     <div id="tesla-access" style="margin-top:16px"></div>`);
   if (!d) return;
+  renderEaseeHistory();
   if (d.plan && d.plan.length) evPlanChart("evplanchart", d);
   document.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => postAction(`api/car/${b.dataset.car}/action`, { kind: b.dataset.kind }).then(renderElbil));
   loadTeslaAccess();

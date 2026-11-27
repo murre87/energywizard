@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.190 (2026-11-27)
+- **Easee-konto och laddboxens egen historik, under Elbil (#605).** Skriv in Easee-kontot en gång. EnergyWizard hämtar laddboxens månadssummor (kWh, och kostnad när Easee har en) och visar dem per år, med jämförelse mot samma månader förra året. Siffrorna är laddboxens mätare och gäller före den uppskattade elbilslasten. Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen. Historiken hämtas högst en gång per dygn, eftersom Easee bara tar emot några sådana frågor i timmen. Senaste timmen kan saknas.
+
 ## 1.2.183 (2026-11-27)
 - **Total nytta sedan start, post för post, på startsidan.** Förut visade startsidan bara prisstyrningen. Nu finns en komplett uppställning: prisstyrning av köpt el, solel som huset använt (värderad till vad den hade kostat att köpa, med moms, nätavgift och skatt), såld solel, och därav sol som gick till elbil och spabad (visas men räknas inte dubbelt). Summan lägger ihop posterna. Prisstyrningen är det EnergyWizard styr, solposterna är vad solcellerna ger med eller utan styrning. Posterna för sol visas bara om huset har solceller. I appen: tryck "Se alla poster". Gäller alla installationer.
 
