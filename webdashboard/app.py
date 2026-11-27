@@ -1585,6 +1585,7 @@ async def api_economy():
         today = now.date().isoformat()
         money = savings.money_rows(c, days=40)
         timing = savings.daily_rows(c, days=40)
+        everything = savings.all_time(c, today)
     span = savings.price_span(today_prices)
     spot, buy = span["spot"], span["buy"]
     settings = nordpool.cost_settings()
@@ -1594,7 +1595,7 @@ async def api_economy():
             "price_24h": price_24h,
             "symbol": settings["symbol"], "money_days": money[-31:],
             "electricity_support_area": eligible_area(settings, now),
-            "money": savings.money_periods(money, today), "timing": savings.summarize_periods(timing, today)}
+            "money": savings.money_periods(money, today), "timing": savings.summarize_periods(timing, today, everything)}
 
 
 @app.get("/api/economy/electricity-support")
@@ -1687,7 +1688,8 @@ async def api_savings():
     today = datetime.now(zoneinfo.ZoneInfo("Europe/Stockholm")).date().isoformat()
     with ENGINE.connect() as c:
         rows = savings.daily_rows(c, days=40)
-    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today)}
+        everything = savings.all_time(c, today)
+    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything)}
 
 
 @app.get("/api/plan")
@@ -1969,7 +1971,22 @@ async def api_pump_modes(hours: int = 24):
         have_add = have_add or bool(n_add)
         mode = ("aux2" if a2 else "aux1" if a1 else "hotwater" if hw else "heat" if comp else "idle")
         out.append({"t": int(t), "m": mode, "pct": _n(pct) if mode in ("aux1", "aux2") else None})
-    return {"ok": True, "hours": hours, "step_s": 600, "has_aux": have_add, "slots": out}
+    # Tillsatsen senaste sju dygnen: tid, uppskattad energi (steg 1 = 3 kW, steg 1+2 = 6 kW, Thermias tillsatssteg) och kostnad
+    aux = None
+    try:
+        with ENGINE.connect() as c:
+            r = c.execute(text("""SELECT count(*) FILTER (WHERE add_heat_1 > 0 OR add_heat_2 > 0),
+                                         count(*) FILTER (WHERE add_heat_2 > 0),
+                                         coalesce(sum(CASE WHEN add_heat_2 > 0 THEN 6.0 WHEN add_heat_1 > 0 THEN 3.0 ELSE 0 END) / 60.0, 0),
+                                         coalesce(sum(CASE WHEN add_heat_2 > 0 THEN 6.0 WHEN add_heat_1 > 0 THEN 3.0 ELSE 0 END * price) / 60.0, 0),
+                                         min(timestamp) FILTER (WHERE add_heat_1 IS NOT NULL)
+                                  FROM sensor_log WHERE timestamp > now() - interval '7 days' AND add_heat_1 IS NOT NULL""")).fetchone()
+        if r and r[4] is not None:
+            aux = {"minutes": int(r[0] or 0), "minutes_step2": int(r[1] or 0), "kwh": round(float(r[2] or 0), 1),
+                   "cost": round(float(r[3] or 0), 0), "since": r[4].isoformat()}
+    except Exception:
+        aux = None
+    return {"ok": True, "hours": hours, "step_s": 600, "has_aux": have_add, "slots": out, "aux_week": aux}
 
 
 @app.get("/api/spa")

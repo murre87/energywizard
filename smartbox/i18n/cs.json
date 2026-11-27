@@ -3255,5 +3255,11 @@
  "Nätnyttan ska vara 0 till 100 öre per kWh": "Přínos pro síť musí být 0 až 100 öre za kWh",
  "Skattereduktionens slutdatum ska skrivas ÅÅÅÅ-MM-DD": "Konečné datum daňové úlevy se píše RRRR-MM-DD",
  "månader": "měsíců",
- "Skattereduktion": "Daňová úleva"
+ "Skattereduktion": "Daňová úleva",
+ "Sparat sedan start": "Ušetřeno od spuštění",
+ "Tillsats senaste 7 dagarna:": "Přídavné topení za posledních 7 dní:",
+ "(uppskattat)": "(odhad)",
+ "Mätt sedan": "Měřeno od",
+ "Sedan start": "Od spuštění",
+ "Tillsats idag": "Přídavné topení dnes"
 }
