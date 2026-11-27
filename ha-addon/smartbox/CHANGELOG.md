@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.183 (2026-11-27)
+- **Kort för sol och batteri i Home Assistant (#558).** Ett nytt kort visar solproduktionen just nu, prognosen för resten av idag och för imorgon, batteriets laddnivå och effekt, och om planen laddar, sparar, laddar ur eller säljer. Prognosen är samma solprognos som planen redan använder. Saknas en uppmätt laddnivå används planens nivå. Hus utan sol och batteri får en tom rad. Hemmet, Värme och Bil är oförändrade.
+
 ## 1.2.180 (2026-11-24)
 - **Återbetalning av solcellerna, under Solceller (#599, #602).** Se hur mycket solcellerna sparat och tjänat månad för månad, år för år och totalt, hur många procent av anläggningen som är betald och hur lång tid som återstår. Nyttan är besparingen på egenanvänd el (elpris, påslag, överföring och energiskatt) plus intäkten för såld el (med nätnytta) plus skattereduktionen, som räknas till och med ett slutdatum du anger (2025-12-31 i Sverige). Fasta avgifter och effektavgift räknas inte. Du anger vad anläggningen kostade och när den startade. EnergyWizard räknar med sina egna mätvärden, minut för minut, med dina elpris- och avgiftsinställningar. För tiden innan kan du läsa in månadsuppgifter från en CSV-mall (knappen **Ladda ner mall**), och en månad du skrivit in går alltid före de egna mätvärdena. Färdiga månader sparas och ändras inte när du senare ändrar avgifterna. Solens och nätets mätare avviker några procent från växelriktaren och nätägaren, och egenanvänd el är skillnaden mellan dem, så EnergyWizard kalibrerar mot de månader du skrivit in (minst tre) och säger det på sidan. Tid kvar räknas på nyttan de senaste 12 månaderna.
 

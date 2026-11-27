@@ -10,6 +10,9 @@
  *   tab: now                             # now | plan | cars (startflik, valfritt)
  *   language: sv                         # sv | en, annars HA:s språk
  *
+ * Sol och batteri: type: custom:energywizard-battery-card
+ *   Läser solar (produktion och prognos) och batt (laddnivå, effekt, plan) på samma sensor.
+ *
  * Tider visas alltid som 24-timmarsklocka (TT:MM), aldrig AM/PM.
  */
 const EW_VERSION = "0.1.0";
@@ -19,12 +22,20 @@ const EW_TEXT = {
         missing: (e) => `Hittar inte ${e}. Är EnergyWizard uppdaterad och kopplad till Home Assistant?`, stale: "Gammal data", clock: "Klocka", skyline: "Skyline",
         heat: "Värme", water: "Varmvatten", outdoor: "Ute", setpoint: "Börvärde", within: "inom", cheapUntil: (h) => `Billigt till ${h}`, dearUntil: (h) => `Dyrt till ${h}`, thenCheap: "sedan billigt", thenDear: "sedan dyrt", noHeat: "Ingen värmedata än.", noPlan: "Inget planerat pass", plannedAt: "Planerad laddning", battery: "Laddnivå", notCharging: "Laddar inte", modes: { "Auto": "Auto", "Ladda nu": "Ladda nu", "Pausa": "Pausa" }, modeHint: "Auto = AI-schemat styr. Ladda nu laddar tills bilen är full eller kabeln dras ur.",
         perKwh: "kWh", price: "Pris nu", cheapest: "Billigast", dearest: "Dyrast", sun: "Sol", charging: "Laddar", noCars: "Inga elbilar i installationen.",
-        why: "Varför", house: "Hemmet", ago: (m) => `${m} min sedan` },
+        why: "Varför", house: "Hemmet", ago: (m) => `${m} min sedan`,
+        solarBattery: "Sol och batteri", sunNow: "Sol nu", forecastToday: "Prognos idag", forecastTomorrow: "Imorgon",
+        batteryName: "Batteri", powerNow: "Effekt nu", noPlant: "Ingen sol eller batteri i installationen.", noBatPlan: "Ingen plan",
+        forecastNote: "Prognosen är resten av dagens och morgondagens plan, inte ett helt dygn.",
+        batPlan: { charge: "Laddar", discharge: "Laddar ur", hold: "Sparar", idle: "Vilar", export: "Säljer", auto: "Självförbrukning", standby: "Standby" } },
   en: { now: "Now", plan: "Plan", cars: "Cars", cheap: "cheap", dear: "expensive", unknown: "unknown", noData: "No data from EnergyWizard yet.",
         missing: (e) => `Cannot find ${e}. Is EnergyWizard updated and connected to Home Assistant?`, stale: "Old data", clock: "Clock", skyline: "Skyline",
         heat: "Heating", water: "Hot water", outdoor: "Outdoors", setpoint: "Setpoint", within: "within", cheapUntil: (h) => `Cheap until ${h}`, dearUntil: (h) => `Expensive until ${h}`, thenCheap: "then cheap", thenDear: "then expensive", noHeat: "No heating data yet.", noPlan: "No planned session", plannedAt: "Planned charging", battery: "Charge level", notCharging: "Not charging", modes: { "Auto": "Auto", "Ladda nu": "Charge now", "Pausa": "Pause" }, modeHint: "Auto = the AI plan decides. Charge now charges until the car is full or the cable is unplugged.",
         perKwh: "kWh", price: "Price now", cheapest: "Cheapest", dearest: "Most expensive", sun: "Sun", charging: "Charging", noCars: "No EVs in the installation.",
-        why: "Why", house: "House", ago: (m) => `${m} min ago` },
+        why: "Why", house: "House", ago: (m) => `${m} min ago`,
+        solarBattery: "Solar and battery", sunNow: "Solar now", forecastToday: "Forecast today", forecastTomorrow: "Tomorrow",
+        batteryName: "Battery", powerNow: "Power now", noPlant: "No solar or battery in the installation.", noBatPlan: "No plan",
+        forecastNote: "The forecast is the rest of today's and tomorrow's plan, not a full day.",
+        batPlan: { charge: "Charging", discharge: "Discharging", hold: "Saving", idle: "Idle", export: "Selling", auto: "Self-consumption", standby: "Standby" } },
 };
 
 // Färg per nod. Följer HA:s tema för text och bakgrund, men energifärgerna är desamma i ljust och mörkt.
@@ -391,9 +402,46 @@ class EnergyWizardCarCard extends EnergyWizardBase {
   }
 }
 
+// Sol och batteri: produktion nu, prognos idag/imorgon, laddnivå och om planen laddar, sparar, laddar ur eller säljer (#558).
+class EnergyWizardBatteryCard extends EnergyWizardBase {
+  static getStubConfig() { return { entity: "sensor.energywizard_kort" }; }
+  _title(t) { return t.solarBattery; }
+  _body(a, t) {
+    const sun = a.solar, bat = a.batt;
+    if (!sun && !bat) return `<div class="msg">${esc(t.noPlant)}</div>`;
+    const f1 = (n) => (n == null ? "–" : Number(n).toFixed(1).replace(".", ","));
+    const planTxt = (b) => {
+      if (b.plan && t.batPlan && t.batPlan[b.plan]) return t.batPlan[b.plan];
+      if (b.w > 30) return t.batPlan.charge;
+      if (b.w < -30) return t.batPlan.discharge;
+      if (b.w == null) return t.noBatPlan;
+      return t.batPlan.idle;
+    };
+    let html = "";
+    if (sun) {
+      const on = sun.w > 50;
+      html += `<div class="row"><span class="dot ${on ? "on" : ""}"></span><div style="flex:1"><div class="n">☀️ ${esc(t.sunNow)}</div>
+        <div class="d">${esc(t.forecastToday)} ${f1(sun.today_kwh)} kWh · ${esc(t.forecastTomorrow)} ${f1(sun.tomorrow_kwh)} kWh</div></div>
+        <div class="n">${sun.w == null ? "–" : esc(kw(sun.w))}</div></div>`;
+    }
+    if (bat) {
+      const soc = bat.soc;
+      const bar = soc == null ? "" : `<div class="soc"><div style="width:${Math.max(0, Math.min(100, soc))}%;background:#2ec4a6"></div></div>`;
+      const extra = bat.plan_kw == null || Math.abs(bat.plan_kw) < 0.05 ? "" : ` · ${f1(Math.abs(bat.plan_kw))} kW`;
+      const moving = bat.w != null && Math.abs(bat.w) > 30;
+      html += `<div class="row" style="align-items:flex-start"><span class="dot ${moving ? "on" : ""}"></span>
+        <div style="flex:1;min-width:0"><div class="n">🔋 ${esc(t.batteryName)}</div><div class="d">${esc(planTxt(bat))}${extra}</div>${bar}</div>
+        <div class="n" style="font-size:1.6rem;font-weight:300">${soc == null ? "–" : soc + " %"}</div></div>`;
+      if (bat.w != null) html += `<div class="why">${esc(t.powerNow)} ${esc(kw(bat.w))}</div>`;
+    }
+    return html + `<div class="why">${esc(t.forecastNote)}</div>`;
+  }
+}
+
 if (!customElements.get("energywizard-house-card")) customElements.define("energywizard-house-card", EnergyWizardHouseCard);
 if (!customElements.get("energywizard-heat-card")) customElements.define("energywizard-heat-card", EnergyWizardHeatCard);
 if (!customElements.get("energywizard-car-card")) customElements.define("energywizard-car-card", EnergyWizardCarCard);
+if (!customElements.get("energywizard-battery-card")) customElements.define("energywizard-battery-card", EnergyWizardBatteryCard);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === "energywizard-house-card")) {
   window.customCards.push({ type: "energywizard-house-card", name: "EnergyWizard: Hemmet", preview: true,
@@ -403,6 +451,7 @@ console.info(`%c EnergyWizard %c ${EW_VERSION} `, "background:#f5b301;color:#000
 
 for (const [type, name, description] of [
   ["energywizard-heat-card", "EnergyWizard: Värme", "Termostatratt med inomhustemperatur och band, varmvatten och dygnets billiga och dyra pass."],
-  ["energywizard-car-card", "EnergyWizard: Bil", "Laddnivå, status och planerade laddpass över elpriset, per bil."]]) {
+  ["energywizard-car-card", "EnergyWizard: Bil", "Laddnivå, status och planerade laddpass över elpriset, per bil."],
+  ["energywizard-battery-card", "EnergyWizard: Sol och batteri", "Solproduktion nu och prognos, batteriets laddnivå och om planen laddar, sparar eller laddar ur."]]) {
   if (!window.customCards.some((c) => c.type === type)) window.customCards.push({ type, name, preview: true, description });
 }
