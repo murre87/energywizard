@@ -59,6 +59,16 @@ def ev_plan_to_wire(df) -> dict:
     return {"rows": rows}
 
 
+# ---- planeringens indata (Core -> planering) ----
+def planner_input_to_wire(state: dict) -> dict:
+    """Det Core lämnar till planeringen (gpm_state i main.py) som JSON-säker dict enligt planner-input.schema.json. Laddplanen (en
+    pandas.DataFrame) blir {"rows": [...]}; tidpunkter blir ISO-text; övrigt rensas som i plain(). Inget filtreras bort."""
+    out = dict(state)
+    if "ev_plan" in out and out["ev_plan"] is not None and hasattr(out["ev_plan"], "columns"):
+        out["ev_plan"] = ev_plan_to_wire(out["ev_plan"])
+    return plain(out)
+
+
 # ---- batteri: plan och beslut ----
 def battery_plan_to_wire(plan: dict) -> dict:
     """Batteriplanen (battery_plan.plan_from_db) som JSON-säker dict enligt battery-plan.schema.json."""

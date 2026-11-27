@@ -1,8 +1,9 @@
-"""Kontraktsvakten: varje gång en drivrutin lämnar ett state, och varje gång batteriplanen eller batteribeslutet räknas, under HELA testsviten,
+"""Kontraktsvakten: varje gång en drivrutin lämnar ett state, varje gång batteriplanen eller batteribeslutet räknas och varje gång planeringen får sin indata (GlobalPriorityManager.evaluate), under HELA testsviten,
 normaliseras resultatet och kontrolleras mot schemat i contracts/. Det gör de tusentals befintliga testerna till mätkorpus för kontraktet:
 börjar en drivrutin lämna en ny nyckel med fel typ, eller ändras batteribeslutets form, blir just det testet rött med exakt vad som avviker.
 
-Ett test som med flit lämnar ogiltiga data (t.ex. för att prova felhantering) märks med @pytest.mark.no_contract_guard.
+Ett test som med flit lämnar ogiltiga data (t.ex. för att prova felhantering) märks med @pytest.mark.no_contract_guard; ett test som med flit ger planeringen ofullständig eller konstig indata
+(minimala bilspecar, testnycklar) märks med @pytest.mark.no_planner_input_guard, som bara stänger av indatakontrollen.
 Mock-objekt hoppas över. Importeras av tests/conftest.py."""
 import json
 import threading
@@ -15,6 +16,7 @@ except ImportError:                                                     # CI ins
     jsonschema = None
 
 VIOLATIONS = []
+INPUT_OFF = {"v": False}                  # satt av @pytest.mark.no_planner_input_guard: bara indatakontrollen av, övrig vakt gäller
 _LOCK = threading.Lock()
 _INSTALLED = {"done": False}
 _VALIDATORS = {}
@@ -48,7 +50,9 @@ def _validator(name, sub=None):
 def check(kind, obj):
     """Lista med avvikelser (tom = följer kontraktet). kind: ett av contracts.STATE_KINDS, 'battery_plan' eller 'battery_decision'."""
     import contracts
-    if kind == "battery_plan":
+    if kind == "planner_input":
+        wire, v = contracts.planner_input_to_wire(obj), _validator("planner-input")
+    elif kind == "battery_plan":
         wire, v = contracts.battery_plan_to_wire(obj), _validator("battery-plan")
     elif kind == "battery_decision":
         wire, v = contracts.battery_decision_to_wire(obj), _validator("battery-decision")
@@ -59,6 +63,8 @@ def check(kind, obj):
 
 
 def _report(kind, r):
+    if kind == "planner_input" and INPUT_OFF["v"]:
+        return
     try:
         if isinstance(r, dict) and not has_mock(r):
             bad = check(kind, r)
@@ -125,6 +131,16 @@ def install():
             w.__doc__ = orig.__doc__
             return w
         setattr(mod, fn, mk(orig, kind))
+    import gpm
+    ev = gpm.GlobalPriorityManager.evaluate
+    if not getattr(ev, "_contract_guard", False):
+        def evaluate(self, state, *a, **k):
+            _report("planner_input", state)
+            return ev(self, state, *a, **k)
+        evaluate._contract_guard = True
+        evaluate.__name__ = ev.__name__
+        evaluate.__doc__ = ev.__doc__
+        gpm.GlobalPriorityManager.evaluate = evaluate
     _INSTALLED["done"] = True
 
 
@@ -138,7 +154,9 @@ def _contract_guard_install():
 def contract_guard(request, _contract_guard_install):
     with _LOCK:
         VIOLATIONS.clear()
+    INPUT_OFF["v"] = bool(request.node.get_closest_marker("no_planner_input_guard"))
     yield
+    INPUT_OFF["v"] = False
     if request.node.get_closest_marker("no_contract_guard"):
         with _LOCK:
             VIOLATIONS.clear()

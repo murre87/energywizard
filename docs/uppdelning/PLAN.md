@@ -14,7 +14,7 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | --- | --- | --- |
 | 1 | Kontrakt för planerarens överlämning (beslut och laddplan) + paritetsverktyg, utan att flytta kod | klart (`contracts/`, `smartbox/contracts.py`, `smartbox/parity.py`) |
 | 2 | Kontrakt för batteriplanen, batteribeslutet och drivrutinernas state och kommandon, plus en kontraktsvakt över hela testsviten | klart (`contracts/`, `tests/contract_guard.py`) |
-| 3 | Delat tillstånd i `main.py` (överstyrningar, cacher, globaler som planeringen läser eller skriver) görs uttryckligt i kontraktet | |
+| 3 | Det delade tillståndet (det Core lämnar till planeringen) uttryckligt i kontraktet: `planner-input.schema.json`, jämfört mot koden åt båda håll, plus indatavakt över hela testsviten | klart |
 | 4 | Planeringen som egen process i samma image (Python), jämförd med den gamla i paritetsverktyget; Core faller tillbaka på senaste plan | |
 | 5 | Drivrutinerna till eget repo, med mall och kontraktstester | |
 | 6 | API i Core (REST/WebSocket); appen och webben flyttas över ett område i taget, med den gamla vägen kvar tills den nya är verifierad | |
@@ -27,3 +27,10 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 - **Nya felvägar** när delar pratar över HTTP: tidsgränser, planeringen nere, gammal plan. Core ska alltid ha ett säkert beteende.
 - **HA-tillägget** kör normalt en container per tillägg: delarna körs som processer i samma image där.
 - **Upphovsrätt och licens.** Koden är AGPL-3. Bidragsgivare (bland andra `lazgeo`, `flebbhue`, Michal Koláček, Jonatan Åkerlind) behåller upphovsrätten till det de skrivit. Avtal ska finnas innan deras kod ligger i ett privat repo eller levereras som körbar fil utan källkod. FTW-härledda AGPL-drivrutiner (`smartbox/ftw_drivers/`) får inte hamna i ett privat repo.
+
+## Fynd från steg 3
+
+- **`heat_glide_hours`** läses av `gpm.py` (standard 3 timmar, kommentaren kallar den en inställning) men `main.py` skickar den aldrig, så den kan inte ändras. Beteendet är oförändrat. Kopplas när den får en inställning.
+- **Sex nycklar** skickas av `main.py` men läses aldrig av `gpm.py`: `base_load_profile`, `ev_max_charge_a`, `ev_min_charge_a`, `grid_import_w`, `house_consumption_w`, `power_limit_kw`. Markerade `x-unused-by-planner` i kontraktet. Städas när delarna flyttas.
+- **Testtäckning:** 34 av de 75 nycklar `gpm` läser förekommer inte i de 2 600 facit-scenarierna (värmeåterkoppling, bortaläge, varmvattnets ML, spaextra). Deras typer är därför bara lästa ur `main.py` eller overifierade (`x-evidence`). Värt att fylla med scenarier före steg 4, så att paritetsverktyget täcker dem.
+- **`outdoor_avg_5d`** hade tidigare en buggkommentar i `main.py` ("saknades -> is_summer var alltid False"): just den sortens glapp fångas nu av kontraktstestet.
