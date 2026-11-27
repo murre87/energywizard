@@ -1214,7 +1214,9 @@ def savings_api(request: Request):
             print(f"⚠️ Jämförelse mot självförbrukning: {e}")
             c.rollback()
         everything = savings.all_time(c, today)
-    return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today, everything), "battery_vs_selfuse": battery}
+        benefit = savings.total_benefit(c, today)
+    return {"ok": True, "today": today, "periods": savings.summarize_periods(rows, today, everything), "battery_vs_selfuse": battery,
+            "benefit": benefit}
 
 
 @app.get("/api/plan")

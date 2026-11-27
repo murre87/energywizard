@@ -1689,7 +1689,9 @@ async def api_savings():
     with ENGINE.connect() as c:
         rows = savings.daily_rows(c, days=40)
         everything = savings.all_time(c, today)
-    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything)}
+        benefit = savings.total_benefit(c, today)
+    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything),
+            "benefit": benefit}
 
 
 @app.get("/api/plan")

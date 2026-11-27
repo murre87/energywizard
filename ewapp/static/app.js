@@ -230,7 +230,20 @@ function svLine() {                                       // besparingen på en 
 function svSince() {                                      // sparat sedan EnergyWizard startade, alltid synligt (samma för alla)
   const a = SV && SV.periods && SV.periods.all;
   if (!a || !a.days || svPeriod === "all") return "";
-  return `<div class="note" style="flex-basis:100%">Sedan start${a.since ? " (" + a.since + ")" : ""}: <b style="color:${a.saved_kr >= 0 ? "var(--acc)" : "var(--bad)"}">${a.saved_kr > 0 ? "+" : a.saved_kr < 0 ? "−" : ""}${f1(Math.abs(a.saved_kr), 0)} ${moneyUnit()}</b></div>`;
+  const b = SV.benefit && SV.benefit.items && SV.benefit.items.length > 1 ? SV.benefit : null;
+  const v = b ? b.total_kr : a.saved_kr, lbl = b ? "Total nytta sedan start" : "Sedan start";
+  return `<div class="note" style="flex-basis:100%">${lbl}${a.since ? " (" + a.since + ")" : ""}: <b style="color:${v >= 0 ? "var(--acc)" : "var(--bad)"}">${v > 0 ? "+" : v < 0 ? "−" : ""}${f1(Math.abs(v), 0)} ${moneyUnit()}</b>${b ? ` <button class="link" data-a="benefit">Se alla poster</button>` : ""}</div>`;
+}
+const BEN_LBL = { timing: ["Prisstyrning av köpt el", "jämfört med ett vanligt hushåll utan styrning"], solar_self: ["Solel som huset använt", "värderad till vad den hade kostat att köpa"], solar_sold: ["Såld solel", "intäkt för el som exporterats"] };
+function benefitSheet() {
+  const b = SV && SV.benefit; if (!b) return;
+  const sg = (v) => (v > 0 ? "+" : v < 0 ? "−" : "");
+  sheet(`<h3>Total nytta sedan start${b.since ? " (" + b.since + ")" : ""}</h3>
+    <div class="v" style="color:${b.total_kr >= 0 ? "var(--acc)" : "var(--bad)"};margin-bottom:8px">${sg(b.total_kr)}${f1(Math.abs(b.total_kr), 0)}<small> ${moneyUnit()}</small></div>
+    ${b.items.map((it) => `<div class="plrow"><div class="plw"><b>${sg(it.kr)}${f1(Math.abs(it.kr), 0)}</b></div><div><b>${BEN_LBL[it.key] ? BEN_LBL[it.key][0] : it.key}</b><div class="note">${BEN_LBL[it.key] ? BEN_LBL[it.key][1] : ""}${it.kwh ? " · " + f1(it.kwh, 0) + " kWh" : ""}</div></div></div>`).join("")}
+    ${b.flexible ? `<div class="note" style="margin-top:6px">Varav sol som gick till elbil och spabad: ${f1(b.flexible.kr, 0)} ${moneyUnit()} (${f1(b.flexible.ev_kwh, 0)} kWh elbil, ${f1(b.flexible.spa_kwh, 0)} kWh spabad).</div>` : ""}
+    <div class="note" style="margin-top:6px">Prisstyrningen är det EnergyWizard styr. Solposterna är vad solcellerna ger, med eller utan styrning, och summan lägger ihop alla poster.</div>
+    <button class="mini" data-a="closesheet">Stäng</button>`);
 }
 function svBattery() {                                   // #398: vad styrningen gav utöver batteriet i självförbrukningsläge
   const b = SV && SV.battery_vs_selfuse && SV.battery_vs_selfuse[svPeriod];
@@ -1014,6 +1027,7 @@ document.addEventListener("click", async (e) => {
   if (a === "viewas") { VIEWAS = v; LS.set("ew_viewas", v); grAt = 0; closeSheet(); loadGreeting(); return; }
   if (a === "trip") return tripSheet(c);
   if (a === "report") return reportSheet();
+  if (a === "benefit") return benefitSheet();
   if (a === "closesheet") return closeSheet();
   if (a === "nowsheet") return nowSheet();
   if (a === "newsopen") return newsSheet();
