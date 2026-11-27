@@ -74,6 +74,34 @@ def test_varmepumpens_effekt_ar_elforbrukningen_inte_varmen():
     assert b["flow"][0]["w"] == 11500                                       # utan mätvärde som förut
 
 
+def test_sol_och_batteri_med_niva_och_prognos():
+    """#558: kortsensorn hade bara battery true/false och bat_kw. Laddnivån, planen och solprognosen följer med."""
+    flow = {"nodes": [
+        {"key": "sol", "label": "Sol", "w": 1847.2, "active": True, "detail": "1.8 kW", "role": "source"},
+        {"key": "batteri", "label": "Batteri", "w": -820.4, "active": True, "detail": "Laddar ur · 95 %", "role": "battery"},
+    ]}
+    later = (NOW + timedelta(days=1)).replace(hour=10, minute=0)
+    pc = {"has_battery": True, "slots": [
+        {"t": NOW.replace(hour=14, minute=0).isoformat(), "price": 2.0, "spot": 1.4, "heat": "EXPENSIVE",
+         "sun_w": 1800, "ev": {}, "bat": "discharge", "bat_kw": -2.5, "soc": 96},
+        {"t": NOW.replace(hour=14, minute=30).isoformat(), "price": 1.1, "spot": 0.5, "heat": "CHEAP",
+         "sun_w": 400, "ev": {}, "bat": "hold", "bat_kw": 0, "soc": 94},
+        {"t": later.isoformat(), "price": 1.0, "spot": 0.4, "heat": "",
+         "sun_w": 2000, "ev": {}, "bat": "charge", "bat_kw": 3, "soc": 40},
+    ]}
+    _, a = ha_card_feed.build(flow, pc, now=NOW)
+    assert a["battery"] is True
+    assert a["batt"] == {"soc": 95, "w": -820, "plan": "hold", "plan_kw": 0.0}   # uppmätt 95 % går före planens 94
+    assert a["solar"] == {"w": 1847, "today_kwh": 0.55, "tomorrow_kwh": 0.5}
+    assert a["slots"][0][6] == -2.5                                              # den komprimerade raden är kvar
+
+    no_meter = {"nodes": [{"key": "batteri", "label": "Batteri", "w": 0, "active": False, "detail": "Vilar", "role": "battery"}]}
+    _, b = ha_card_feed.build(no_meter, pc, now=NOW)
+    assert b["batt"]["soc"] == 94 and b["batt"]["plan"] == "hold"               # planens nivå när mätningen saknar procent
+    _, c = ha_card_feed.build({"nodes": []}, {"has_battery": False, "slots": []}, now=NOW)
+    assert c["batt"] is None and c["solar"] is None and c["battery"] is False
+
+
 def test_tom_data_kraschar_inte():
     state, a = ha_card_feed.build({}, {}, now=NOW)
     assert state == "okänt" and a["flow"] == [] and a["slots"] == [] and a["price"]["now"] is None and a["cars"] == []

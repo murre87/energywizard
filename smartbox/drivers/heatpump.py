@@ -8,8 +8,7 @@ separat, senare tillägg (Fas 5) - egen Modbus-/API-karta, isolerad från den h�
 """
 import time
 from abc import ABC, abstractmethod
-from hot_water_observation import temperature
-
+from drivers.host import temperature
 # Matter-lika lägen (Thermostat-klustrets SystemMode + varmvatten). Drivrutiner översätter till/från sina egna koder.
 MODES = ("off", "heat", "cool", "auto", "dhw", "heat_dhw", "cool_dhw", "auto_dhw")
 CURVE_OFFSET_MAX = 5.0        # ±n grader på värmekurvan (Panasonics shift-område är -5..5)

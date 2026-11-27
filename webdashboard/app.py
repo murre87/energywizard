@@ -1585,7 +1585,9 @@ async def api_economy():
         today = now.date().isoformat()
         money = savings.money_rows(c, days=40)
         timing = savings.daily_rows(c, days=40)
-        everything = savings.all_time(c, today)
+        everything, _benefit = savings.cached(c, today)          # bakgrundstråd: blockerar inte sidan
+        everything_money = savings.money_cached()               # fylls av samma tråd; None tills den är klar (då visas ingen period "Totalt")
+        long_money, long_timing = savings.history_cached()      # fylls av samma tråd; (None, None) tills den är klar
     span = savings.price_span(today_prices)
     spot, buy = span["spot"], span["buy"]
     settings = nordpool.cost_settings()
@@ -1595,7 +1597,9 @@ async def api_economy():
             "price_24h": price_24h,
             "symbol": settings["symbol"], "money_days": money[-31:],
             "electricity_support_area": eligible_area(settings, now),
-            "money": savings.money_periods(money, today), "timing": savings.summarize_periods(timing, today, everything)}
+            "money": savings.money_periods(money, today, everything_money),
+            "timing": savings.summarize_periods(timing, today, everything),
+            "history": savings.history_buckets(long_money, long_timing, today)}
 
 
 @app.get("/api/economy/electricity-support")
@@ -1678,6 +1682,50 @@ async def api_solar_payback_history(request: Request):
     return {"ok": True, "rows": len(rows), "errors": errors, "total": len(merged)}
 
 
+def _easee_stored():
+    st = ew_settings.get("easee")
+    return dict(st) if isinstance(st, dict) else {}
+
+
+@app.get("/api/easee-history")
+async def api_easee_history(request: Request, refresh: int = 0):
+    """Laddboxens egen månadshistorik från Easee. Lösenord och token lämnar inte svaret (#605)."""
+    import easee_account
+    from datetime import datetime, timezone
+    role, _ = AUTH.session(request)
+    now = datetime.now(timezone.utc)
+    today = datetime.now(installation_timezone()).date()
+    before = _easee_stored()
+    stored, view = easee_account.sync(before, easee_account.Client(), now, today, force=bool(refresh))
+    if stored.get("username") and stored != before:
+        ew_settings.update(easee=stored)
+    view.update(ok=True, owner=(role == "owner"))
+    return view
+
+
+@app.post("/api/easee-history")
+async def api_easee_history_save(request: Request):
+    import easee_account
+    from datetime import datetime, timezone
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"detail": "Bara ägaren kan ändra Easee-kontot"}, status_code=403)
+    body = await request.json()
+    if body.get("clear"):
+        ew_settings.update(easee={})
+        return {"ok": True, "configured": False, "username": "", "chargers": [], "owner": True, "error": None}
+    try:
+        stored = easee_account.apply_credentials(_easee_stored(), str(body.get("username") or ""), str(body.get("password") or ""))
+    except easee_account.EaseeError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    now = datetime.now(timezone.utc)
+    today = datetime.now(installation_timezone()).date()
+    stored, view = easee_account.sync(stored, easee_account.Client(), now, today)
+    ew_settings.update(easee=stored)
+    view.update(ok=True, owner=True)
+    return view
+
+
 @app.get("/api/savings")
 async def api_savings():
     """Besparingskortet: per dag de senaste ~40 dygnen + Idag / 7 dagar / Månad. Samma formel
@@ -1688,8 +1736,9 @@ async def api_savings():
     today = datetime.now(zoneinfo.ZoneInfo("Europe/Stockholm")).date().isoformat()
     with ENGINE.connect() as c:
         rows = savings.daily_rows(c, days=40)
-        everything = savings.all_time(c, today)
-    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything)}
+        everything, benefit = savings.cached(c, today)       # bakgrundstråd, blockerar inte sidan
+    return {"ok": True, "today": today, "days": rows[-31:], "periods": savings.summarize_periods(rows, today, everything),
+            "benefit": benefit}
 
 
 @app.get("/api/plan")
@@ -1949,7 +1998,12 @@ async def api_consumption():
                            "extra": [x for x in _json_list(lb.get("extra_w")) if isinstance(x, dict) and x.get("name")]} if lb else None)}
 
 
-@app.get("/api/pump-modes")
+@app.get("/api/consumption-year")
+async def api_consumption_year(year: int = 0):
+    """Årets förbrukning (#603): köpt och använd el per månad, fördelning och ett spann för hela året."""
+    import year_use
+    with ENGINE.connect() as c:
+        return year_use.load(c, year or None)
 async def api_pump_modes(hours: int = 24):
     """Värmepumpens driftläge per tiominuters ruta ur sensor_log: tillsats 2 > tillsats 1 > varmvatten > värme > vilar.
     Tillsatsen kommer från Husdatas register för Add heat step 1/2 (Thermia Diplomat); saknas de visas inget tillsatsläge."""
@@ -2499,8 +2553,9 @@ def _build_house_config_yaml(sel: dict) -> str:
         lines.append(f"    driver: {c.get('driver') or 'generic_ev'}")
         lines.append(f"    battery_kwh: {c.get('battery_kwh') or 60}  # FYLL I - din bils batteristorlek i kWh")
         lines.append("    entities:")
-        if c.get("soc_entity"):
-            lines.append(f"      soc: {c['soc_entity']}")
+        _soc = c.get("soc_entity")
+        if isinstance(_soc, str) and re.fullmatch(r"sensor\.[a-z0-9_]{1,128}", _soc):
+            lines.append(f"      soc: {_soc}")
         if c.get("plugged_in_entity"):
             lines.append(f"      plugged_in: {c['plugged_in_entity']}")
         if c.get("climate_entity"):
@@ -2796,30 +2851,92 @@ async def api_house_config_status(request: Request):
     return {"writable": role == "owner" and _config_writable()}
 
 
+def _configured_car_rows(configured, entities=None):
+    cars = []
+    for car in configured:
+        if not isinstance(car, dict):
+            continue
+        ents = car.get("entities") if isinstance(car.get("entities"), dict) else {}
+        row = {
+            "id": car.get("id"),
+            "driver": car.get("driver"),
+            "battery_kwh": car.get("battery_kwh"),
+            "soc": ents.get("soc"),
+            "plugged_in": ents.get("plugged_in"),
+            "climate": ents.get("climate"),
+        }
+        if entities is not None:
+            row["soc_options"] = discovery.soc_options(entities, ents.get("soc") if isinstance(ents.get("soc"), str) else None)
+        cars.append(row)
+    return cars
+
+
 @app.get("/api/house-config/cars")
 async def api_configured_cars(request: Request):
     if AUTH.session(request)[0] != "owner":
         return JSONResponse({"error": "Bara ägaren"}, status_code=403)
+    want_choices = str(getattr(request, "query_params", {}).get("choices") or "") == "1"
     try:
         configured = house_config.load_house_config(HOUSE_CONFIG_FILE).get("evs") or []
         if not isinstance(configured, list):
             raise ValueError("evs must be a list")
-        cars = []
-        for car in configured:
-            entities = car.get("entities") or {}
-            cars.append({
-                "id": car.get("id"),
-                "driver": car.get("driver"),
-                "battery_kwh": car.get("battery_kwh"),
-                "soc": entities.get("soc"),
-                "plugged_in": entities.get("plugged_in"),
-                "climate": entities.get("climate"),
-            })
+        entities = None
+        if want_choices:
+            try:
+                entities = await asyncio.to_thread(discovery.read_all_entities)
+            except Exception:
+                entities = []
+            if not isinstance(entities, list):
+                entities = []
+        cars = _configured_car_rows(configured, entities)
     except FileNotFoundError:
         cars = []
     except Exception:
         return JSONResponse({"error": "Kunde inte läsa bilar från house_config.yaml."}, status_code=500)
     return {"cars": cars}
+
+
+@app.post("/api/house-config/car-soc")
+async def api_set_car_soc(request: Request):
+    """#596: byt bilens laddnivåsensor utan att skriva om resten av house_config.yaml."""
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"error": "Bara ägaren kan spara"}, status_code=403)
+    if not _config_writable():
+        return JSONResponse({"error": "Den här installationen sparar inte från webben. Ladda ner filen i stället."}, status_code=409)
+    body = await request.json()
+    car_id = body.get("id")
+    soc = body.get("soc")
+    if not isinstance(soc, str) or not re.fullmatch(r"sensor\.[a-z0-9_]{1,128}", soc):
+        return JSONResponse({"error": "Ogiltig laddnivåsensor"}, status_code=400)
+    try:
+        with open(HOUSE_CONFIG_FILE, encoding="utf-8") as current:
+            original = current.read()
+        cfg = house_config.load_house_config(HOUSE_CONFIG_FILE)
+        cars = [car for car in (cfg.get("evs") or []) if isinstance(car, dict) and car.get("id") == car_id]
+        if len(cars) != 1:
+            return JSONResponse({"error": "Bilen finns inte."}, status_code=404)
+        current_soc = (cars[0].get("entities") or {}).get("soc")
+        if current_soc == soc:
+            return {"ok": True, "message": "Laddnivån är redan vald."}
+        entities = await asyncio.to_thread(discovery.read_all_entities)
+        if not entities:
+            return JSONResponse({"error": "Kunde inte läsa Home Assistant"}, status_code=409)
+        allowed = {row["entity"] for row in discovery.soc_options(entities, current_soc if isinstance(current_soc, str) else None)}
+        if soc not in allowed:
+            return JSONResponse({"error": "Laddnivån finns inte bland bilens sensorer."}, status_code=400)
+        updated = house_config.replace_car_soc(original, car_id, soc)
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", encoding="utf-8") as candidate:
+            candidate.write(updated)
+            candidate.flush()
+            checked = house_config.load_house_config(candidate.name)
+            house_config.build_car_drivers(checked)
+    except Exception:
+        return JSONResponse({"error": "Konfigurationen kunde inte uppdateras. Den befintliga filen har inte ändrats."}, status_code=409)
+    with open(HOUSE_CONFIG_FILE, "w", encoding="utf-8") as target:
+        target.write(updated)
+    return {"ok": True, "message": "Sparat. Motorn startar om och läser in den nya inställningen inom en minut."}
 
 
 @app.post("/api/save-house-config")

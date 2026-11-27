@@ -22,8 +22,7 @@ import threading
 import time
 
 from drivers.heatpump import HeatPumpDriver
-from hot_water_observation import temperature
-
+from drivers.host import temperature
 log = logging.getLogger(__name__)
 _HOST = os.environ.get("NIBE_LOCAL_HOST", "")
 _PORT = os.environ.get("NIBE_LOCAL_PORT", "8443")
@@ -330,7 +329,7 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
         result.update(_raw_point_count=len(points), _received_at=datetime.now(timezone.utc).isoformat(),
                       _timestamp_basis="local_receipt")
         result["water_temp_observation"] = temperature(result["water_temp"], result["_received_at"], "local_receipt")
-        import hot_water_reservations
+        from drivers.host import hot_water_reservations
         try:
             result.update(hot_water_reservations.boost_fields(points, self._bindings, self._resolve,
                                                              _number, result['_received_at']))
@@ -352,7 +351,7 @@ class NibeLocalHeatPumpDriver(HeatPumpDriver):
             return False
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             return False
-        import shadow
+        from drivers.host import shadow
         if shadow.active() and not (field == 'hot_water_boost' and getattr(self, '_boost_live_in_shadow', False)):
             shadow.record("NIBE local REST", f"{field}={value}")
             return True

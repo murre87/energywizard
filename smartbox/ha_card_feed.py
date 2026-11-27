@@ -19,17 +19,19 @@ Schema (v1), alla fält är valfria för korten:
   cars     [{id, name, soc, w, on, win}]  laddnivå %, watt, laddar nu, planerade pass [[start, slut, kW]] (epoch-sekunder)
   heat     {indoor, target, setpoint, outdoor, water, water_set, mode, floor, cheap, max, min, cop}  värmepump och varmvatten
   price    {now, spot, mode}         nuvarande pris (kr/kWh), spotpris och läge
-  battery  true/false                finns husbatteri
+  battery  true/false                finns husbatteri (oförändrat, så äldre kort fortsätter fungera)
   eco      {today, week, month} eller null (#558). Varje period:
            {buy_kwh, buy, buy_avg, sell_kwh, sell, sell_avg, net, saved, pct, bat}
            buy är köpt el inklusive avgifter, sell är såld el, saved är sparat genom
            tajmning mot ett vanligt hushåll, bat är sparat mot batteriet i
            självförbrukning (null utan jämförelse). En period utan dagar är null, inte noll.
            Ingen period för sedan start.
+  solar    {w, today_kwh, tomorrow_kwh}  produktion nu och prognos i planfönstret (#558), eller null
+  batt     {soc, w, plan, plan_kw}   laddnivå, effekt och plan (charge/hold/discharge/export/...), eller null
 """
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ENTITY = "sensor.energywizard_kort"
 SCHEMA = 1
@@ -124,6 +126,69 @@ def _cars(flow, planclock):
     return cars
 
 
+_PLAN = {"auto", "hold", "idle", "standby", "charge", "discharge", "export"}
+
+
+def _slot_now(planclock, now):
+    """Planens pågående kvart, med avsikt och laddnivå. Den komprimerade raden har bara effekten."""
+    t_now = int(now.timestamp())
+    cur = None
+    for s in (planclock or {}).get("slots") or []:
+        t = _epoch(s.get("t"))
+        if t is not None and t <= t_now:
+            cur = s
+    return cur or {}
+
+
+def _on_day(epoch, now, day):
+    local = datetime.fromtimestamp(epoch, now.tzinfo) if now.tzinfo else datetime.fromtimestamp(epoch)
+    return local.date() == day
+
+
+def _solar(flow, planclock, now):
+    """Produktion nu och prognos för resten av idag och imorgon. Prognosen är planens solwatt
+    (ett värde per kvart), inte ett nytt väderanrop. Saknas prognosen är kWh null, inte noll."""
+    node = next((n for n in (flow or {}).get("nodes") or [] if n.get("key") == "sol"), None)
+    today = now.date()
+    tomorrow = today + timedelta(days=1)
+    sums = {today: [], tomorrow: []}
+    any_sun = False
+    for s in (planclock or {}).get("slots") or []:
+        t = _epoch(s.get("t"))
+        if t is None:
+            continue
+        for day in sums:
+            if _on_day(t, now, day):
+                w = _num(s.get("sun_w"), 0)
+                if w is not None:
+                    any_sun = True
+                    sums[day].append(w)
+    if node is None and not any_sun:
+        return None
+
+    def kwh(day):
+        return None if not sums[day] else round(sum(sums[day]) * 0.25 / 1000, 2)
+
+    w = None if node is None else _num(node.get("w"), 0)
+    return {"w": None if w is None else int(w), "today_kwh": kwh(today), "tomorrow_kwh": kwh(tomorrow)}
+
+
+def _batt(flow, planclock, now):
+    """Laddnivå, effekt och plan. Uppmätt nivå i flödet går före planens nivå efter kvarten.
+    battery-fältet förblir true/false."""
+    node = next((n for n in (flow or {}).get("nodes") or [] if n.get("key") == "batteri"), None)
+    if node is None and not (planclock or {}).get("has_battery"):
+        return None
+    cur = _slot_now(planclock, now)
+    soc = _soc((node or {}).get("detail"))
+    if soc is None and cur.get("soc") is not None:
+        planned = _num(cur.get("soc"), 0)
+        soc = None if planned is None else int(min(100, max(0, planned)))
+    w = None if node is None else _num(node.get("w"), 0)
+    plan = cur.get("bat") if cur.get("bat") in _PLAN else None
+    return {"soc": soc, "w": None if w is None else int(w), "plan": plan, "plan_kw": _num(cur.get("bat_kw"), 2)}
+
+
 def _heat(row, cfg):
     """Värmepump och varmvatten ur senaste raden i sensor_log och inställningarna (golv, tak, billig temp)."""
     if not row:
@@ -200,6 +265,7 @@ def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None,
         "slots": slots, "cars": _cars(flow, planclock), "heat": _heat(row, cfg),
         "price": price, "battery": bool((planclock or {}).get("has_battery")),
         "eco": economy,
+        "solar": _solar(flow, planclock, now), "batt": _batt(flow, planclock, now),
     }
     return {"E": "dyrt", "C": "billigt"}.get(price["mode"], "okänt"), attrs
 

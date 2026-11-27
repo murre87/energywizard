@@ -13,6 +13,8 @@ från en riktig config (se tests/test_config_loader.py).
 """
 from __future__ import annotations
 
+import re
+
 import yaml
 
 import homeassistant
@@ -433,3 +435,160 @@ def custom_loads(cfg: dict) -> list:
         seen.add(name.lower())
         out.append({"name": name[:40], "entities": ents})
     return out
+
+
+_SOC_ENTITY = re.compile(r"sensor\.[a-z0-9_]{1,128}")
+_CAR_ID_LINE = re.compile(r"^-\s+id:\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s#]+))")
+_SOC_VALUE = re.compile(r"^(\s*soc\s*:\s*)(?:\"[^\"]*\"|'[^']*'|[^\s#]+)")
+_FLOW_SOC = re.compile(r"(\bsoc\s*:\s*)(?:\"[^\"]*\"|'[^']*'|[^,}\s#]+)")
+
+
+def _yaml_indent(line: str) -> str:
+    return line[:len(line) - len(line.lstrip(" \t"))]
+
+
+def _car_id_on_line(stripped: str):
+    match = _CAR_ID_LINE.match(stripped)
+    if not match:
+        return None
+    return next(group for group in match.groups() if group is not None)
+
+
+def _swap_block_soc(line: str, soc: str):
+    match = _SOC_VALUE.match(line)
+    return None if match is None else match.group(1) + soc + line[match.end():]
+
+
+def _swap_flow_soc(line: str, soc: str):
+    if not _FLOW_SOC.search(line):
+        return None
+    return _FLOW_SOC.sub(lambda match: match.group(1) + soc, line, count=1)
+
+
+def _insert_flow_soc(line: str, soc: str):
+    end = line.rfind("}")
+    if end < 0:
+        return None
+    prefix = line[:end].rstrip()
+    joiner = "" if prefix.endswith("{") else ", "
+    return prefix + joiner + "soc: " + soc + line[end:]
+
+
+def replace_car_soc(text: str, car_id: str, soc: str) -> str:
+    """Byter entities.soc för en bil och lämnar övriga rader, kommentarer och andra bilars laddnivå orörda."""
+    if not isinstance(soc, str) or not _SOC_ENTITY.fullmatch(soc):
+        raise ValueError("soc")
+    if not isinstance(car_id, str) or not car_id or any(ch in car_id for ch in "\n\r") or len(car_id) > 80:
+        raise ValueError("id")
+    loaded = yaml.safe_load(text) or {}
+    cars = loaded.get("evs") if isinstance(loaded, dict) else None
+    if not isinstance(cars, list) or not any(isinstance(car, dict) and car.get("id") == car_id for car in cars):
+        raise KeyError(car_id)
+    lines = text.splitlines(keepends=True)
+    in_evs = False
+    evs_indent = 0
+    in_car = False
+    car_indent = 0
+    direct_indent = None
+    entities_at = None
+    entities_flow = False
+    inside_entities = False
+    soc_at = None
+    car_start = None
+    car_end = None
+
+    def finish_car(at):
+        nonlocal in_car, inside_entities, car_end
+        if in_car and car_end is None:
+            car_end = at
+        in_car = False
+        inside_entities = False
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip(" \t"))
+        if not in_car and re.match(r"evs\s*:", stripped):
+            in_evs = True
+            evs_indent = indent
+            continue
+        if in_evs and not in_car and indent <= evs_indent and not stripped.startswith("-"):
+            in_evs = False
+        if not in_evs:
+            continue
+        if stripped.startswith("- "):
+            if in_car and indent <= car_indent:
+                finish_car(index)
+            if not in_car and _car_id_on_line(stripped) == car_id:
+                in_car = True
+                car_indent = indent
+                direct_indent = None
+                entities_at = None
+                entities_flow = False
+                inside_entities = False
+                soc_at = None
+                car_start = index
+                car_end = None
+            continue
+        if not in_car:
+            continue
+        if indent <= car_indent:
+            finish_car(index)
+            if indent <= evs_indent:
+                in_evs = False
+            continue
+        if direct_indent is None:
+            direct_indent = indent
+        if inside_entities and indent <= direct_indent:
+            inside_entities = False
+        if entities_at is None and indent == direct_indent and re.match(r"entities\s*:", stripped):
+            entities_at = index
+            entities_flow = "{" in stripped
+            inside_entities = not entities_flow
+            if entities_flow and re.search(r"\bsoc\s*:", stripped):
+                soc_at = index
+            continue
+        if inside_entities and soc_at is None and re.match(r"soc\s*:", stripped):
+            soc_at = index
+    if in_car and car_end is None:
+        car_end = len(lines)
+    if car_start is None:
+        raise KeyError(car_id)
+    if soc_at is not None:
+        swapped = _swap_flow_soc(lines[soc_at], soc) if entities_flow else _swap_block_soc(lines[soc_at], soc)
+        if swapped is None:
+            raise ValueError("soc")
+        lines[soc_at] = swapped
+    elif entities_at is not None and entities_flow:
+        swapped = _insert_flow_soc(lines[entities_at], soc)
+        if swapped is None:
+            raise ValueError("soc")
+        lines[entities_at] = swapped
+    elif entities_at is not None:
+        indent = _yaml_indent(lines[entities_at])
+        child = indent + ("\t" if "\t" in indent else "  ")
+        if not lines[entities_at].endswith("\n"):
+            lines[entities_at] += "\n"
+        lines.insert(entities_at + 1, f"{child}soc: {soc}\n")
+    else:
+        key_indent = None
+        for line in lines[car_start + 1:car_end]:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and not stripped.startswith("-"):
+                key_indent = _yaml_indent(line)
+                break
+        if key_indent is None:
+            base = _yaml_indent(lines[car_start])
+            key_indent = base + ("\t" if "\t" in base else "  ")
+        child = key_indent + ("\t" if "\t" in key_indent else "  ")
+        block = f"{key_indent}entities:\n{child}soc: {soc}\n"
+        if car_end == len(lines) and lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.insert(car_end, block)
+    updated = "".join(lines)
+    checked = yaml.safe_load(updated)
+    found = next(car for car in checked.get("evs", []) if isinstance(car, dict) and car.get("id") == car_id)
+    if (found.get("entities") or {}).get("soc") != soc:
+        raise ValueError("soc")
+    return updated
