@@ -34,7 +34,7 @@ def build_message(issue, row, smtp_from):
     unsub = f"{news_core.BASE}/news/unsubscribe?t={token}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = news_mail.subject(issue, lang)
-    msg["From"] = smtp_from
+    msg["From"] = news_core.from_header(smtp_from)
     msg["To"] = email
     msg["List-Unsubscribe"] = f"<{news_core.BASE}/news/unsubscribe?t={token}>"
     msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"

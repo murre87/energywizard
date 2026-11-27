@@ -1163,18 +1163,39 @@ class GlobalPriorityManager:
                 fb_sp, fb_why = fb_lo, f"Dyrt och huset har värme att ge av, {indoor_temp:.1f} °C inne"
             else:
                 fb_sp, fb_why = fb_floor, f"Dyrt, {indoor_temp:.1f} °C inne"
-            # Tillsatsvakt (2026-11-23, Emil: elpatronen gick i dyr el, ~150 kr på 9 dygn): när dyr el råder och pumpen redan
-            # ligger djupt i gradminuter (nära golvet -1200 kopplar den in elpatronen) höjs börvärdet inte över golvet.
-            # Höjningen kräver mer än kompressorn orkar och bara tillsatsen kan leverera. Gäller inte under golvet (hård stopp ovan).
+            # Tillsatsvakt (2026-11-23, Emil: elpatronen gick i dyr el, ~150 kr på 9 dygn; utvidgad 2026-11-27 efter analys av
+            # veckan: alla tillfällen hade börvärde 23-25 °C, beräknad framledning 50-55 mot verkliga 43-47 °C, gradminuter
+            # mot -1190). Under golvet (hård stopp ovan) och vid solöverskott gäller den inte.
             try:
-                aux_dm = float(state.get('heat_aux_guard_dm') if state.get('heat_aux_guard_dm') is not None else -700.0)
+                aux_dm = float(state.get('heat_aux_guard_dm') if state.get('heat_aux_guard_dm') is not None else -600.0)
                 dm_now = state.get('degree_minutes')
                 dm_now = float(dm_now) if dm_now is not None else None
             except (TypeError, ValueError):
-                aux_dm, dm_now = -700.0, None
-            if (actions["pump_mode"] == "EXPENSIVE" and dm_now is not None and dm_now <= aux_dm
-                    and float(state.get('current_price') or 0) > 0 and fb_sp > fb_floor):
-                fb_why += f". Tillsatsvakt: gradminuter {dm_now:.0f} (gräns {aux_dm:.0f}), börvärdet höjs inte över golvet för att undvika elpatronen"
+                aux_dm, dm_now = -600.0, None
+            paying = float(state.get('current_price') or 0) > 0
+            # 1) Lärt kapacitetstak (heat_capacity.py): högsta börvärde pumpen klarar utan tillsats vid den här utetemperaturen.
+            #    Ett högre börvärde ger ingen mer värme från kompressorn, bara tillsats.
+            cap_sp = state.get('heat_cap_sp')
+            if cap_sp is not None and paying and fb_sp > float(cap_sp):
+                fb_why += f". Kapacitetstak {float(cap_sp):.0f} °C (pumpen klarar inte mer utan elpatron vid {float(state.get('outdoor_temp') or 0):.0f} °C ute)"
+                fb_sp = max(float(cap_sp), fb_lo)
+            # 2) Gradminutvakt i alla lägen: djupa gradminuter betyder att pumpen redan hamnar efter. Sänk börvärdet så att den
+            #    beräknade framledningen hamnar på vad pumpen faktiskt levererar (ca 2,5 °C framledning per grad börvärde), så
+            #    hämtar den sig. Bara när de kallaste rummen har marginal till golvet.
+            if dm_now is not None and dm_now <= aux_dm and paying and low2 >= fb_floor + 0.4:
+                fw, cf, sp_pump = state.get('forward_temp'), state.get('calc_forward_temp'), state.get('pump_setpoint')
+                try:
+                    if fw is not None and cf is not None and sp_pump is not None:
+                        sp_ok = float(sp_pump) - (float(cf) - float(fw)) / 2.5
+                        target = max(fb_lo, int(sp_ok * 2) / 2.0 - 0.5)
+                        if fb_sp > target:
+                            fb_why += (f". Tillsatsvakt: gradminuter {dm_now:.0f} (gräns {aux_dm:.0f}), börvärdet sänks till {target:.1f} °C "
+                                       f"så att pumpen hämtar sig utan elpatron")
+                            fb_sp = target
+                except (TypeError, ValueError):
+                    pass
+            if (actions["pump_mode"] == "EXPENSIVE" and dm_now is not None and dm_now <= aux_dm and paying and fb_sp > fb_floor):
+                fb_why += f". Tillsatsvakt: gradminuter {dm_now:.0f}, börvärdet höjs inte över golvet i dyr el"
                 fb_sp = fb_floor
             if fb_mode == "på":
                 actions["pump_target_temp"] = fb_sp

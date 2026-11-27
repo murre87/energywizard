@@ -103,3 +103,66 @@ def test_idag_hittills_raknas_fran_forsta_timmen():
     assert profile_day(morning) is None                                    # hela dygn kräver fortfarande 12 timmar
     kwh, prof, paid = profile_day(morning, min_hours=1)
     assert kwh == 12.0 and prof > 0 and paid > 0
+
+
+def test_total_nytta_summerar_posterna_och_räknar_inte_sol_till_elbil_dubbelt(db, monkeypatch):
+    """total_benefit: prisstyrning + solel till huset + såld solel. Sol till elbil/spa är en del av solelen (visas, summeras inte)."""
+    import savings
+    savings._benefit_cache.update(t=0.0, day=None, val=None)
+    savings._all_cache.update(t=0.0, day=None, val=None)
+    monkeypatch.setattr(savings, "all_time", lambda conn, today: {"saved_kr": 100.0, "kwh": 50.0, "days": 3, "since": "2026-01-01", "paid_kr": 1, "pct": 1})
+
+    class R:
+        def __init__(self, rows): self.rows = rows
+        def fetchall(self): return self.rows
+        def fetchone(self): return self.rows[0] if self.rows else None
+
+    class Conn:
+        def __init__(self): self.n = 0
+        def execute(self, q, *a, **k):
+            self.n += 1
+            sql = str(q)
+            if "date_trunc('hour'" in sql:
+                import datetime
+                return R([(datetime.datetime(2026, 1, 1, 12), 10.0, 1.0)])
+            if "GREATEST(-net_power" in sql:
+                return R([(30.0, 20.0)])
+            return R([(12.0, 4.0, 7.0)])
+    import nordpool
+    monkeypatch.setattr(nordpool, "full_buy_cost", lambda p, h: 2.0)
+    b = savings.total_benefit(Conn(), "2026-11-27")
+    keys = [i["key"] for i in b["items"]]
+    assert keys == ["timing", "solar_self", "solar_sold"]
+    assert b["items"][1]["kr"] == 20.0 and b["items"][2]["kr"] == 30.0
+    assert b["total_kr"] == 150.0                                     # 100 + 20 + 30
+    assert b["flexible"]["kr"] == 7.0 and b["since"] == "2026-01-01"  # visas, ingår redan i solposten
+
+
+def test_cached_blockerar_inte_och_fyller_i_bakgrunden(monkeypatch):
+    """#sparat sedan start: hela historiken är långsam att läsa, så cached() ger det som finns och räknar i en tråd."""
+    import threading
+    import time
+    import savings
+    savings._benefit_cache.update(t=0.0, day=None, val=None)
+    savings._all_cache.update(t=0.0, day=None, val=None)
+    savings._refresh["running"] = False
+    done = threading.Event()
+
+    class Eng:
+        def connect(self):
+            time.sleep(0.3)                                 # långsam körning
+            done.set()
+            raise RuntimeError("klart för testet")
+
+    class Conn:
+        engine = Eng()
+
+    t = time.time()
+    assert savings.cached(Conn(), "2026-11-27") == (None, None)
+    assert time.time() - t < 0.2                            # blockerade inte på den långsamma läsningen
+    assert done.wait(2)
+    for _ in range(50):                                     # tråden återställer flaggan även vid fel
+        if not savings._refresh["running"]:
+            break
+        time.sleep(0.05)
+    assert savings._refresh["running"] is False

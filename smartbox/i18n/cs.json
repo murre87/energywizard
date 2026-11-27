@@ -3255,5 +3255,21 @@
  "Nätnyttan ska vara 0 till 100 öre per kWh": "Přínos pro síť musí být 0 až 100 öre za kWh",
  "Skattereduktionens slutdatum ska skrivas ÅÅÅÅ-MM-DD": "Konečné datum daňové úlevy se píše RRRR-MM-DD",
  "månader": "měsíců",
- "Skattereduktion": "Daňová úleva"
+ "Skattereduktion": "Daňová úleva",
+ "Sparat sedan start": "Ušetřeno od spuštění",
+ "Tillsats senaste 7 dagarna:": "Přídavné topení za posledních 7 dní:",
+ "(uppskattat)": "(odhad)",
+ "Mätt sedan": "Měřeno od",
+ "Sedan start": "Od spuštění",
+ "Tillsats idag": "Přídavné topení dnes",
+ "Prisstyrning av köpt el": "Cenové řízení nakoupené elektřiny",
+ "Prisstyrningen är det EnergyWizard styr. Solposterna är vad solcellerna ger, med eller utan styrning, och summan lägger ihop alla poster.": "Cenové řízení je to, co řídí EnergyWizard. Solární položky jsou to, co solární panely dávají, s řízením i bez něj, a součet sčítá všechny položky.",
+ "Se alla poster": "Zobrazit všechny položky",
+ "Solel som huset använt": "Solární energie využitá domem",
+ "Såld solel": "Prodaná solární energie",
+ "intäkt för el som exporterats": "příjem z exportované elektřiny",
+ "jämfört med ett vanligt hushåll utan styrning": "ve srovnání s běžnou domácností bez řízení",
+ "värderad till vad den hade kostat att köpa": "oceněná tím, kolik by stála při nákupu",
+ "Total nytta sedan start": "Celkový přínos od spuštění",
+ "Varav sol som gick till elbil och spabad:": "Z toho solární energie pro elektromobil a vířivku:"
 }

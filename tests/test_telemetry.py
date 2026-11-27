@@ -373,3 +373,24 @@ def test_ha_maker_laser_utf8_fran_ha(monkeypatch):
 
     with patch.object(t.requests, "post", return_value=R()):
         assert t._ha_maker("sensor.bil_soc") == "Škoda|Enyaq"
+
+
+def test_huvudsakringen_ar_inte_utrustning_och_testkopior_slas_ihop_med_riktiga_huset(monkeypatch, tmp_path):
+    """#614: (1) ominstallation där användaren ändrat huvudsäkringen 25 A -> 20 A blev två hus. (2) Emils eget hus kom
+    med två ID: det riktiga och en testkopia utan versionsnummer som körde samtidigt."""
+    mod = _collector(monkeypatch, tmp_path)
+    base = ["heatpump:ha_entities@NIBE#F730", "car:generic_ev@Hyundai#IONIQ", "charger:generic", "meter:ha@NIBE#F730",
+            "size:car_30-50kWh", "country:SE"]
+    old = {"a" * 16: ("1b8c601", base + ["size:fuse_25A"], False), "b" * 16: ("1b8c601", base + ["size:fuse_20A"], False)}
+    m = mod._merge_reinstalls(old, {"a" * 16: "2026-11-23T21:09", "b" * 16: "2026-11-24T09:34"},
+                              {"a" * 16: "2026-11-24T08:24", "b" * 16: "2026-11-24T10:43"})
+    assert m == {"b" * 16: ["a" * 16]}
+    emil = ["heatpump:thermia_husdata", "solar:solaredge", "spa:gecko", "car:nissan", "charger:easee", "car:tesla", "meter:ha",
+            "size:car_30-50kWh", "country:SE"]
+    houses = {"c" * 16: ("1.534", emil, False), "d" * 16: ("unknown", emil, False),          # samtida
+              "e" * 16: ("1.534", ["heatpump:ha_entities", "meter:ha", "size:car_30-50kWh", "country:SE", "car:generic_ev"], False),
+              "f" * 16: ("1.534", ["heatpump:ha_entities", "meter:ha", "size:car_30-50kWh", "country:SE", "car:generic_ev"], False)}
+    first = {"c" * 16: "2026-11-04", "d" * 16: "2026-11-23", "e" * 16: "2026-11-10", "f" * 16: "2026-11-11"}
+    last = {k: "2026-11-27" for k in houses}
+    m = mod._merge_reinstalls(houses, first, last)
+    assert m == {"c" * 16: ["d" * 16]} and set(houses) == {"c" * 16, "e" * 16, "f" * 16}       # två riktiga samtida hus slås inte ihop

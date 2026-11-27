@@ -2,8 +2,23 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.181 (2026-11-27)
+## 1.2.185 (2026-11-27)
 - **Solis RC håller kvar reservnivån (#615).** När batteriet låg på reservnivån skrev EnergyWizard håll en gång och förnyade det inte. Solis släpper fjärrstyrningen efter RC Timeout (5–7 minuter) och batteriet laddade då ur under reservnivån. Håll på reservnivån skrivs nu om lika ofta som övriga håll. En laddning eller urladdning som ännu inte hunnit bytas till håll förlängs inte. Övriga säkerhetsregler (gammal data, säkring, effekttak och laddtak) förnyas fortfarande inte.
+
+## 1.2.184 (2026-11-27)
+- **Dubbletter i telemetrins husöversikt (#614).** Två orsaker rättade i insamlaren: (1) en ominstallation där användaren ändrat huvudsäkringen (25 A till 20 A) räknades som ett nytt hus, eftersom säkringen ingick i husets utrustningsavtryck. Säkringen är en inställning och ingår inte längre. (2) En testkopia av ett hus utan versionsnummer som körde samtidigt med det riktiga räknades som ett eget hus. Den slås nu ihop med det riktiga huset om utrustningen är exakt densamma. Två riktiga installationer slås aldrig ihop bara för att de är samtida.
+
+## 1.2.183 (2026-11-27)
+- **Total nytta sedan start, post för post, på startsidan.** Förut visade startsidan bara prisstyrningen. Nu finns en komplett uppställning: prisstyrning av köpt el, solel som huset använt (värderad till vad den hade kostat att köpa, med moms, nätavgift och skatt), såld solel, och därav sol som gick till elbil och spabad (visas men räknas inte dubbelt). Summan lägger ihop posterna. Prisstyrningen är det EnergyWizard styr, solposterna är vad solcellerna ger med eller utan styrning. Posterna för sol visas bara om huset har solceller. I appen: tryck "Se alla poster". Gäller alla installationer. Hela historiken läses i en bakgrundstråd (flera sekunder), så sidan blir inte långsammare: summan dyker upp när den är klar och uppdateras var 30:e minut.
+
+## 1.2.182 (2026-11-27)
+- **Mindre elpatron (tillsats) i värmen utan att huset blir kallare.** Analys av veckan: varje gång tillsatsen gick hade rumsåterkopplingen satt börvärdet till 23-25 °C, vilket ger en beräknad framledning på 50-55 °C medan kompressorn bara levererar 43-47 °C. Gradminuterna rasar mot -1190 och elpatronen kopplas in. Mätt över 30 dygn gav börvärde 21 4 % tillsats, 22 10 % och 23 82 %, medan framledningen var densamma. Nu (1) lär sig EnergyWizard varje dygn ur loggen högsta börvärdet pumpen klarar utan tillsats vid aktuell utetemperatur (lärt kapacitetstak, bara med rumsåterkoppling på), och (2) gradminutvakten gäller i alla lägen: vid gradminuter under -600 sänks börvärdet så att pumpen hämtar sig, om de kallaste rummen har marginal till golvet. Gränsen kan ändras med `heat_aux_guard_dm`.
+- **Tillsatsen senaste 7 dagarna syns överst på Värmepump-fliken** (tid, uppskattad energi och kostnad), och i appen under Värme inne.
+- **Startsidan visar vad som sparats sedan EnergyWizard startade.** En ny period "Totalt" vid sidan av Idag, 7 dagar och Månad, och en rad "Sparat sedan start" under siffran, i appen och webben, för alla installationer (samma formel som övrigt).
+- **Publika sidans besparingssiffror uppdateras igen (#616).** Den nattliga publiceringen pushade från driftkatalogen (en annan gren) och avvisades varje natt sedan 13 november. Den går nu via en egen ren klon.
+
+## 1.2.181 (2026-11-27)
+- **Veckobrevet kommer från "EnergyWizards skapare".** Avsändarnamnet i veckobrevet och i bekräftelsemejlet är nu "EnergyWizards skapare", i stället för en funktionsadress. Texten längst ner säger redan att det är skaparen som är personuppgiftsansvarig.
 
 ## 1.2.180 (2026-11-24)
 - **Återbetalning av solcellerna, under Solceller (#599, #602).** Se hur mycket solcellerna sparat och tjänat månad för månad, år för år och totalt, hur många procent av anläggningen som är betald och hur lång tid som återstår. Nyttan är besparingen på egenanvänd el (elpris, påslag, överföring och energiskatt) plus intäkten för såld el (med nätnytta) plus skattereduktionen, som räknas till och med ett slutdatum du anger (2025-12-31 i Sverige). Fasta avgifter och effektavgift räknas inte. Du anger vad anläggningen kostade och när den startade. EnergyWizard räknar med sina egna mätvärden, minut för minut, med dina elpris- och avgiftsinställningar. För tiden innan kan du läsa in månadsuppgifter från en CSV-mall (knappen **Ladda ner mall**), och en månad du skrivit in går alltid före de egna mätvärdena. Färdiga månader sparas och ändras inte när du senare ändrar avgifterna. Solens och nätets mätare avviker några procent från växelriktaren och nätägaren, och egenanvänd el är skillnaden mellan dem, så EnergyWizard kalibrerar mot de månader du skrivit in (minst tre) och säger det på sidan. Tid kvar räknas på nyttan de senaste 12 månaderna.
