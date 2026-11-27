@@ -34,7 +34,7 @@ class CommandClient:
             raise ValueError('Password requires a username environment name')
         if 'tls' in self.config and type(self.config['tls']) is not bool:
             raise ValueError('TLS must be boolean')
-        import ew_settings
+        from drivers.host import ew_settings
         self.path = self.config.get('journal_path') or str(Path(ew_settings.PATH).with_name('ferroamp-mqtt-command.json'))
         self.context = hashlib.sha256(json.dumps({'identity': identity, 'broker': {k: self.config.get(k) for k in
             ('host', 'port', 'username_env', 'password_env', 'tls', 'tls_ca')}}, sort_keys=True).encode()).hexdigest()
@@ -51,7 +51,7 @@ class CommandClient:
             return not self.blocked
         try:
             if self.journal_factory is None:
-                from hot_water_runtime import Journal
+                from drivers.host import Journal
                 self.journal = Journal(self.path)
             else:
                 self.journal = self.journal_factory(self.path)

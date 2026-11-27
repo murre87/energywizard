@@ -33,7 +33,14 @@ const cur = slots[0];
 const attrs = { v: 1, ts: new Date().toISOString(), unit: q.get("unit") || "kr", flow: q.get("empty") ? [] : flow,
   why: { varmepump: "Rumsåterkoppling sätter börvärdet till 18.0 °C. ML: lägsta börvärde som håller de två kallaste rummen över 20.7 °C.", ev_tesla: "Laddar enligt schema." },
   slots: q.get("empty") ? [] : slots, cars: [{ id: "nissan", name: "Nissan Leaf" }, { id: "tesla", name: "Tesla Model Y" }],
-  price: { now: cur[1], spot: cur[2], mode: cur[3] }, battery: false,
+  price: { now: cur[1], spot: cur[2], mode: cur[3] }, battery: !q.get("empty"),
+  eco: q.get("empty") ? null : {
+    today: { buy_kwh: 12.4, buy: 28.4, buy_avg: 2.29, sell_kwh: 3.1, sell: 1.86, sell_avg: 0.6, net: 26.54, saved: 4.2, pct: 13.1, bat: q.get("nobat") ? null : 1.8 },
+    week: { buy_kwh: 86.2, buy: 210.5, buy_avg: 2.44, sell_kwh: 18, sell: 9.4, sell_avg: 0.52, net: 201.1, saved: 31, pct: 12, bat: q.get("nobat") ? null : 8.5 },
+    month: { buy_kwh: null, buy: null, buy_avg: null, sell_kwh: null, sell: null, sell_avg: null, net: null, saved: null, pct: null, bat: null },
+  },
+  solar: q.get("empty") ? null : { w: 1850, today_kwh: 6.4, tomorrow_kwh: 3.1 },
+  batt: q.get("empty") ? null : { soc: q.get("nosoc") ? null : 72, w: (q.get("plan") || "discharge") === "hold" ? 40 : -820, plan: q.get("plan") || "discharge", plan_kw: (q.get("plan") || "discharge") === "hold" ? 0 : -2.4 },
   heat: { indoor: 21.4, target: 20, setpoint: 21, outdoor: -2, water: 59, water_set: 60, mode: cur[3], cop: 3.3, floor: 20.5, cheap: 22.5, max: 22, min: 19 },
   bath: q.get("empty") ? null : { water: 48, water_set: 50, spa: 32.2, spa_set: 38, in_bath: false, next: new Date(Date.now() + 27 * 3600 * 1000).toISOString(), until: null, heat: q.get("heat") || "before" } };
 const win = (a, b, k) => [start + a * 900, start + b * 900, k];
@@ -42,10 +49,12 @@ attrs.cars = [{ id: "nissan", name: "Nissan Leaf", soc: 64, w: 0, on: false, win
 const kind = q.get("card");
 const tag = kind === "heat" ? "energywizard-heat-card"
   : kind === "car" ? "energywizard-car-card"
+  : kind === "economy" ? "energywizard-economy-card"
+  : kind === "battery" ? "energywizard-battery-card"
   : kind === "bath" ? "energywizard-bath-card"
   : "energywizard-house-card";
 const el = document.createElement(tag); el.id = "c"; document.getElementById("w").appendChild(el);
-el.setConfig({ tab: q.get("tab") || "now", language: q.get("lang") || "sv", title: q.get("title") || undefined });
+el.setConfig({ tab: q.get("tab") || "now", language: q.get("lang") || "sv", title: q.get("title") || undefined, period: q.get("period") || undefined });
 const states = q.get("missing") ? {} : { "sensor.energywizard_kort": { state: "billigt", last_updated: "x", attributes: attrs } };
 if (!q.get("missing") && q.get("controls") !== "0") {
   const opts = ["Auto", "Ladda nu", "Pausa"];

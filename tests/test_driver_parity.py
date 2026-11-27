@@ -57,8 +57,8 @@ def test_heatpump_skrivmetoder_vidarekopplar_ratt_pump_funktion(method, args, pu
 def test_solar_read_production_vidarekopplar_homeassistant():
     """Inkluderar 'status' - main.py:1674 läser solar_data.get('status') för att larma
     vid växelriktarfel (statuskod 3); tappades nästan bort i Steg 4:s ihopkoppling."""
-    with patch("drivers.solar_solaredge.homeassistant") as mock_ha:
-        mock_ha.read_solaredge.return_value = {"pv_power_w": 2380.0, "today_kwh": 14.2, "status": 3}
+    with patch("drivers.solar_solaredge.ha_solaredge") as mock_ha:
+        mock_ha.read.return_value = {"pv_power_w": 2380.0, "today_kwh": 14.2, "status": 3}
         result = SolarEdgeSolarDriver().read_production()
     assert result == {"pv_power_w": 2380.0, "today_kwh": 14.2, "status": 3}
 
@@ -67,12 +67,12 @@ def test_solar_set_och_get_export_limit():
     """set_export_limit_pct returnerar True/False (main.py:s anropsmönster använder
     det för att avgöra om senast-skickat-värdet ska uppdateras - förlorades nästan
     i Steg 4:s ihopkoppling, täppt innan main.py byttes om)."""
-    with patch("drivers.solar_solaredge.homeassistant") as mock_ha:
-        mock_ha.get_solaredge_limit.return_value = 77
-        mock_ha.set_solaredge_limit.return_value = True
+    with patch("drivers.solar_solaredge.ha_solaredge") as mock_ha:
+        mock_ha.get_limit.return_value = 77
+        mock_ha.set_limit.return_value = True
         driver = SolarEdgeSolarDriver(limit_entity="number.x_limit")
         assert driver.set_export_limit_pct(50) is True
-        mock_ha.set_solaredge_limit.assert_called_once_with(50, "number.x_limit")
+        mock_ha.set_limit.assert_called_once_with(50, "number.x_limit")
         assert driver.get_export_limit_pct() == 77
 
 
@@ -83,34 +83,34 @@ def test_spa_read_state_ger_radata_rakt_av():
     egna villkor (str(heater_state).lower() in [...], economy_mode == 1.0) förblir i
     main.py tills ett andra spamärke finns att verifiera en gemensam mappning mot
     (samma princip som HeatPumpDriver.set_operating_mode, se heatpump.py)."""
-    with patch("drivers.spa_gecko.homeassistant") as mock_ha:
-        mock_ha.read_gecko.return_value = {"current_temp": 36.5, "target_temp": 38.0, "heater_state": "heating", "economy_mode": 1.0}
+    with patch("drivers.spa_gecko.ha_gecko") as mock_ha:
+        mock_ha.read.return_value = {"current_temp": 36.5, "target_temp": 38.0, "heater_state": "heating", "economy_mode": 1.0}
         result = GeckoSpaDriver().read_state()
     assert result == {"current_temp": 36.5, "target_temp": 38.0, "heater_state": "heating", "economy_mode": 1.0}
 
 
 def test_spa_read_activities_vidarekopplar_samma_funktion_main_py_anvander():
     """Drivrutinen ger homeassistant.read_spa_activities() dict rakt av, inte en egen tolkning."""
-    with patch("drivers.spa_gecko.homeassistant") as mock_ha:
-        mock_ha.read_spa_activities.return_value = {"heating": True, "circ_pump": False}
+    with patch("drivers.spa_gecko.ha_gecko") as mock_ha:
+        mock_ha.read_activities.return_value = {"heating": True, "circ_pump": False}
         result = GeckoSpaDriver().read_activities()
     assert result == {"heating": True, "circ_pump": False}
 
 
 def test_spa_set_plug_power_vidarekopplar_ny_toggle_spa_plug():
-    with patch("drivers.spa_gecko.homeassistant") as mock_ha:
-        mock_ha.toggle_spa_plug.return_value = True
+    with patch("drivers.spa_gecko.ha_gecko") as mock_ha:
+        mock_ha.toggle_plug.return_value = True
         assert GeckoSpaDriver({"smart_plug": "switch.plugg"}).set_plug_power(True) is True
-        mock_ha.toggle_spa_plug.assert_called_once_with(True, "switch.plugg")
+        mock_ha.toggle_plug.assert_called_once_with(True, "switch.plugg")
 
 
 def test_spa_set_target_temp_och_economy():
-    with patch("drivers.spa_gecko.homeassistant") as mock_ha:
+    with patch("drivers.spa_gecko.ha_gecko") as mock_ha:
         driver = GeckoSpaDriver({"climate": "climate.spa", "economy_mode": "switch.eco"})
         driver.set_target_temp(39.0)
-        mock_ha.set_gecko_target.assert_called_once_with(39.0, "climate.spa")
+        mock_ha.set_target.assert_called_once_with(39.0, "climate.spa")
         driver.set_economy(True)
-        mock_ha.set_gecko_economy.assert_called_once_with(True, "switch.eco")
+        mock_ha.set_economy.assert_called_once_with(True, "switch.eco")
 
 
 # ---------- Laddare (EaseeChargerDriver -> homeassistant.py) ----------
@@ -123,21 +123,21 @@ def test_charger_read_state_anvander_injicerad_reader():
 
 
 def test_charger_set_limit_a_vidarekopplar_med_reason():
-    with patch("drivers.charger_easee.homeassistant") as mock_ha:
-        mock_ha.set_ev_dynamic_limit.return_value = True
+    with patch("drivers.charger_easee.ha_easee") as mock_ha:
+        mock_ha.set_dynamic_limit.return_value = True
         assert EaseeChargerDriver(id="easee1").set_limit_a(10, reason="golv") is True
-        mock_ha.set_ev_dynamic_limit.assert_called_once_with("easee1", 10, reason="golv")
+        mock_ha.set_dynamic_limit.assert_called_once_with("easee1", 10, reason="golv")
 
 
 def test_charger_set_phases_turn_on_turn_off():
-    with patch("drivers.charger_easee.homeassistant") as mock_ha:
+    with patch("drivers.charger_easee.ha_easee") as mock_ha:
         driver = EaseeChargerDriver(id="easee1")
         driver.set_phases(1)
-        mock_ha.set_easee_phases.assert_called_once_with("easee1", 1)
+        mock_ha.set_phases.assert_called_once_with("easee1", 1)
         driver.turn_on()
-        mock_ha.turn_on_charger.assert_called_once_with("easee1", None)
+        mock_ha.turn_on.assert_called_once_with("easee1", None)
         driver.turn_off()
-        mock_ha.turn_off_charger.assert_called_once_with("easee1", None)
+        mock_ha.turn_off.assert_called_once_with("easee1", None)
 
 
 # ---------- Bilar (Nissan/TeslaCarDriver -> homeassistant.py) ----------
@@ -178,22 +178,22 @@ def test_set_climate_samma_entitet_argument_som_main_py_anvander():
     samma hvac_mode/temperature-argument till homeassistant.set_car_climate - annars
     skulle bytet i main.py vara en tyst beteendeändring, inte en vidarekoppling."""
     entities = {"soc": "sensor.leaf_soc", "climate": "climate.leaf_climate"}
-    with patch("drivers.car_generic.homeassistant") as mock_ha:
+    with patch("drivers.car_generic.ha_car") as mock_ha:
         driver = NissanCarDriver(id="nissan", battery_kwh=40, entities=entities)
         driver.set_climate("heat_cool", 21.0)
-        mock_ha.set_car_climate.assert_called_once_with("climate.leaf_climate", "heat_cool", 21.0)
+        mock_ha.set_climate.assert_called_once_with("climate.leaf_climate", "heat_cool", 21.0)
 
         mock_ha.reset_mock()
         driver.set_climate("off")
-        mock_ha.set_car_climate.assert_called_once_with("climate.leaf_climate", "off", None)
+        mock_ha.set_climate.assert_called_once_with("climate.leaf_climate", "off", None)
 
 
 def test_set_climate_utan_konfigurerad_climate_entity_ar_no_op():
     """En bil utan climate-entitet i configen (valfri, se house_config.example.yaml)
     ska inte krascha eller anropa HA med ett tomt entity_id."""
-    with patch("drivers.car_generic.homeassistant") as mock_ha:
+    with patch("drivers.car_generic.ha_car") as mock_ha:
         NissanCarDriver(id="nissan", battery_kwh=40, entities={"soc": "sensor.x"}).set_climate("heat_cool", 21.0)
-    mock_ha.set_car_climate.assert_not_called()
+    mock_ha.set_climate.assert_not_called()
 
 
 # ---------- Entiteterna kommer ur installationen (inga husspecifika namn i koden) ----------

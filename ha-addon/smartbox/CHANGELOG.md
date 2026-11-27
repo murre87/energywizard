@@ -2,8 +2,47 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
-## 1.2.189 (2026-11-27)
+## 1.2.195 (2026-11-27)
 - **Kort för varmvatten och spabad i Home Assistant (#558).** Ett nytt kort visar tankens temperatur, badets temperatur, nästa badtid och om uppvärmningen är planerad. Under en badtid står det att badet hålls varmt och när den slutar. Inom 36 timmar planerar EnergyWizard uppvärmningen inför badtiden. Längre bort planeras den inte än, och en tid som saknas visas inte som noll. Kortet läser bara.
+
+## 1.2.194 (2026-11-27)
+- **Kort för ekonomi i Home Assistant (#558).** Ett nytt kort visar köpt och såld el för idag, de senaste 7 dagarna och den här månaden, med snittpris, plus sparat genom tajmning och vad styrningen gett utöver ett batteri i självförbrukningsläge. Samma formler som Ekonomisidan och appen. Dagar utan pris eller effekt räknas inte som noll, och en period utan sådana dagar visas som tom, inte som 0 kr. Saknas jämförelsen mot självförbrukning (inget batteri, avstängd styrning eller för lite mätdata) visas den raden inte. Sedan start är kvar på startsidan och ingår inte i kortet.
+
+## 1.2.193 (2026-11-27)
+- **Ekonomi månad för månad och år för år (#599).** Vid sidan av Idag, 7 dagar och Månad finns Månader och År. Korten och diagrammen visar köpt el, såld el, netto och sparat genom tajmning för den valda perioden, från första dagen med data till och med idag. En månad eller ett år utan mätvärden är tom, inte noll. Diagrammen för de senaste 31 dagarna är kvar när Idag, 7 dagar eller Månad är valt.
+
+## 1.2.192 (2026-11-27)
+- **Välj själv vilken sensor som är bilens laddnivå (#596).** Entitetsväljaren visar bilens batterisensorer, med värdet de har just nu. Traktionsbatteriet är förvalt. Under Inställningar kan du byta sensor direkt när installationen sparar från webben, till exempel om en Kia eller Hyundai fått 12 V-batteriet. Bytet skriver bara den raden i `house_config.yaml`.
+
+## 1.2.191 (2026-11-27)
+- **Drivrutinerna når resten av EnergyWizard genom en enda modul (inget ändras för dig).** Förarbete inför att drivrutinerna flyttas till ett eget repo: de importerar inte längre motorns moduler direkt, utan hämtar dem från `drivers/host.py`. Beteendet är exakt detsamma. Tester håller sömmen tät. Se `docs/uppdelning/PLAN.md`.
+
+## 1.2.190 (2026-11-27)
+- **Planeringen kan köras som en egen process i skuggläge (för utvecklare, av som standard).** Med miljövariabeln `EW_PLANNER_MODE=shadow` startar motorn en andra, tyst planerarprocess och jämför dess beslut med det vanliga, i bakgrunden. Det vanliga beslutet styr fortfarande, inget skickas dubbelt och motorn väntar aldrig på den nya processen. Skillnader loggas. Utan inställningen (`local`) är allt som förut. Detta är ett första steg i uppdelningen av EnergyWizard i delar, och kostar ungefär lika mycket minne som motorn en gång till när det är på. Se `docs/uppdelning/PLAN.md`.
+
+## 1.2.189 (2026-11-27)
+- **Easee-konto och laddboxens egen historik, under Elbil (#605).** Skriv in Easee-kontot en gång. EnergyWizard hämtar laddboxens månadssummor (kWh, och kostnad när Easee har en) och visar dem per år, med jämförelse mot samma månader förra året. Siffrorna är laddboxens mätare och gäller före den uppskattade elbilslasten. Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen. Historiken hämtas högst en gång per dygn, eftersom Easee bara tar emot några sådana frågor i timmen. Senaste timmen kan saknas.
+
+## 1.2.188 (2026-11-27)
+- **Årets elförbrukning (#603).** Elförbrukning visar använd och köpt el per månad, fördelningen på elbil, värmepump, spabad och övrigt, och vintrarna november–mars. En månad utan mätning är tom, inte noll. Prognosen för hela året är lägsta och högsta utifrån tidigare år, skalad efter hur årets färdiga månader avvikit.
+
+- **Kort för sol och batteri i Home Assistant (#558).** Ett nytt kort visar solproduktionen just nu, prognosen för resten av idag och för imorgon, batteriets laddnivå och effekt, och om planen laddar, sparar, laddar ur eller säljer. Prognosen är samma solprognos som planen redan använder. Saknas en uppmätt laddnivå används planens nivå. Hus utan sol och batteri får en tom rad. Hemmet, Värme och Bil är oförändrade.
+
+## 1.2.187 (2026-11-27)
+- **Ekonomisidan har perioden Totalt (#599).** Vid sidan av Idag, 7 dagar och Månad summeras köpt el, såld el, netto och sparat genom tajmning sedan EnergyWizard började mäta. Samma formel som de andra perioderna. Dagar utan pris eller effekt räknas inte som noll, och raden säger hur många dagar som ingick och från vilket datum. Diagrammen är kvar som senaste 31 dagarna. Månad för månad och år för år är kvar.
+
+## 1.2.186 (2026-11-27)
+- **Kupétemperaturen syns under Bil (#610).** Bilfliken i appen och Elbil på webben visar hur varmt det är i bilen, även när kupévärmen är av. Temperaturen tas från bilens egen temperaturgivare om den finns, annars från climate-entitetens current_temperature. Saknas båda visas ingen temperatur.
+
+## 1.2.185 (2026-11-27)
+- **Solis RC håller kvar reservnivån (#615).** När batteriet låg på reservnivån skrev EnergyWizard håll en gång och förnyade det inte. Solis släpper fjärrstyrningen efter RC Timeout (5–7 minuter) och batteriet laddade då ur under reservnivån. Håll på reservnivån skrivs nu om lika ofta som övriga håll. En laddning eller urladdning som ännu inte hunnit bytas till håll förlängs inte. Övriga säkerhetsregler (gammal data, säkring, effekttak och laddtak) förnyas fortfarande inte.
+
+## 1.2.184 (2026-11-27)
+- **Dubbletter i telemetrins husöversikt (#614).** Två orsaker rättade i insamlaren: (1) en ominstallation där användaren ändrat huvudsäkringen (25 A till 20 A) räknades som ett nytt hus, eftersom säkringen ingick i husets utrustningsavtryck. Säkringen är en inställning och ingår inte längre. (2) En testkopia av ett hus utan versionsnummer som körde samtidigt med det riktiga räknades som ett eget hus. Den slås nu ihop med det riktiga huset om utrustningen är exakt densamma. Två riktiga installationer slås aldrig ihop bara för att de är samtida.
+- **Vakt mot nya dubbletter i husöversikten.** Insamlaren markerar nu två aktiva hus som ändå har exakt samma utrustning (minst sju delar) som "Misstänkt dubblett" på Installationer, så att en ny orsak syns direkt i stället för att räknas som flera hus. Korta testkörningar (hörda under högst 30 minuter och tysta i över sex timmar) räknas inte längre som hus.
+
+## 1.2.183 (2026-11-27)
+- **Total nytta sedan start, post för post, på startsidan.** Förut visade startsidan bara prisstyrningen. Nu finns en komplett uppställning: prisstyrning av köpt el, solel som huset använt (värderad till vad den hade kostat att köpa, med moms, nätavgift och skatt), såld solel, och därav sol som gick till elbil och spabad (visas men räknas inte dubbelt). Summan lägger ihop posterna. Prisstyrningen är det EnergyWizard styr, solposterna är vad solcellerna ger med eller utan styrning. Posterna för sol visas bara om huset har solceller. I appen: tryck "Se alla poster". Gäller alla installationer. Hela historiken läses i en bakgrundstråd (flera sekunder), så sidan blir inte långsammare: summan dyker upp när den är klar och uppdateras var 30:e minut.
 
 ## 1.2.182 (2026-11-27)
 - **Mindre elpatron (tillsats) i värmen utan att huset blir kallare.** Analys av veckan: varje gång tillsatsen gick hade rumsåterkopplingen satt börvärdet till 23-25 °C, vilket ger en beräknad framledning på 50-55 °C medan kompressorn bara levererar 43-47 °C. Gradminuterna rasar mot -1190 och elpatronen kopplas in. Mätt över 30 dygn gav börvärde 21 4 % tillsats, 22 10 % och 23 82 %, medan framledningen var densamma. Nu (1) lär sig EnergyWizard varje dygn ur loggen högsta börvärdet pumpen klarar utan tillsats vid aktuell utetemperatur (lärt kapacitetstak, bara med rumsåterkoppling på), och (2) gradminutvakten gäller i alla lägen: vid gradminuter under -600 sänks börvärdet så att pumpen hämtar sig, om de kallaste rummen har marginal till golvet. Gränsen kan ändras med `heat_aux_guard_dm`.

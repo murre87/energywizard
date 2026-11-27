@@ -156,6 +156,6 @@ def test_main_använder_modulen():
 
 def test_växelventilen_loggas():
     root = os.path.join(os.path.dirname(__file__), "..", "smartbox")
-    assert '"hotwater_valve":       reg[30]' in open(os.path.join(root, "pump.py"), encoding="utf-8").read()
+    assert '"hotwater_valve":       reg[30]' in open(os.path.join(root, "drivers", "thermia_pump.py"), encoding="utf-8").read()
     lg = open(os.path.join(root, "logger.py"), encoding="utf-8").read()
     assert "ADD COLUMN IF NOT EXISTS hotwater_valve" in lg and '"hotwater_valve": p.get("hotwater_valve")' in lg

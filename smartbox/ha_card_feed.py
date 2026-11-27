@@ -19,7 +19,15 @@ Schema (v1), alla fält är valfria för korten:
   cars     [{id, name, soc, w, on, win}]  laddnivå %, watt, laddar nu, planerade pass [[start, slut, kW]] (epoch-sekunder)
   heat     {indoor, target, setpoint, outdoor, water, water_set, mode, floor, cheap, max, min, cop}  värmepump och varmvatten
   price    {now, spot, mode}         nuvarande pris (kr/kWh), spotpris och läge
-  battery  true/false                finns husbatteri
+  battery  true/false                finns husbatteri (oförändrat, så äldre kort fortsätter fungera)
+  eco      {today, week, month} eller null (#558). Varje period:
+           {buy_kwh, buy, buy_avg, sell_kwh, sell, sell_avg, net, saved, pct, bat}
+           buy är köpt el inklusive avgifter, sell är såld el, saved är sparat genom
+           tajmning mot ett vanligt hushåll, bat är sparat mot batteriet i
+           självförbrukning (null utan jämförelse). En period utan dagar är null, inte noll.
+           Ingen period för sedan start.
+  solar    {w, today_kwh, tomorrow_kwh}  produktion nu och prognos i planfönstret (#558), eller null
+  batt     {soc, w, plan, plan_kw}   laddnivå, effekt och plan (charge/hold/discharge/export/...), eller null
   bath     null, eller (#558): {water, water_set, spa, spa_set, in_bath, next, until, heat}
            water/spa är grader. next och until är ISO-tider (nästa badtid, eller badtidens slut).
            heat är "now" under badtid, "before" när uppvärmning planeras inom 36 timmar,
@@ -33,6 +41,7 @@ ENTITY = "sensor.energywizard_kort"
 SCHEMA = 1
 _SLOT_TTL_S = 300          # planen räknas om högst var femte minut, flödet varje minut
 _cache = {"t": 0.0, "slots": None}
+_eco_cache = {"t": 0.0, "day": None, "v": None}   # ekonomin delar intervallet: självförbrukningen simulerar dygnen
 
 _MODE = {"CHEAP": "C", "EXPENSIVE": "E"}
 
@@ -121,6 +130,69 @@ def _cars(flow, planclock):
     return cars
 
 
+_PLAN = {"auto", "hold", "idle", "standby", "charge", "discharge", "export"}
+
+
+def _slot_now(planclock, now):
+    """Planens pågående kvart, med avsikt och laddnivå. Den komprimerade raden har bara effekten."""
+    t_now = int(now.timestamp())
+    cur = None
+    for s in (planclock or {}).get("slots") or []:
+        t = _epoch(s.get("t"))
+        if t is not None and t <= t_now:
+            cur = s
+    return cur or {}
+
+
+def _on_day(epoch, now, day):
+    local = datetime.fromtimestamp(epoch, now.tzinfo) if now.tzinfo else datetime.fromtimestamp(epoch)
+    return local.date() == day
+
+
+def _solar(flow, planclock, now):
+    """Produktion nu och prognos för resten av idag och imorgon. Prognosen är planens solwatt
+    (ett värde per kvart), inte ett nytt väderanrop. Saknas prognosen är kWh null, inte noll."""
+    node = next((n for n in (flow or {}).get("nodes") or [] if n.get("key") == "sol"), None)
+    today = now.date()
+    tomorrow = today + timedelta(days=1)
+    sums = {today: [], tomorrow: []}
+    any_sun = False
+    for s in (planclock or {}).get("slots") or []:
+        t = _epoch(s.get("t"))
+        if t is None:
+            continue
+        for day in sums:
+            if _on_day(t, now, day):
+                w = _num(s.get("sun_w"), 0)
+                if w is not None:
+                    any_sun = True
+                    sums[day].append(w)
+    if node is None and not any_sun:
+        return None
+
+    def kwh(day):
+        return None if not sums[day] else round(sum(sums[day]) * 0.25 / 1000, 2)
+
+    w = None if node is None else _num(node.get("w"), 0)
+    return {"w": None if w is None else int(w), "today_kwh": kwh(today), "tomorrow_kwh": kwh(tomorrow)}
+
+
+def _batt(flow, planclock, now):
+    """Laddnivå, effekt och plan. Uppmätt nivå i flödet går före planens nivå efter kvarten.
+    battery-fältet förblir true/false."""
+    node = next((n for n in (flow or {}).get("nodes") or [] if n.get("key") == "batteri"), None)
+    if node is None and not (planclock or {}).get("has_battery"):
+        return None
+    cur = _slot_now(planclock, now)
+    soc = _soc((node or {}).get("detail"))
+    if soc is None and cur.get("soc") is not None:
+        planned = _num(cur.get("soc"), 0)
+        soc = None if planned is None else int(min(100, max(0, planned)))
+    w = None if node is None else _num(node.get("w"), 0)
+    plan = cur.get("bat") if cur.get("bat") in _PLAN else None
+    return {"soc": soc, "w": None if w is None else int(w), "plan": plan, "plan_kw": _num(cur.get("bat_kw"), 2)}
+
+
 def _heat(row, cfg):
     """Värmepump och varmvatten ur senaste raden i sensor_log och inställningarna (golv, tak, billig temp)."""
     if not row:
@@ -132,6 +204,53 @@ def _heat(row, cfg):
             "mode": _MODE.get(str(row.get("active_mode") or "").upper(), ""), "cop": _num(row.get("cop"), 1),
             "floor": _num(cfg.get("temp_expensive"), 1), "cheap": _num(cfg.get("temp_cheap"), 1),
             "max": _num(cfg.get("indoor_max"), 1), "min": _num(cfg.get("indoor_min"), 1)}
+
+
+def pack_economy(money, timing, battery):
+    """Idag, 7 dagar och månad till korta tal. Period utan dagar blir null, inte noll.
+    bat är null när jämförelsen mot självförbrukning saknas. Sedan start följer inte med."""
+    if money is None and timing is None and battery is None:
+        return None
+
+    def one(key):
+        m = (money or {}).get(key) or {}
+        t = (timing or {}).get(key) or {}
+        b = (battery or {}).get(key) if isinstance(battery, dict) else None
+        has_money = (m.get("days") or 0) > 0
+        has_timing = (t.get("days") or 0) > 0
+        return {
+            "buy_kwh": m.get("bought_kwh") if has_money else None,
+            "buy": m.get("cost") if has_money else None,
+            "buy_avg": m.get("avg_paid") if has_money else None,
+            "sell_kwh": m.get("sold_kwh") if has_money else None,
+            "sell": m.get("income") if has_money else None,
+            "sell_avg": m.get("avg_sold") if has_money else None,
+            "net": m.get("net") if has_money else None,
+            "saved": t.get("saved_kr") if has_timing else None,
+            "pct": t.get("pct") if has_timing else None,
+            "bat": None if not isinstance(b, dict) or not b.get("days") else b.get("saved"),
+        }
+
+    return {k: one(k) for k in ("today", "week", "month")}
+
+
+def load_economy(conn, today, tz, battery_cfg):
+    """Samma formler som Ekonomisidan och appens jämförelse mot självförbrukning.
+    Anropar inte savings.all_time: sedan start hör inte till kortet."""
+    import savings
+    money = savings.money_periods(savings.money_rows(conn, days=40), today)
+    timing = savings.summarize_periods(savings.daily_rows(conn, days=40), today)
+    battery = None
+    cfg = battery_cfg or {}
+    if cfg.get("control") != "av" and cfg.get("capacity_kwh"):
+        try:
+            import battery_baseline
+            from datetime import date
+            battery = battery_baseline.periods(conn, cfg, date.fromisoformat(today), tz)
+        except Exception:
+            conn.rollback()
+            battery = None
+    return pack_economy(money, timing, battery)
 
 
 def bath_view(now, row, windows, mode="bath", spa_set=None, ahead_h=36):
@@ -169,7 +288,7 @@ def bath_view(now, row, windows, mode="bath", spa_set=None, ahead_h=36):
             "until": iso(end) if in_bath else None, "heat": heat}
 
 
-def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None, bath=None):
+def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None, economy=None, bath=None):
     """Sensorns (tillstånd, attribut) ur flödet och planen. Rena funktioner, testas utan databas."""
     now = now or datetime.now().astimezone()
     slots = _slots(planclock)
@@ -184,6 +303,8 @@ def build(flow, planclock, now=None, unit="kr", row=None, cfg=None, pump_w=None,
         "unit": unit, "flow": _flow(flow, pump_w), "why": {k: str(v)[:240] for k, v in ((flow or {}).get("why") or {}).items()},
         "slots": slots, "cars": _cars(flow, planclock), "heat": _heat(row, cfg),
         "price": price, "battery": bool((planclock or {}).get("has_battery")),
+        "eco": economy,
+        "solar": _solar(flow, planclock, now), "batt": _batt(flow, planclock, now),
         "bath": bath,
     }
     return {"E": "dyrt", "C": "billigt"}.get(price["mode"], "okänt"), attrs
@@ -217,6 +338,27 @@ def entities(engine):
             _cache.update(t=time.time(), slots=plan_clock.load(
                 c, cars=[{"id": x.get("id"), "name": x.get("name")} for x in (hc.get("evs") or [])]))
         pc = _cache["slots"]
+        eco = None
+        today = None
+        try:
+            import local_sql
+            tz = local_sql.installation_timezone()
+            today = datetime.now(tz).date().isoformat()
+            if _eco_cache["v"] is not None and _eco_cache["day"] == today and time.time() - _eco_cache["t"] <= _SLOT_TTL_S:
+                eco = _eco_cache["v"]
+            else:
+                try:
+                    bat_cfg = house_config.battery_settings(hc)
+                except Exception:
+                    bat_cfg = {}
+                eco = load_economy(c, today, tz, bat_cfg)
+                _eco_cache.update(t=time.time(), day=today, v=eco)
+        except Exception:
+            try:
+                c.rollback()
+            except Exception:
+                pass
+            eco = _eco_cache["v"] if today and _eco_cache.get("day") == today else None
     try:
         import settings
         cfg = settings.get_settings()
@@ -239,5 +381,5 @@ def entities(engine):
         bath = bath_view(now_b, row, ew_settings.get("spa_bath_windows"), mode, spa_set, spa_bath.PLAN_AHEAD_H)
     except Exception:
         bath = None
-    state, attrs = build(flow, pc, unit=nordpool.cost_settings()["symbol"], row=row, cfg=cfg, pump_w=pump_w, bath=bath)
+    state, attrs = build(flow, pc, unit=nordpool.cost_settings()["symbol"], row=row, cfg=cfg, pump_w=pump_w, economy=eco, bath=bath)
     return {ENTITY: (state, attrs)}
