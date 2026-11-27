@@ -1,0 +1,18 @@
+# Vägrar merge tills PR:er som den här beror på ("Beror på: repo#nummer" i beskrivningen) är mergade.
+name: beror-pa
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  beror-pa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/check_depends_on.py
+        env:
+          GH_TOKEN: ${{ github.token }}

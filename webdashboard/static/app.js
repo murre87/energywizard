@@ -2683,18 +2683,21 @@ async function loadImageUpdates(force) {
       ${d.interval_seconds ? `<div class="note">Automatisk kontroll var ${d.interval_seconds / 3600} timme. Manuella kontroller har 30 sekunders väntetid.</div>` : ""}
       <button class="icobtn" id="imagechecknow" style="margin-top:10px" ${d.status === "not_configured" ? "disabled" : ""}>Sök efter uppdateringar</button>
     </div>`;
-    document.getElementById("imagechecknow").onclick = () => loadImageUpdates(true);
+    const checkBtn = panel.querySelector("#imagechecknow");          // sidan kan ha bytts medan svaret hämtades: då finns ingen knapp att koppla
+    if (checkBtn) checkBtn.onclick = () => loadImageUpdates(true);
     if (d.status === "checking") setTimeout(() => {
       if (document.getElementById("imageupdates") === panel) loadImageUpdates(false);
     }, 1000);
   } catch (_) {
     panel.innerHTML = '<div class="card">Kunde inte kontrollera uppdateringar. <button class="icobtn" id="imageretry">Försök igen</button></div>';
-    document.getElementById("imageretry").onclick = () => loadImageUpdates(true);
+    const retryBtn = panel.querySelector("#imageretry");
+    if (retryBtn) retryBtn.onclick = () => loadImageUpdates(true);
   }
 }
 
 async function loadWatchtowerUpdates(force) {
   const main = document.getElementById("watchtowerupdates");
+  if (!main) return;
   const d = await api(`api/updates${force ? "?force=1" : ""}`);
   if (!d.ok) { main.innerHTML = `<div class="placeholder">${d.error}</div>`; return; }
   if (d.configured === false) {
@@ -2714,7 +2717,8 @@ async function loadWatchtowerUpdates(force) {
       <button class="icobtn" id="checknowbtn" style="margin-top:10px">Kolla nu</button>
     </div>
     ${rows}`;
-  document.getElementById("checknowbtn").onclick = () => loadWatchtowerUpdates(true);
+  const nowBtn = main && main.querySelector("#checknowbtn");        // main kan ha lämnat sidan medan svaret hämtades
+  if (nowBtn) nowBtn.onclick = () => loadWatchtowerUpdates(true);
 }
 
 let _discovered = null;
