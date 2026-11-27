@@ -2558,6 +2558,8 @@ function installsCard(d) {
       </div>
       ${d.without_devices ? `<div class="note" style="margin-top:8px">${d.without_devices} har inte valt några enheter än.</div>` : ""}
       ${d.ping_only ? `<div class="note" style="margin-top:4px">${d.ping_only} kör en äldre version utan telemetri och syns med utrustning efter uppdateringen.</div>` : ""}
+      ${d.trial_runs ? `<div class="note" style="margin-top:4px">${d.trial_runs} korta testkörningar (under 30 minuter) räknas inte som hus.</div>` : ""}
+      ${(d.suspected_duplicates || []).length ? `<div class="note" style="margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(239,68,68,.14)"><b>Misstänkt dubblett:</b> ${d.suspected_duplicates.map((x) => `${esc(x.a)} och ${esc(x.b)} (${x.parts} delar)`).join(", ")} har exakt samma utrustning. Rätta orsaken i insamlaren.</div>` : ""}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-top:14px">${cats}</div>
       <div class="note" style="margin-top:10px">Antal enheter, från telemetrin: bara drivrutin och märke, aldrig vem eller var. En installation syns med sina enheter när den valt dem i startguiden.</div>
     </div>`;

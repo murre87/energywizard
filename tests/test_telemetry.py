@@ -394,3 +394,21 @@ def test_huvudsakringen_ar_inte_utrustning_och_testkopior_slas_ihop_med_riktiga_
     last = {k: "2026-11-27" for k in houses}
     m = mod._merge_reinstalls(houses, first, last)
     assert m == {"c" * 16: ["d" * 16]} and set(houses) == {"c" * 16, "e" * 16, "f" * 16}       # två riktiga samtida hus slås inte ihop
+
+
+def test_kortlivade_testkorningar_och_misstankta_dubbletter(monkeypatch, tmp_path):
+    """#614: ID:n som levde minuter låg kvar i husöversikten i tre dygn; och en vakt som larmar om två aktiva hus ändå har
+    exakt samma utrustning efter ihopslagningen."""
+    from datetime import datetime, timedelta, timezone
+    mod = _collector(monkeypatch, tmp_path)
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+    iso = lambda dt: dt.isoformat()
+    assert mod._is_trial(iso(now - timedelta(hours=10)), iso(now - timedelta(hours=10) + timedelta(minutes=2)), now)
+    assert not mod._is_trial(iso(now - timedelta(hours=10)), iso(now - timedelta(hours=1)), now)           # levde länge
+    assert not mod._is_trial(iso(now - timedelta(minutes=20)), iso(now - timedelta(minutes=18)), now)      # pågår nyss
+    assert not mod._is_trial("trasigt", "tid", now)
+    eq = ["heatpump:a", "solar:b", "battery:c", "car:d", "charger:e", "meter:f", "size:car_30-50kWh", "country:SE"]
+    houses = {"a" * 16: ("v", eq, False), "b" * 16: ("v", eq, False), "c" * 16: ("v", eq[:4], False)}
+    first = {"a" * 16: "2026-11-01", "b" * 16: "2026-11-02", "c" * 16: "2026-11-03"}
+    assert mod._suspected_duplicates(houses, first) == [("a" * 16, "b" * 16, 8)]
+    assert mod._suspected_duplicates({"c" * 16: houses["c" * 16]}, first) == []
