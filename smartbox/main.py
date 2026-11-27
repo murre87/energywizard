@@ -38,6 +38,7 @@ import telemetry        # Strikt opt-in: fel + aktiva drivrutinkategorier, se te
 from urllib.parse import urlsplit, urlunsplit
 import decisions        # Besluts- och styrlogik för pump och radiatorer
 import gpm              # Global Priority Manager (Master Logic Tree)
+import planner_bridge   # planeringen som egen process (steg 4b): EW_PLANNER_MODE=local (standard) eller shadow
 import ha_publisher      # Publicerar härledda värden (priser, effektfördelning, COP, besparing) till HA
 import health            # Sensor-/länkövervakning (varnar när en sensor tystnat, sammanfattar HA-avbrott)
 import learning         # AI-modeller för temperatur och avsvalning
@@ -142,6 +143,7 @@ weather.init_weather_db()
 
 # Initiera GPM Motorn och Watchdog-heartbeat
 gpm_engine = gpm.GlobalPriorityManager()
+_planner = planner_bridge.Bridge()      # EW_PLANNER_MODE: local (standard, ingen skillnad) eller shadow (jämför med planerarens egen process, påverkar inget)
 last_heartbeat = datetime.now(SWE_TZ)
 
 # ============================================================
@@ -2385,7 +2387,7 @@ while True:
                     f'{_c}_hold': all_overrides.get(f"{_c}_hold") == "on",          # EnergyWizard Mobil: manuell paus
                 })
             
-            gpm_actions = gpm_engine.evaluate(gpm_state)
+            gpm_actions = _planner.evaluate(gpm_engine, gpm_state)      # local: samma som gpm_engine.evaluate; shadow: dessutom jämförelse mot planerarens egen process
             gpm_actions["log"] = legionella_text.explain(gpm_actions["log"], days_since_leg, leg_max_days, leg_temp, shadow.active())   # #583
             for _eh_line in electric_heat.plan((house_cfg or {}).get("electric_heat"), gpm_actions.get("pump_mode"),
                                               homeassistant.get_power_w):

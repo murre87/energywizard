@@ -27,7 +27,7 @@ def plain(v):
     if v is None or isinstance(v, (bool, str)):
         return v
     if isinstance(v, dict):
-        return {str(k): plain(x) for k, x in v.items()}
+        return {(",".join(str(i) for i in k) if isinstance(k, tuple) else str(k)): plain(x) for k, x in v.items()}
     if isinstance(v, (list, tuple, set)):
         return [plain(x) for x in v]
     if isinstance(v, (datetime, date)) or hasattr(v, "isoformat"):
@@ -67,6 +67,30 @@ def planner_input_to_wire(state: dict) -> dict:
     if "ev_plan" in out and out["ev_plan"] is not None and hasattr(out["ev_plan"], "columns"):
         out["ev_plan"] = ev_plan_to_wire(out["ev_plan"])
     return plain(out)
+
+
+def planner_input_from_wire(wire: dict) -> dict:
+    """Omvänd omvandling av planner_input_to_wire: det planeringens process får över JSON blir det gpm.evaluate förväntar sig.
+    Tidpunkter (now, last_heartbeat) blir datetime, laddplanen blir en pandas.DataFrame med t_slot som datetime, hw_profile får tupelnycklar
+    (veckodag, timme) och heat_horizon blir en tupel. Allt annat är redan rätt typ efter JSON. Bevisat av tests/test_planner_wire.py: samma
+    beslut som med den ursprungliga indatan, för alla 4 680 facit-steg."""
+    import pandas as pd
+    out = dict(wire)
+    for k in ("now", "last_heartbeat"):
+        if isinstance(out.get(k), str):
+            out[k] = datetime.fromisoformat(out[k])
+    if "ev_plan" in out and isinstance(out["ev_plan"], dict):
+        rows = out["ev_plan"].get("rows") or []
+        df = pd.DataFrame(rows)
+        if "t_slot" in df.columns:
+            df["t_slot"] = pd.to_datetime(df["t_slot"])
+        out["ev_plan"] = df
+    prof = out.get("hw_profile")
+    if isinstance(prof, dict):
+        out["hw_profile"] = {tuple(int(i) for i in k.split(",")): v for k, v in prof.items()}
+    if isinstance(out.get("heat_horizon"), list):
+        out["heat_horizon"] = tuple(out["heat_horizon"])
+    return out
 
 
 # ---- batteri: plan och beslut ----
