@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/driver-command.schema.json",
+  "title": "Driver command (core -> driver)",
+  "description": "Ett kommando Core skickar till en drivrutin. op och argumenten är metoderna på ABC:n (apply_intent, set_*, turn_*, pause, resume, adjust_curve, reset_curve_offset). Håll-vid-liv och force stannar i drivrutinen och ingår inte. additionalProperties: false.",
+  "x-api-version": "1.0.0",
+  "oneOf": [
+    {"$ref": "#/$defs/battery_apply_intent"},
+    {"$ref": "#/$defs/battery_set_mode"},
+    {"$ref": "#/$defs/battery_set_balancing"},
+    {"$ref": "#/$defs/car_set_climate"},
+    {"$ref": "#/$defs/charger_set_limit_a"},
+    {"$ref": "#/$defs/charger_set_phases"},
+    {"$ref": "#/$defs/charger_turn_on"},
+    {"$ref": "#/$defs/charger_turn_off"},
+    {"$ref": "#/$defs/solar_set_export_limit_pct"},
+    {"$ref": "#/$defs/spa_set_target_temp"},
+    {"$ref": "#/$defs/spa_set_economy"},
+    {"$ref": "#/$defs/spa_set_plug_power"},
+    {"$ref": "#/$defs/heatpump_set_room_temp"},
+    {"$ref": "#/$defs/heatpump_set_water_stop_temp"},
+    {"$ref": "#/$defs/heatpump_set_water_start_temp"},
+    {"$ref": "#/$defs/heatpump_set_heating_start_temp"},
+    {"$ref": "#/$defs/heatpump_set_operating_mode"},
+    {"$ref": "#/$defs/heatpump_set_curve_offset"},
+    {"$ref": "#/$defs/heatpump_adjust_curve"},
+    {"$ref": "#/$defs/heatpump_pause"},
+    {"$ref": "#/$defs/heatpump_resume"},
+    {"$ref": "#/$defs/heatpump_reset_curve_offset"},
+    {"$ref": "#/$defs/heatpump_set_hot_water_boost"}
+  ],
+  "$defs": {
+    "battery_apply_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "intent"],
+      "properties": {
+        "kind": {"const": "battery"},
+        "op": {"const": "apply_intent"},
+        "intent": {"enum": ["auto", "hold", "idle", "charge", "discharge", "standby"]},
+        "power_w": {"type": ["number", "null"]}
+      }
+    },
+    "battery_set_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "mode"],
+      "properties": {
+        "kind": {"const": "battery"},
+        "op": {"const": "set_mode"},
+        "mode": {"type": "string"}
+      }
+    },
+    "battery_set_balancing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "active"],
+      "properties": {
+        "kind": {"const": "battery"},
+        "op": {"const": "set_balancing"},
+        "active": {"type": "boolean"}
+      }
+    },
+    "car_set_climate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "hvac_mode"],
+      "properties": {
+        "kind": {"const": "car"},
+        "op": {"const": "set_climate"},
+        "hvac_mode": {"type": "string"},
+        "temperature": {"type": ["number", "null"]}
+      }
+    },
+    "charger_set_limit_a": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "amps"],
+      "properties": {
+        "kind": {"const": "charger"},
+        "op": {"const": "set_limit_a"},
+        "amps": {"type": "integer"},
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "charger_set_phases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "phases"],
+      "properties": {
+        "kind": {"const": "charger"},
+        "op": {"const": "set_phases"},
+        "phases": {"type": "integer"}
+      }
+    },
+    "charger_turn_on": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op"],
+      "properties": {"kind": {"const": "charger"}, "op": {"const": "turn_on"}}
+    },
+    "charger_turn_off": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op"],
+      "properties": {"kind": {"const": "charger"}, "op": {"const": "turn_off"}}
+    },
+    "solar_set_export_limit_pct": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "pct"],
+      "properties": {
+        "kind": {"const": "solar"},
+        "op": {"const": "set_export_limit_pct"},
+        "pct": {"type": "integer", "minimum": 0, "maximum": 100}
+      }
+    },
+    "spa_set_target_temp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "temp_c"],
+      "properties": {
+        "kind": {"const": "spa"},
+        "op": {"const": "set_target_temp"},
+        "temp_c": {"type": "number"}
+      }
+    },
+    "spa_set_economy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "enable"],
+      "properties": {
+        "kind": {"const": "spa"},
+        "op": {"const": "set_economy"},
+        "enable": {"type": "boolean"}
+      }
+    },
+    "spa_set_plug_power": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "on"],
+      "properties": {
+        "kind": {"const": "spa"},
+        "op": {"const": "set_plug_power"},
+        "on": {"type": "boolean"}
+      }
+    },
+    "heatpump_set_room_temp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "target_c"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "set_room_temp"}, "target_c": {"type": "number"}}
+    },
+    "heatpump_set_water_stop_temp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "target_c"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "set_water_stop_temp"}, "target_c": {"type": "number"}}
+    },
+    "heatpump_set_water_start_temp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "target_c"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "set_water_start_temp"}, "target_c": {"type": "number"}}
+    },
+    "heatpump_set_heating_start_temp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "target_c"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "set_heating_start_temp"}, "target_c": {"type": "number"}}
+    },
+    "heatpump_set_operating_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "mode"],
+      "properties": {
+        "kind": {"const": "heatpump"},
+        "op": {"const": "set_operating_mode"},
+        "mode": {"type": ["string", "integer"], "description": "Normaliserat läge, eller den råa kod en drivrutin fortfarande tar."}
+      }
+    },
+    "heatpump_set_curve_offset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "offset"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "set_curve_offset"}, "offset": {"type": "number"}}
+    },
+    "heatpump_adjust_curve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "delta"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "adjust_curve"}, "delta": {"type": "number"}}
+    },
+    "heatpump_pause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "minutes"],
+      "properties": {
+        "kind": {"const": "heatpump"},
+        "op": {"const": "pause"},
+        "minutes": {"type": "number"},
+        "now": {"type": ["number", "null"]}
+      }
+    },
+    "heatpump_resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "resume"}}
+    },
+    "heatpump_reset_curve_offset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "reset_curve_offset"}}
+    },
+    "heatpump_set_hot_water_boost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "active"],
+      "properties": {"kind": {"const": "heatpump"}, "op": {"const": "set_hot_water_boost"}, "active": {"type": "boolean"}}
+    }
+  }
+}

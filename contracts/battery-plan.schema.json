@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/battery-plan.schema.json",
+  "title": "Battery plan (planner -> core)",
+  "description": "Husbatteriets dygnsplan (battery_plan.optimize): kvartsrader med avsikt, nivå och kostnad. plan_from_db lägger sedan på plan_id, action_now och beställd effekt i samma process; det är delat tillstånd och ingår inte här (steg 3). En tom plan saknar slitagekolumnerna. additionalProperties: false.",
+  "x-api-version": "1.0.0",
+  "type": "object",
+  "required": ["rows", "cost", "baseline_cost", "saving_kr"],
+  "additionalProperties": false,
+  "properties": {
+    "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}},
+    "cost": {"type": "number", "description": "Planens kostnad, kr, inklusive slitage när planen har rader."},
+    "baseline_cost": {"type": "number", "description": "Kostnad om batteriet bara kör självförbrukning."},
+    "saving_kr": {"type": "number"},
+    "wear_cost_sek": {"type": "number", "minimum": 0},
+    "reversal_cost_sek": {"type": "number", "minimum": 0},
+    "balance_feasible": {"type": "boolean", "description": "false när en begärd balansering inte fick plats. Saknas när planen är den vanliga."}
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": ["t", "action", "soc_kwh", "battery_kw", "grid_kw", "cost", "buy", "wear_cost_sek", "direction_reversal"],
+      "additionalProperties": false,
+      "properties": {
+        "t": {"type": "string", "format": "date-time", "description": "Kvartens start, ISO 8601."},
+        "action": {"enum": ["auto", "hold", "idle", "charge", "discharge", "standby"]},
+        "soc_kwh": {"type": "number", "minimum": 0},
+        "battery_kw": {"type": "number", "description": "AC-effekt, kW. Positivt laddar."},
+        "grid_kw": {"type": "number", "description": "Nätet efter batteriet, kW. Positivt köper."},
+        "cost": {"type": "number"},
+        "buy": {"type": "number", "description": "Köppris den kvarten, kr/kWh."},
+        "wear_cost_sek": {"type": "number", "minimum": 0},
+        "direction_reversal": {"type": "boolean"},
+        "balance": {"type": "boolean"},
+        "balance_ceiling": {"type": "boolean"},
+        "balance_hold": {"type": "boolean"}
+      }
+    }
+  }
+}

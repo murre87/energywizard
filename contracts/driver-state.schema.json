@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/murre87/energywizard/contracts/driver-state.schema.json",
+  "title": "Driver state (driver -> core)",
+  "description": "Det en drivrutin lämnar till Core: read_state, för solen read_production, och för spabadet även effekt och aktiviteter. additionalProperties: false. Aktivitetsnamn och modul-id kommer från installationen, så de nycklarna är öppna men värdenas form är låst.",
+  "x-api-version": "1.0.0",
+  "oneOf": [
+    {"$ref": "#/$defs/battery"},
+    {"$ref": "#/$defs/car"},
+    {"$ref": "#/$defs/charger"},
+    {"$ref": "#/$defs/solar"},
+    {"$ref": "#/$defs/spa"},
+    {"$ref": "#/$defs/heatpump"}
+  ],
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "description": "Installationens id när drivrutinen har ett (bil, laddbox)."},
+    "battery": {
+      "type": "object",
+      "required": ["kind", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "battery"},
+        "id": {"$ref": "#/$defs/id"},
+        "state": {
+          "type": "object",
+          "required": ["soc_pct", "power_w", "capacity_kwh", "mode"],
+          "additionalProperties": false,
+          "properties": {
+            "soc_pct": {"type": ["number", "null"]},
+            "power_w": {"type": ["number", "null"], "description": "Watt. Positivt laddar."},
+            "capacity_kwh": {"type": ["number", "null"]},
+            "mode": {"type": ["string", "null"]},
+            "power_sample_at": {"type": ["number", "null"], "description": "UTC-epoch för effektmätningen."},
+            "soc_sample_at": {"type": ["number", "null"]},
+            "soc_source": {"type": ["string", "null"], "enum": ["ha_reported", "ha_updated", "ferroamp_mqtt_received", "modbus_received", null]},
+            "available_charge_w": {"type": ["number", "null"]},
+            "available_discharge_w": {"type": ["number", "null"]},
+            "modules": {
+              "type": "object",
+              "additionalProperties": {"$ref": "#/$defs/module"}
+            }
+          }
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "soc_pct": {"type": "number"},
+        "sample_at": {"type": "number"},
+        "timestamp_basis": {"const": "mqtt_receipt"}
+      }
+    },
+    "car": {
+      "type": "object",
+      "required": ["kind", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "car"},
+        "id": {"$ref": "#/$defs/id"},
+        "state": {
+          "type": "object",
+          "required": ["soc", "plugged_in", "climate_temp", "climate_state"],
+          "additionalProperties": false,
+          "properties": {
+            "soc": {"type": ["number", "null"]},
+            "plugged_in": {"type": ["boolean", "number", "null"]},
+            "climate_temp": {"type": ["number", "null"]},
+            "climate_state": {"type": ["string", "null"]},
+            "charging_state": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "charger": {
+      "type": "object",
+      "required": ["kind", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "charger"},
+        "id": {"$ref": "#/$defs/id"},
+        "state": {
+          "type": "object",
+          "required": ["status", "current_a", "phases"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": ["string", "null"]},
+            "status_raw": {"type": ["string", "null"]},
+            "current_a": {"type": ["number", "null"]},
+            "current_is_limit": {"type": "boolean"},
+            "power_kw": {"type": ["number", "null"]},
+            "phases": {"type": ["integer", "string", "null"]},
+            "current_l1": {"type": ["number", "null"]},
+            "current_l2": {"type": ["number", "null"]},
+            "current_l3": {"type": ["number", "null"]},
+            "dynamic_limit_a": {"type": ["number", "null"]},
+            "output_limit_a": {"type": ["number", "null"]},
+            "max_limit_a": {"type": ["number", "null"]},
+            "circuit_limit_a": {"type": ["number", "null"]},
+            "circuit_rated_a": {"type": ["number", "null"]},
+            "session_kwh": {"type": ["number", "null"]},
+            "lifetime_kwh": {"type": ["number", "null"]},
+            "online": {"type": "boolean"},
+            "reason_no_current": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "solar": {
+      "type": "object",
+      "required": ["kind", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "solar"},
+        "id": {"$ref": "#/$defs/id"},
+        "state": {
+          "type": "object",
+          "required": ["pv_power_w", "today_kwh", "status"],
+          "additionalProperties": false,
+          "properties": {
+            "pv_power_w": {"type": ["number", "null"]},
+            "today_kwh": {"type": ["number", "null"]},
+            "status": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "spa": {
+      "type": "object",
+      "required": ["kind", "state", "power", "activities"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "spa"},
+        "id": {"$ref": "#/$defs/id"},
+        "state": {
+          "type": "object",
+          "required": ["current_temp", "target_temp", "heater_state", "economy_mode"],
+          "additionalProperties": false,
+          "properties": {
+            "current_temp": {"type": ["number", "null"]},
+            "target_temp": {"type": ["number", "null"]},
+            "heater_state": {"type": ["string", "null"]},
+            "economy_mode": {"type": ["number", "string", "null"]}
+          }
+        },
+        "power": {
+          "type": "object",
+          "required": ["total_w"],
+          "additionalProperties": false,
+          "properties": {
+            "phase_a_w": {"type": ["number", "null"]},
+            "phase_b_w": {"type": ["number", "null"]},
+            "phase_c_w": {"type": ["number", "null"]},
+            "total_w": {"type": ["number", "null"]},
+            "overcurrent": {"type": "boolean"},
+            "overvoltage": {"type": "boolean"},
+            "overheated": {"type": "boolean"},
+            "power_exceeded": {"type": "boolean"}
+          }
+        },
+        "activities": {
+          "type": "object",
+          "additionalProperties": {"type": ["boolean", "string", "null"]}
+        }
+      }
+    },
+    "heatpump": {
+      "type": "object",
+      "required": ["kind", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const": "heatpump"},
+        "id": {"$ref": "#/$defs/id"},
+        "state": {
+          "type": "object",
+          "required": ["mode", "indoor_temp", "outdoor_temp", "running", "power_w", "energy_kwh", "fault",
+                       "heat_output_w", "cop", "defrosting", "dhw_temp", "forward_temp", "return_temp",
+                       "dhw_temp_observation", "curve_offset", "paused_until"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {"type": ["string", "null"]},
+            "indoor_temp": {"type": ["number", "null"]},
+            "outdoor_temp": {"type": ["number", "null"]},
+            "running": {"type": ["boolean", "null"]},
+            "power_w": {"type": ["number", "null"]},
+            "energy_kwh": {"type": ["number", "null"]},
+            "fault": {"type": ["boolean", "string", "null"]},
+            "heat_output_w": {"type": ["number", "null"]},
+            "cop": {"type": ["number", "null"]},
+            "defrosting": {"type": ["boolean", "null"]},
+            "dhw_temp": {"type": ["number", "null"]},
+            "forward_temp": {"type": ["number", "null"]},
+            "return_temp": {"type": ["number", "null"]},
+            "dhw_temp_observation": {"$ref": "#/$defs/observation"},
+            "curve_offset": {"type": "number"},
+            "paused_until": {"type": ["number", "null"]}
+          }
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "required": ["value_c", "sample_at", "timestamp_basis"],
+      "additionalProperties": false,
+      "properties": {
+        "value_c": {"type": ["number", "null"]},
+        "sample_at": {"type": ["number", "null"]},
+        "timestamp_basis": {"enum": ["unknown", "source", "ha_report", "local_receipt"]}
+      }
+    }
+  }
+}

@@ -1,7 +1,8 @@
 """Kontrakten mellan Core och planeringen (contracts/*.schema.json, smartbox/contracts.py) och paritetsverktyget (smartbox/parity.py).
 
-Facit är de riktiga besluten: 2 600 beslut ur gpm:s golden-scenarier (tests/gpm_golden_gen.py) och en riktig laddplan ur
-decisions.calculate_ev_charge_plan. Ändras beslutens form måste schemat ändras med, så att uppdelningen aldrig tappar något tyst."""
+Facit är de riktiga anropen: 2 600 beslut ur gpm:s golden-scenarier (tests/gpm_golden_gen.py), en riktig laddplan ur
+decisions.calculate_ev_charge_plan, batteriplaner ur battery_plan.optimize och drivrutinernas egna läsningar.
+Ändras formen måste schemat ändras med, så att uppdelningen aldrig tappar något tyst."""
 import copy
 import importlib
 import json
@@ -18,6 +19,9 @@ import gpm_golden_gen as gen  # noqa: E402
 
 DECISION = jsonschema.Draft202012Validator(contracts.schema("planner-decision"), format_checker=jsonschema.FormatChecker())
 EVPLAN = jsonschema.Draft202012Validator(contracts.schema("ev-plan"), format_checker=jsonschema.FormatChecker())
+BATTERY = jsonschema.Draft202012Validator(contracts.schema("battery-plan"), format_checker=jsonschema.FormatChecker())
+DRIVER_STATE = jsonschema.Draft202012Validator(contracts.schema("driver-state"), format_checker=jsonschema.FormatChecker())
+DRIVER_COMMAND = jsonschema.Draft202012Validator(contracts.schema("driver-command"), format_checker=jsonschema.FormatChecker())
 
 
 def _engine_factory():
@@ -42,7 +46,7 @@ def golden_decisions():
 
 
 def test_schemas_are_valid_and_versioned():
-    for name in ("planner-decision", "ev-plan"):
+    for name in ("planner-decision", "ev-plan", "battery-plan", "driver-state", "driver-command"):
         s = contracts.schema(name)
         jsonschema.Draft202012Validator.check_schema(s)
         assert s["x-api-version"] == contracts.API_VERSION and s["$id"].endswith(f"{name}.schema.json")
@@ -193,3 +197,245 @@ def test_parity_reports_a_changed_implementation_with_where_and_what():
     assert "pump_target_temp" in rep.summary()
     cut = parity.compare(gen.scenarios(n=3, steps=4), lambda: (lambda st: {"x": 1}), lambda: (lambda st: {"x": 2}), max_diffs=5)
     assert len(cut.diffs) == 5 and cut.truncated
+
+
+# ---- batteriplanen (battery_plan.optimize) ----
+def _battery_slots(n=8):
+    from datetime import datetime, timedelta, timezone
+    start = datetime(2026, 11, 27, tzinfo=timezone.utc)
+    out = []
+    for i in range(n):
+        buy = 0.4 if i < n // 2 else 3.0
+        out.append({"t": start + timedelta(minutes=15 * i), "buy": buy, "sell": buy * 0.6,
+                    "load_kw": 0.5, "solar_kw": 2.0 if n // 3 <= i < n // 2 else 0.0, "ev_kw": 0.0})
+    return out
+
+
+def _assert_valid(validator, value, what):
+    errs = sorted(validator.iter_errors(value), key=lambda e: list(e.path))
+    assert not errs, f"{what}: {errs[0].message} @ {list(errs[0].path)}"
+    json.dumps(value, allow_nan=False)
+
+
+def test_real_battery_plans_follow_the_contract():
+    from battery_plan import ACTIONS, optimize
+    assert set(contracts.schema("battery-plan")["$defs"]["row"]["properties"]["action"]["enum"]) == set(ACTIONS) | {"standby"}
+    plans = [
+        optimize(_battery_slots(), 2.0, 10.0, 2.0, 10.0, 3.0, 3.0),
+        optimize([], 0, 10, 2, 10, 3, 3),
+        optimize(_battery_slots(1), 0, None, 2, 10, 3, 3),
+        contracts.battery_plan_to_wire(None),
+    ]
+    start = _battery_slots(4)
+    plans.append(optimize(start, 1, 2, 0, 2, 1, 1, allowed=("auto",),
+                          balance_target_kwh=2, balance_hold_slots=1, balance_standby=True))
+    kept = optimize(_battery_slots(6), 1, 2, 0, 1.5, 2, 2, eff=1, step_kwh=0.5, switch_cost=0, terminal_pct=0,
+                    allowed=("charge", "hold", "auto"), balance_target_kwh=2, balance_hold_slots=1)
+    plans.append(kept)
+    assert any(row.get("balance") or row.get("balance_hold") or row.get("balance_ceiling") for row in kept["rows"])
+    assert plans[4]["balance_feasible"] is False and plans[4]["rows"] == []
+    for i, plan in enumerate(plans):
+        wire = plan if i == 3 else contracts.battery_plan_to_wire(plan)
+        _assert_valid(BATTERY, wire, f"plan {i}")
+        if wire["rows"]:
+            assert "T" in wire["rows"][0]["t"]
+
+
+def test_battery_plan_contract_rejects_a_new_key_and_a_bad_row():
+    from battery_plan import optimize
+    wire = contracts.battery_plan_to_wire(optimize(_battery_slots(4), 2, 10, 2, 10, 3, 3))
+    assert BATTERY.is_valid(wire)
+    extra = copy.deepcopy(wire)
+    extra["plan_id"] = "hör till steg 3"
+    assert not BATTERY.is_valid(extra)
+    row = copy.deepcopy(wire)
+    row["rows"][0]["action"] = "turbo"
+    assert not BATTERY.is_valid(row)
+    missing = copy.deepcopy(wire)
+    missing["rows"][0].pop("direction_reversal")
+    assert not BATTERY.is_valid(missing)
+
+
+# ---- drivrutinernas läge och kommandon ----
+def _command_methods(cls):
+    import inspect
+    found = {}
+    for name, fn in inspect.getmembers(cls, inspect.isfunction):
+        if name.startswith("_"):
+            continue
+        if name.startswith(("set_", "apply_", "turn_", "adjust_", "reset_")) or name in ("pause", "resume"):
+            found[name] = fn
+    return found
+
+
+def test_null_and_real_driver_reads_follow_the_state_contract():
+    import threading
+    from unittest.mock import patch
+    from drivers.battery import NullBatteryDriver
+    from drivers.battery_generic import GenericBatteryDriver
+    from drivers.car import NullCarDriver
+    from drivers.car_generic import GenericEvCarDriver
+    from drivers.charger import NullChargerDriver
+    from drivers.charger_easee import EaseeChargerDriver
+    from drivers.charger_generic import GenericChargerDriver
+    from drivers.ferroamp_modules import ModuleTelemetry
+    from drivers.ftw_device import FtwBatteryDriver
+    from drivers.heatpump import NullHeatPumpDriver
+    from drivers.heatpump_generic import GenericClimateHeatPumpDriver
+    from drivers.solar import NullSolarDriver
+    from drivers.solar_generic import GenericNumberSolarDriver
+    from drivers.spa import NullSpaDriver
+    from drivers.spa_gecko import GeckoSpaDriver
+    from drivers.spa_switch import SwitchSpaDriver
+
+    nulls = {
+        "battery": NullBatteryDriver(),
+        "car": NullCarDriver(id="id4", battery_kwh=77),
+        "charger": NullChargerDriver(id="box"),
+        "solar": NullSolarDriver(),
+        "spa": NullSpaDriver(),
+        "heatpump": NullHeatPumpDriver(),
+    }
+    for kind, drv in nulls.items():
+        wire = contracts.driver_state_to_wire(kind, drv)
+        _assert_valid(DRIVER_STATE, wire, f"null {kind}")
+    assert nulls and contracts.driver_state_to_wire("car", nulls["car"])["id"] == "id4"
+
+    with patch("drivers.battery_generic.homeassistant") as ha:
+        ha._get_numeric_state.return_value = 55.0
+        ha.get_power_w.return_value = -800.0
+        ha._get_raw_state.return_value = "Self use"
+        ha._states_cache = {
+            "sensor.soc": {"state": "55.0", "last_reported": "2026-11-27T06:00:00+00:00"},
+            "sensor.power": {"state": "-800", "last_updated": "2026-11-27T06:00:01+00:00"},
+        }
+        bat = GenericBatteryDriver(10.0, {"soc": "sensor.soc", "power": "sensor.power", "mode_select": "select.mode"})
+        wire = contracts.driver_state_to_wire("battery", bat)
+    _assert_valid(DRIVER_STATE, wire, "generic battery")
+    assert wire["state"]["soc_source"] == "ha_reported" and wire["state"]["power_w"] == -800.0
+
+    mt = ModuleTelemetry.__new__(ModuleTelemetry)
+    mt.lock, mt.connected, mt.unexpected = threading.Lock(), True, False
+    mt.ids, mt.clock = {"eso-1", "eso-2"}, lambda: 2000.0
+    mt.samples = {
+        "eso-1": {"soc_pct": 60.0, "sample_at": 1990.0, "timestamp_basis": "mqtt_receipt"},
+        "eso-2": {"soc_pct": 40.0, "sample_at": 1000.0, "timestamp_basis": "mqtt_receipt"},
+    }
+    dev = type("Dev", (), {})()
+    dev.fresh = lambda: True
+    dev.emits = {"battery": {
+        "soc": 0.5, "w": 400, "power_sample_at": 1700000000.0, "soc_sample_at": 1700000000.0,
+        "modules": {**mt.snapshot(), "42": {"soc_pct": 50.0, "sample_at": 1700000000.0}},
+        "available_charge_W": 3000, "available_discharge_W": 2800, "capacity_wh": 10000,
+    }}
+    ftw = FtwBatteryDriver.__new__(FtwBatteryDriver)
+    ftw.capacity_kwh, ftw._name, ftw._dev = None, "ferroamp", dev
+    wire = contracts.driver_state_to_wire("battery", ftw)
+    _assert_valid(DRIVER_STATE, wire, "ftw battery")
+    assert wire["state"]["soc_pct"] == 50.0 and wire["state"]["soc_source"] == "ferroamp_mqtt_received"
+    assert wire["state"]["available_charge_w"] == 3000
+    assert any(v == {} for v in wire["state"]["modules"].values())
+    assert any(v.get("timestamp_basis") == "mqtt_receipt" for v in wire["state"]["modules"].values())
+
+    with patch("drivers.car_generic.homeassistant") as ha:
+        ha._get_numeric_state.side_effect = lambda e: {"sensor.soc": 50.0, "binary_sensor.plug": 1.0}.get(e)
+        ha._get_numeric_attribute.return_value = 21.5
+        ha._get_raw_state.side_effect = lambda e: {"climate.bil": "heat", "binary_sensor.ch": "on"}.get(e)
+        car = GenericEvCarDriver("id4", 77, {"soc": "sensor.soc", "plugged_in": "binary_sensor.plug",
+                                             "climate": "climate.bil", "charging": "binary_sensor.ch"})
+        wire = contracts.driver_state_to_wire("car", car)
+    _assert_valid(DRIVER_STATE, wire, "generic car")
+    assert wire["state"]["charging_state"] == "charging" and wire["id"] == "id4"
+
+    with patch("drivers.charger_generic.homeassistant") as ha:
+        ha._get_raw_state.return_value = "charging"
+        ha._get_numeric_state.return_value = 10.0
+        ch = GenericChargerDriver("box", {"status": "sensor.s", "current_limit": "number.n"})
+        _assert_valid(DRIVER_STATE, contracts.driver_state_to_wire("charger", ch), "generic charger")
+    easee = {
+        "power_kw": 3.2, "current_a": 14.0, "current_l1": 14.0, "current_l2": 0.0, "current_l3": 0.0,
+        "dynamic_limit_a": 16.0, "output_limit_a": 32.0, "max_limit_a": 32.0, "circuit_limit_a": 20.0,
+        "circuit_rated_a": 25.0, "session_kwh": 4.0, "lifetime_kwh": 100.0, "status": "charging",
+        "online": True, "reason_no_current": None, "phases": "ThreePhase",
+    }
+    _assert_valid(DRIVER_STATE, contracts.driver_state_to_wire("charger", EaseeChargerDriver("box", reader=lambda: easee)), "easee")
+
+    with patch("drivers.solar_generic.homeassistant") as ha:
+        ha._get_numeric_state.return_value = 1500.0
+        ha._get_raw_state.return_value = "producing"
+        sol = GenericNumberSolarDriver({"pv_power_w": "sensor.pv", "today_kwh": "sensor.today", "status": "sensor.st"})
+        _assert_valid(DRIVER_STATE, contracts.driver_state_to_wire("solar", sol), "generic solar")
+
+    with patch("drivers.heatpump_generic.homeassistant") as ha:
+        ha._get_numeric_attribute.return_value = 21.0
+        ha._get_raw_state.return_value = "heat"
+        ha._get_numeric_state.return_value = 48.0
+        hp = GenericClimateHeatPumpDriver("climate.vp", {"outdoor_temp": "sensor.ute", "water_temp": "sensor.vv"})
+        wire = contracts.driver_state_to_wire("heatpump", hp)
+    _assert_valid(DRIVER_STATE, wire, "generic heatpump")
+    assert wire["state"]["mode"] == "heat" and wire["state"]["dhw_temp"] == 48.0
+    assert wire["state"]["dhw_temp_observation"]["timestamp_basis"] == "unknown"
+
+    _assert_valid(DRIVER_STATE, contracts.driver_state_to_wire("spa", SwitchSpaDriver({})), "switch spa")
+    with patch("drivers.spa_gecko.spa_entities.complete_gecko", lambda entities, names: entities), \
+            patch("drivers.spa_gecko.homeassistant") as ha:
+        ha.read_gecko.return_value = {"current_temp": 38.0, "target_temp": 38.0, "heater_state": "heating", "economy_mode": "on"}
+        ha.read_spa_power.return_value = {
+            "phase_a_w": 2000.0, "phase_b_w": None, "phase_c_w": None, "total_w": 2000.0,
+            "overcurrent": False, "overvoltage": False, "overheated": False, "power_exceeded": False,
+        }
+        ha.read_spa_activities.return_value = {"heating": True, "blower": False}
+        gecko = GeckoSpaDriver({"climate": "climate.spa"})
+        wire = contracts.driver_state_to_wire("spa", gecko)
+    _assert_valid(DRIVER_STATE, wire, "gecko")
+    assert wire["state"]["economy_mode"] == "on" and wire["activities"]["heating"] is True
+
+    broken = contracts.driver_state_to_wire("battery", NullBatteryDriver())
+    broken["state"]["hemlig"] = 1
+    assert not DRIVER_STATE.is_valid(broken)
+    with pytest.raises(ValueError):
+        contracts.driver_state_to_wire("växelriktare", NullSolarDriver())
+
+
+def test_driver_commands_match_the_base_class_and_run_on_the_null_drivers():
+    import inspect
+    from drivers.battery import INTENTS, BatteryDriver, NullBatteryDriver
+    from drivers.car import CarDriver, NullCarDriver
+    from drivers.charger import ChargerDriver, NullChargerDriver
+    from drivers.heatpump import HeatPumpDriver, NullHeatPumpDriver
+    from drivers.solar import NullSolarDriver, SolarDriver
+    from drivers.spa import NullSpaDriver, SpaDriver
+
+    classes = {"battery": BatteryDriver, "car": CarDriver, "charger": ChargerDriver,
+               "solar": SolarDriver, "spa": SpaDriver, "heatpump": HeatPumpDriver}
+    nulls = {"battery": NullBatteryDriver(), "car": NullCarDriver(), "charger": NullChargerDriver(),
+             "solar": NullSolarDriver(), "spa": NullSpaDriver(), "heatpump": NullHeatPumpDriver()}
+    samples = {
+        "intent": "hold", "power_w": None, "mode": "Self use", "active": False, "hvac_mode": "heat",
+        "temperature": None, "amps": 0, "reason": None, "phases": 1, "pct": 100, "temp_c": 37.0,
+        "enable": True, "on": False, "target_c": 20.5, "offset": 0.0, "delta": 0.5, "minutes": 15, "now": None,
+    }
+    branches = {}
+    for branch in contracts.schema("driver-command")["oneOf"]:
+        target = branch["$ref"].rsplit("/", 1)[-1]
+        spec = contracts.schema("driver-command")["$defs"][target]
+        branches[(spec["properties"]["kind"]["const"], spec["properties"]["op"]["const"])] = spec
+    assert set(branches) == {(kind, op) for kind, cls in classes.items() for op in _command_methods(cls)}
+    intent = branches[("battery", "apply_intent")]["properties"]["intent"]["enum"]
+    assert set(intent) == set(INTENTS)
+    for (kind, op), spec in branches.items():
+        params = [p for name, p in inspect.signature(_command_methods(classes[kind])[op]).parameters.items() if name != "self"]
+        assert set(spec["properties"]) - {"kind", "op"} == {p.name for p in params}
+        assert set(spec["required"]) - {"kind", "op"} == {p.name for p in params if p.default is inspect.Parameter.empty}
+        args = {p.name: samples[p.name] for p in params}
+        wire = contracts.driver_command_to_wire(kind, op, args)
+        _assert_valid(DRIVER_COMMAND, wire, f"{kind}.{op}")
+        getattr(nulls[kind], op)(**args)
+        if any(p.default is not inspect.Parameter.empty for p in params):
+            minimal = {p.name: samples[p.name] for p in params if p.default is inspect.Parameter.empty}
+            _assert_valid(DRIVER_COMMAND, contracts.driver_command_to_wire(kind, op, minimal), f"{kind}.{op} minimal")
+    mode = contracts.driver_command_to_wire("heatpump", "set_operating_mode", {"mode": 1})
+    _assert_valid(DRIVER_COMMAND, mode, "rått pumpläge")
+    extra = contracts.driver_command_to_wire("battery", "apply_intent", {"intent": "auto", "power_w": None, "force": True})
+    assert not DRIVER_COMMAND.is_valid(extra)
+    assert not DRIVER_COMMAND.is_valid({"kind": "battery", "op": "refresh"})

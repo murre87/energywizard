@@ -1,8 +1,8 @@
-"""Kontrakten mellan Core och planeringen (contracts/*.schema.json): hur ett beslut och en laddplan ser ut på tråden.
+"""Kontrakten mellan Core, planeringen och drivrutinerna (contracts/*.schema.json).
 
-Idag körs planeringen i samma process (gpm.py, decisions.py). Uppdelningen i egna delar (docs/uppdelning/PLAN.md) kräver att det som
-passerar gränsen är en ren, JSON-säker datastruktur med ett versionerat schema. Den här modulen gör just omvandlingen och rör
-ingen beslutslogik. Den används av testerna (tests/test_contracts.py) och av paritetsverktyget (parity.py); senare av själva gränssnittet.
+Idag körs allt i samma process. Uppdelningen (docs/uppdelning/PLAN.md) kräver att det som passerar gränsen är en ren,
+JSON-säker datastruktur med ett versionerat schema. Den här modulen gör just omvandlingen och rör ingen beslutslogik.
+Den används av testerna (tests/test_contracts.py) och av paritetsverktyget (parity.py); senare av själva gränssnittet.
 
 Schemafilerna ligger i contracts/ i repot (de ingår inte i Docker-imagen: validering är ett test- och utvecklingsverktyg).
 """
@@ -45,6 +45,42 @@ def decision_to_wire(actions: dict) -> dict:
     """Planeringens beslut (GlobalPriorityManager.evaluate) som JSON-säker dict enligt planner-decision.schema.json.
     Ingenting filtreras bort: en ny eller felaktig nyckel ska synas i kontraktstestet, inte döljas här."""
     return plain(dict(actions))
+
+
+def battery_plan_to_wire(plan) -> dict:
+    """Batteriplanen (battery_plan.optimize) som JSON-säker dict enligt battery-plan.schema.json.
+    En saknad plan är en tom plan. Ingenting filtreras bort: en ny nyckel ska synas i kontraktstestet."""
+    if plan is None:
+        return {"rows": [], "cost": 0.0, "baseline_cost": 0.0, "saving_kr": 0.0}
+    return plain(dict(plan))
+
+
+def driver_state_to_wire(kind: str, driver) -> dict:
+    """Drivrutinens läge enligt driver-state.schema.json. Solen läses med read_production, övriga med read_state.
+    Spabadet tar också med effekt och aktiviteter, annars tappas de vid gränsen. Nycklar filtreras inte."""
+    if kind not in ("battery", "car", "charger", "solar", "spa", "heatpump"):
+        raise ValueError(f"Okänd drivrutin: {kind}")
+    state = driver.read_production() if kind == "solar" else driver.read_state()
+    body = {"kind": kind, "state": plain(state or {})}
+    if kind == "spa":
+        body["power"] = plain(driver.read_power_detail() or {})
+        body["activities"] = plain(driver.read_activities() or {})
+    device_id = getattr(driver, "id", None)
+    if isinstance(device_id, str) and device_id:
+        body["id"] = device_id
+    return body
+
+
+def driver_command_to_wire(kind: str, op: str, args=None) -> dict:
+    """Ett kommando till en drivrutin enligt driver-command.schema.json. Argumenten kopieras, inget filtreras bort."""
+    if kind not in ("battery", "car", "charger", "solar", "spa", "heatpump"):
+        raise ValueError(f"Okänd drivrutin: {kind}")
+    if not isinstance(op, str) or not op:
+        raise ValueError("Kommandot saknar op")
+    body = {"kind": kind, "op": op}
+    if args:
+        body.update(plain(dict(args)))
+    return body
 
 
 def ev_plan_to_wire(df) -> dict:

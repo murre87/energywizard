@@ -13,7 +13,7 @@ Underlag: *Arkitektur- och Migreringsplan för EnergyWizard* (Emil, 2026-11-27).
 | # | Steg | Status |
 | --- | --- | --- |
 | 1 | Kontrakt för planerarens överlämning (beslut och laddplan) + paritetsverktyg, utan att flytta kod | klart (`contracts/`, `smartbox/contracts.py`, `smartbox/parity.py`) |
-| 2 | Kontrakt för batteriplanen och för drivrutinernas state och kommandon | |
+| 2 | Kontrakt för batteriplanen och för drivrutinernas state och kommandon | klart (`battery-plan`, `driver-state`, `driver-command`) |
 | 3 | Delat tillstånd i `main.py` (överstyrningar, cacher, globaler som planeringen läser eller skriver) görs uttryckligt i kontraktet | |
 | 4 | Planeringen som egen process i samma image (Python), jämförd med den gamla i paritetsverktyget; Core faller tillbaka på senaste plan | |
 | 5 | Drivrutinerna till eget repo, med mall och kontraktstester | |
