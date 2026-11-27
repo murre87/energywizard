@@ -1186,6 +1186,53 @@ async function mountCapacityTariff(slotId) {
   };
 }
 
+const _MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+function yearUseHtml(d) {
+  const years = d.years && d.years.length ? d.years : [d.year];
+  const buttons = years.map((y) => `<button type="button" data-y="${y}" class="${y === d.year ? "on" : ""}">${y}</button>`).join("");
+  const forecast = d.forecast
+    ? (d.forecast.low === d.forecast.high
+      ? `${fmt(d.forecast.low, 0, " kWh")}<div class="l">Ett tidigare år, så det finns inget spann än.</div>`
+      : `${fmt(d.forecast.low, 0, "")}–${fmt(d.forecast.high, 0, " kWh")}`)
+    : "–";
+  const cell = (v) => v == null ? "–" : fmt(v, 0, "");
+  const rows = (d.months || []).map((m) => `<tr>
+    <td>${_MONTHS[m.month - 1]}</td><td>${cell(m.used_kwh)}</td><td>${cell(m.bought_kwh)}</td>
+    <td>${cell(m.ev_kwh)}</td><td>${cell(m.pump_kwh)}</td><td>${cell(m.spa_kwh)}</td><td>${cell(m.other_kwh)}</td></tr>`).join("");
+  const parts = d.parts || {};
+  const partSum = ["ev_kwh", "pump_kwh", "spa_kwh", "other_kwh"].reduce((s, k) => s + (parts[k] || 0), 0) || 1;
+  const winter = (d.winters || []).map((w) => `<div class="note">${esc(w.label)}: ${w.months.map((m) => `${_MONTHS[m.month - 1]} ${cell(m.used_kwh)}`).join(" · ")}</div>`).join("");
+  return `<div class="card" style="margin-bottom:16px">
+    <h2>📅 <span>Årets förbrukning</span></h2>
+    <div class="seg" id="yearpick" style="margin:8px 0">${buttons}</div>
+    <div class="grid">
+      ${statTile("Hittills", fmt(d.used_kwh, 0, " kWh"), "använd el")}
+      ${statTile("Köpt", fmt(d.bought_kwh, 0, " kWh"))}
+      ${statTile("Prognos för hela året", forecast)}
+    </div>
+    <div class="note" style="margin-top:8px">En månad utan mätning är tom, inte noll. Prognosen jämför årets färdiga månader med samma månader tidigare år och visar lägsta och högsta. Fördelningen finns bara från den dag den började loggas.</div>
+    <div style="margin-top:10px">
+      ${barRow("🚗 Elbil", (parts.ev_kwh || 0) / partSum * 100, fmt(parts.ev_kwh, 0, " kWh"))}
+      ${barRow("♨️ Värmepump", (parts.pump_kwh || 0) / partSum * 100, fmt(parts.pump_kwh, 0, " kWh"))}
+      ${barRow("🛁 Spabad", (parts.spa_kwh || 0) / partSum * 100, fmt(parts.spa_kwh, 0, " kWh"))}
+      ${barRow("❓ Övrigt", (parts.other_kwh || 0) / partSum * 100, fmt(parts.other_kwh, 0, " kWh"))}
+    </div>
+    <table style="width:100%;margin-top:12px;font-size:.85rem;border-collapse:collapse">
+      <thead><tr><th></th><th>Använt</th><th>Köpt</th><th>Elbil</th><th>Värmepump</th><th>Spabad</th><th>Övrigt</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <h2 style="margin-top:14px">Vinter, november till mars</h2>
+    ${winter || `<div class="note">Ingen vinter är loggad än.</div>`}
+  </div>`;
+}
+async function mountYearUse(year) {
+  const slot = document.getElementById("yearuse");
+  if (!slot) return;
+  let d;
+  try { d = await api("api/consumption-year" + (year ? "?year=" + year : "")); } catch (e) { slot.innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
+  if (!d || !d.ok) { slot.innerHTML = `<div class="note">Kunde inte läsa årets förbrukning.</div>`; return; }
+  slot.innerHTML = yearUseHtml(d);
+  slot.querySelectorAll("#yearpick button").forEach((b) => { b.onclick = () => mountYearUse(b.dataset.y); });
+}
 async function renderElforbrukning() {
   const d = await loadPage("api/consumption", (d) => {
     const b = d.breakdown;
@@ -1202,6 +1249,7 @@ async function renderElforbrukning() {
       <h2>🔌 Faser <span class="muted" style="font-weight:400;font-size:.8em">(huvudsäkring ${fmt(fuse, 0, " A")}, full stapel = 150 %)</span></h2>
       ${["l1", "l2", "l3"].map((ph) => phaseBar(ph.toUpperCase(), d["avg_w_" + ph], fuse)).join("")}
     </div>
+    <div id="yearuse"></div>
     ${b ? `<div class="card">
       <h2>📦 Vad drar strömmen</h2>
       ${d.has_ev === false ? "" : barRow("🚗 Elbil", b.ev_w / maxW * 100, fmt(b.ev_w, 0, " W"))}
@@ -1219,6 +1267,7 @@ async function renderElforbrukning() {
     <div id="captariffslot"></div>`;
   });
   if (d) {
+    mountYearUse();
     document.getElementById("peakenabled").onchange = (e) => postAction("api/settings-action", { key: "peak_shaving_enabled", value: e.target.checked }).then(renderElforbrukning);
     const btn = document.getElementById("peaklimitbtn");
     if (btn) btn.onclick = () => postAction("api/settings-action", { key: "power_limit_kw", value: parseFloat(document.getElementById("peaklimit").value) }).then(renderElforbrukning);
