@@ -12,10 +12,12 @@ from datetime import datetime
 
 from sqlalchemy import text
 
+from local_sql import local_sql
+
 from energy_history import SWE, _HOUSE, _OK
 
 _DT = "LEAST(COALESCE(EXTRACT(EPOCH FROM lead(timestamp) OVER (ORDER BY timestamp) - timestamp), 60), 300)"
-_MONTH = "date_trunc('month', timestamp AT TIME ZONE 'Europe/Stockholm')"
+_MONTH = "date_trunc('month', timestamp AT TIME ZONE __EW_TIMEZONE__)"      # installationens tidszon (local_sql), inte en fast
 _PARTS = ("ev", "pump", "spa", "other")
 
 
@@ -75,7 +77,7 @@ def winters(monthly, year):
 
 
 def _rows(conn, sql, start, end):
-    return conn.execute(text(sql), {"start": start, "end": end}).fetchall()
+    return conn.execute(text(local_sql(sql)), {"start": start, "end": end}).fetchall()
 
 
 def _meter_sql():
