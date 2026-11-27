@@ -7,6 +7,7 @@ det som gör att en del kan flyttas till en egen process eller ett eget repo uta
 | --- | --- | --- |
 | `planner-decision.schema.json` | planering -> Core | `gpm.GlobalPriorityManager.evaluate` |
 | `ev-plan.schema.json` | planering -> Core | `decisions.calculate_ev_charge_plan` |
+| `planner-input.schema.json` | Core -> planering | `gpm_state` i `main.py` (det delade tillståndet) |
 | `battery-decision.schema.json` | planering -> Core | `battery_control.decide` |
 | `battery-plan.schema.json` | planering -> Core | `battery_plan.plan_from_db` |
 | `driver-state.schema.json` | drivrutiner -> Core | `read_state`/`read_sensors`/`read_production` (`#/$defs/<typ>`) |
@@ -44,3 +45,10 @@ Drivrutinerna har några få sluddriga typer (heltal som bool, statuskod som tal
 - **Ny publik metod på ett drivrutinsgränssnitt:** `tests/test_contracts_drivers.py` kräver att den klassas som kommando (`contracts.COMMANDS`, plus schemat) eller icke-kommando (`NON_COMMANDS`).
 - **Ny regel i batteribeslutet:** läggs till i `battery-decision.schema.json` (testet jämför mot koden).
 - **Ny nyckel i ett beslut eller en plan:** schemat ändras och `x-api-version` höjs (ny valfri nyckel = MINOR, ändrad eller borttagen = MAJOR).
+
+## Indatakontraktet (det delade tillståndet)
+
+`planner-input.schema.json` beskriver allt Core lämnar till planeringen. `x-evidence` säger hur säker typen är: `golden` (uppmätt i de 2 600 scenarierna),
+`main-code` (läst ur `main.py:s` uttryck) eller `unverified`. Alla nycklar är valfria, och `null` betyder att en givare saknas. `tests/test_contracts_input.py` jämför
+nyckeluppsättningen mot koden åt båda håll (vad `gpm.py` läser, vad `main.py` skickar), så en ny, borttagen eller omdöpt nyckel ändrar kontraktet eller testet blir rött.
+Ett test som med flit ger planeringen minimal eller konstig indata märks `@pytest.mark.no_planner_input_guard`.

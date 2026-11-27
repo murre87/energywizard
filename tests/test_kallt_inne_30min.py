@@ -2,6 +2,8 @@
 aviserade och tvingade värmen på oavsett elpris direkt)."""
 from datetime import datetime, timedelta
 
+import pytest
+
 from gpm import GlobalPriorityManager
 from sustained import COLD_CONFIRM_MIN, Sustained
 
@@ -26,6 +28,7 @@ def _cold_actions(confirmed):
     return GlobalPriorityManager().evaluate(st)
 
 
+@pytest.mark.no_planner_input_guard            # äldre testnyckel (price) i minimal indata: testar kylvakten, inte kontraktet
 def test_gpm_tvingar_inte_varme_forran_kylan_bekraftats():
     assert not any("Kallt inne" in l for l in _cold_actions(False)["log"])
     assert any("Kallt inne" in l for l in _cold_actions(True)["log"])

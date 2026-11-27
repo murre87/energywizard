@@ -1,0 +1,664 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/murre87/energywizard/contracts/planner-input.schema.json",
+ "title": "Planner input (core -> planner)",
+ "description": "Allt som Core lämnar till planeringen (i dag dict:en gpm_state som main.py bygger varje varv och GlobalPriorityManager.evaluate läser). Det är det DELADE TILLSTÅNDET som uppdelningen måste göra uttryckligt. x-evidence säger hur säker typen är: golden = uppmätt i de 2 600 scenarierna, main-code = läst ur main.py:s uttryck, unverified = inte verifierad ännu. Alla nycklar är valfria (gpm använder .get med standardvärden och en helt tom indata fungerar); null betyder att en givare saknas eller är okänd. tests/test_contracts_input.py jämför nyckeluppsättningen mot koden åt båda håll.",
+ "x-api-version": "1.0.0",
+ "type": "object",
+ "required": [],
+ "properties": {
+  "now": {
+   "type": "string",
+   "format": "date-time",
+   "x-evidence": "golden",
+   "description": "Nuvarande tid (lokal tid, ISO 8601)."
+  },
+  "current_price": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden",
+   "description": "Spotpris nu, kr/kWh."
+  },
+  "all_prices": {
+   "type": "array",
+   "items": {
+    "type": [
+     "number",
+     "null"
+    ]
+   },
+   "x-evidence": "golden",
+   "description": "Dygnets kvartspriser eller timpriser, kr/kWh."
+  },
+  "dynamic_limit": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "hysteresis": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "avg_net_w": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden",
+   "description": "Medelvärde nätflöde, W. Negativt = export."
+  },
+  "pv_power_w": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "house_load_a": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "ev_actual_a": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "ev_fuse_cap_a": {
+   "type": [
+    "integer",
+    "null"
+   ],
+   "x-evidence": "golden",
+   "description": "Säkringens lediga utrymme för elbil, A (null = okänt)."
+  },
+  "max_fuse_a": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "consumed_kwh_this_hour": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "current_solar_limit_pct": {
+   "type": [
+    "integer",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "current_target_limit": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "days_since_legionella": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "legionella_max_days": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "water_target_normal": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "water_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "heat_stop_outdoor": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "indoor_min": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "indoor_max": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "indoor_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "indoor_humidity": {
+   "type": [
+    "integer",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "outdoor_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "outdoor_avg_5d": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden",
+   "description": "Valfri: gpm kontrollerar att den finns innan den används, och en tom indata fungerar. Femdygnsmedel ute, °C (null = okänt)."
+  },
+  "last_heartbeat": {
+   "type": "string",
+   "format": "date-time",
+   "x-evidence": "golden"
+  },
+  "peak_shaving_enabled": {
+   "type": "boolean",
+   "x-evidence": "golden"
+  },
+  "predicted_base_load_kw": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "solar_auto_export": {
+   "type": "boolean",
+   "x-evidence": "golden"
+  },
+  "solar_is_shaky": {
+   "type": "boolean",
+   "x-evidence": "golden"
+  },
+  "spa_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "spa_low_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "spa_max_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "spa_normal_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "temp_cheap": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "temp_expensive": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "golden"
+  },
+  "sun_day": {
+   "type": "object",
+   "required": [
+    "sunny"
+   ],
+   "properties": {
+    "sunny": {
+     "type": "boolean"
+    }
+   },
+   "additionalProperties": true,
+   "x-evidence": "golden"
+  },
+  "sun_soon": {
+   "type": "object",
+   "required": [
+    "sunny"
+   ],
+   "properties": {
+    "sunny": {
+     "type": "boolean"
+    }
+   },
+   "additionalProperties": true,
+   "x-evidence": "golden"
+  },
+  "car_ids": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "uniqueItems": true,
+   "x-evidence": "golden",
+   "description": "Valfri: gpm kontrollerar att den finns innan den används, och en tom indata fungerar. Lista med bilarnas id."
+  },
+  "car_specs": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "name",
+     "max_a",
+     "phases"
+    ],
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "max_a": {
+      "type": "integer"
+     },
+     "phases": {
+      "enum": [
+       "1",
+       "3",
+       "auto"
+      ]
+     }
+    },
+    "additionalProperties": true
+   },
+   "x-evidence": "golden"
+  },
+  "ev_plan": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "rows": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "t_slot"
+      ],
+      "properties": {
+       "t_slot": {
+        "type": "string",
+        "format": "date-time"
+       }
+      },
+      "patternProperties": {
+       "^[a-z0-9_]+_kw$": {
+        "type": "number",
+        "minimum": 0
+       },
+       "^[a-z0-9_]+_panic$": {
+        "type": "boolean"
+       }
+      },
+      "additionalProperties": true
+     }
+    }
+   },
+   "additionalProperties": false,
+   "x-evidence": "golden",
+   "description": "Laddplanen som {\"rows\": [...]} (contracts.ev_plan_to_wire); gpm behöver bara t_slot, <bil>_kw och <bil>_panic."
+  },
+  "all_prices_tou": {
+   "type": [
+    "array",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "away_mode_active": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "away_recovering": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "brine_out_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "calc_forward_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "degree_minutes": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "forward_temp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "has_spa": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "heat_aux_guard_dm": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "heat_feedback": {
+   "type": "string",
+   "x-evidence": "main-code",
+   "description": "av, på eller skugga."
+  },
+  "heat_feedback_boost": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "heat_feedback_max_sp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "heat_feedback_min_sp": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "heat_ml_bias": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "heat_ml_w": {
+   "type": [
+    "array",
+    "null"
+   ],
+   "items": {
+    "type": "number"
+   },
+   "x-evidence": "main-code"
+  },
+  "hw_ml": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "hw_probability": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "indoor_cold_confirmed": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "pump_setpoint": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "solar_order": {
+   "type": [
+    "array",
+    "null"
+   ],
+   "items": {
+    "type": "string"
+   },
+   "x-evidence": "main-code"
+  },
+  "spa_force_eco": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "spa_force_heat": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "spa_measured_w": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "spa_should_heat_now": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "spa_target_scheduled": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "main-code"
+  },
+  "spa_target_scheduled_active": {
+   "type": "boolean",
+   "x-evidence": "main-code"
+  },
+  "ev_load_cap_a": {
+   "x-evidence": "unverified"
+  },
+  "heat_cap_sp": {
+   "x-evidence": "unverified"
+  },
+  "heat_horizon": {
+   "x-evidence": "unverified"
+  },
+  "hw_profile": {
+   "x-evidence": "unverified"
+  },
+  "indoor_low2": {
+   "x-evidence": "unverified"
+  },
+  "predicted_cooling_rate": {
+   "x-evidence": "unverified"
+  },
+  "spa_bath_note": {
+   "x-evidence": "unverified"
+  },
+  "heat_glide_hours": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "unverified",
+   "description": "Läses av gpm (standard 3 h) men main.py skickar den aldrig, så den kan inte ändras. Kopplas när den får en inställning.",
+   "x-not-provided-by-main": true
+  },
+  "base_load_profile": {
+   "x-evidence": "unverified",
+   "description": "Skickas av main.py men läses inte av gpm.",
+   "x-unused-by-planner": true
+  },
+  "ev_max_charge_a": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "unverified",
+   "description": "Skickas av main.py men läses inte av gpm.",
+   "x-unused-by-planner": true
+  },
+  "ev_min_charge_a": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "unverified",
+   "description": "Skickas av main.py men läses inte av gpm.",
+   "x-unused-by-planner": true
+  },
+  "grid_import_w": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "unverified",
+   "description": "Skickas av main.py men läses inte av gpm.",
+   "x-unused-by-planner": true
+  },
+  "house_consumption_w": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "unverified",
+   "description": "Skickas av main.py men läses inte av gpm.",
+   "x-unused-by-planner": true
+  },
+  "power_limit_kw": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "x-evidence": "unverified",
+   "description": "Skickas av main.py men läses inte av gpm.",
+   "x-unused-by-planner": true
+  }
+ },
+ "patternProperties": {
+  "^[a-z0-9_]+_charge_completed$": {
+   "type": "boolean"
+  },
+  "^[a-z0-9_]+_connected$": {
+   "type": "boolean"
+  },
+  "^[a-z0-9_]+_force_amps$": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "^[a-z0-9_]+_phases$": {
+   "type": [
+    "string",
+    "integer",
+    "null"
+   ],
+   "description": "Faslägen: text (1, 3, auto) eller heltal för tvingat fasbyte (_force_phases)."
+  },
+  "^[a-z0-9_]+_prio$": {
+   "type": "integer"
+  },
+  "^[a-z0-9_]+_soc$": {
+   "type": [
+    "number",
+    "null"
+   ],
+   "minimum": 0,
+   "maximum": 100
+  },
+  "^[a-z0-9_]+_hold$": {
+   "type": [
+    "boolean",
+    "null"
+   ]
+  },
+  "^[a-z0-9_]+_plugged$": {
+   "type": [
+    "boolean",
+    "number",
+    "null"
+   ]
+  },
+  "^[a-z0-9_]+_grid_allowed$": {
+   "type": "boolean"
+  },
+  "^[a-z0-9_]+_max_price$": {
+   "type": [
+    "number",
+    "null"
+   ]
+  },
+  "^[a-z0-9_]+_habit_profile$": {},
+  "^[a-z0-9_]+_solar_start_kw$": {
+   "type": [
+    "number",
+    "null"
+   ]
+  },
+  "^[a-z0-9_]+_solar_balance_w$": {
+   "type": "number"
+  }
+ },
+ "additionalProperties": false
+}
