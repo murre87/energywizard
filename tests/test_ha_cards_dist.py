@@ -15,10 +15,12 @@ def test_hacs_json_pekar_pa_filen():
     assert h["filename"] == "energywizard-cards.js" and (ROOT / "dist" / h["filename"]).is_file()
 
 
-def test_alla_tre_korten_ar_registrerade():
+def test_korten_ar_registrerade():
     js = (ROOT / "dist" / "energywizard-cards.js").read_text(encoding="utf-8")
-    for tag in ("energywizard-house-card", "energywizard-heat-card", "energywizard-car-card"):
+    for tag in ("energywizard-house-card", "energywizard-heat-card", "energywizard-car-card", "energywizard-economy-card"):
         assert f'customElements.define("{tag}"' in js
+    assert "a.eco" in js and "button[data-period]" in js and "Sparat genom tajmning" in js
+    assert "Mot självförbrukning" in js and 'data-period="all"' not in js and "data-period=\"all\"" not in js
 
 
 def test_bilkortets_knappar_anropar_ha_och_visas_bara_med_vaeljare():
