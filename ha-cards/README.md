@@ -1,6 +1,6 @@
 # EnergyWizard-kort för Home Assistant
 
-Tre kort som visar EnergyWizard direkt i Home Assistant: **Hemmet** (energiflöde, elpris med plan, bilar), **Värme** (termostatratt, varmvatten, billiga och dyra pass) och **Bil** (laddnivå och planerade pass över elpriset).
+Fyra kort som visar EnergyWizard direkt i Home Assistant: **Hemmet** (energiflöde, elpris med plan, bilar), **Värme** (termostatratt, varmvatten, billiga och dyra pass), **Bil** (laddnivå och planerade pass över elpriset) och **Sol och batteri** (produktion, prognos och batteriets plan).
 De ser ut som appen och fungerar likadant för **HA-tillägget** och för **Docker**, eftersom de bara läser en sensor,
 `sensor.energywizard_kort`, som EnergyWizard publicerar. Kortet når aldrig EnergyWizards egen webb och behöver ingen inloggning.
 
@@ -55,6 +55,12 @@ type: custom:energywizard-car-card
 car: tesla          # bilens id, valfritt (annars visas alla bilar)
 ```
 
+**Sol och batteri** visar produktionen nu, prognosen för resten av idag och för imorgon (samma prognos som planen), batteriets laddnivå och om planen laddar, sparar, laddar ur eller säljer.
+
+```yaml
+type: custom:energywizard-battery-card
+```
+
 Korten läser bara. Styrning (starta, pausa, strategi) sker i EnergyWizard.
 
 Tider visas alltid som 24-timmarsklocka (TT:MM), aldrig AM/PM.
@@ -66,6 +72,6 @@ Källan är `ha-cards/energywizard-cards.js`. Efter en ändring kopieras den til
 `preview.html` visar kortet med exempeldata, utan Home Assistant. Öppna den i en webbläsare. Parametrar: `?theme=light`,
 `?tab=plan`, `?lang=en`, `?empty=1` (ingen data), `?missing=1` (sensorn saknas).
 
-?card=heat och ?card=car visar de andra korten.
+?card=heat, ?card=car och ?card=battery visar de andra korten.
 
 Sensorns schema står överst i `smartbox/ha_card_feed.py`.
