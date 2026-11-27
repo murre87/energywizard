@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.190 (2026-11-27)
+- **Planeringen kan köras som en egen process i skuggläge (för utvecklare, av som standard).** Med miljövariabeln `EW_PLANNER_MODE=shadow` startar motorn en andra, tyst planerarprocess och jämför dess beslut med det vanliga, i bakgrunden. Det vanliga beslutet styr fortfarande, inget skickas dubbelt och motorn väntar aldrig på den nya processen. Skillnader loggas. Utan inställningen (`local`) är allt som förut. Detta är ett första steg i uppdelningen av EnergyWizard i delar, och kostar ungefär lika mycket minne som motorn en gång till när det är på. Se `docs/uppdelning/PLAN.md`.
+
 ## 1.2.189 (2026-11-27)
 - **Easee-konto och laddboxens egen historik, under Elbil (#605).** Skriv in Easee-kontot en gång. EnergyWizard hämtar laddboxens månadssummor (kWh, och kostnad när Easee har en) och visar dem per år, med jämförelse mot samma månader förra året. Siffrorna är laddboxens mätare och gäller före den uppskattade elbilslasten. Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen. Historiken hämtas högst en gång per dygn, eftersom Easee bara tar emot några sådana frågor i timmen. Senaste timmen kan saknas.
 
