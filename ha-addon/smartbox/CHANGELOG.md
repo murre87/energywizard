@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.186 (2026-11-27)
+- **Kupétemperaturen syns under Bil (#610).** Bilfliken i appen och Elbil på webben visar hur varmt det är i bilen, även när kupévärmen är av. Temperaturen tas från bilens egen temperaturgivare om den finns, annars från climate-entitetens current_temperature. Saknas båda visas ingen temperatur.
+
 ## 1.2.185 (2026-11-27)
 - **Solis RC håller kvar reservnivån (#615).** När batteriet låg på reservnivån skrev EnergyWizard håll en gång och förnyade det inte. Solis släpper fjärrstyrningen efter RC Timeout (5–7 minuter) och batteriet laddade då ur under reservnivån. Håll på reservnivån skrivs nu om lika ofta som övriga håll. En laddning eller urladdning som ännu inte hunnit bytas till håll förlängs inte. Övriga säkerhetsregler (gammal data, säkring, effekttak och laddtak) förnyas fortfarande inte.
 

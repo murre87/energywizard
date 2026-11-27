@@ -742,6 +742,8 @@
   "Kunde inte spara:": "Uložení se nezdařilo:",
   "Kunde inte spara: #": "Uložení se nezdařilo: #",
   "Kunde inte ändra momsinställningen i Home Assistant": "Nastavení DPH v Home Assistantu se nepodařilo změnit",
+  "Kupé # °": "Kabina # °",
+  "Kupé # °C": "Kabina # °C",
   "Kupévärme": "Topení kabiny",
   "Kupévärme – varm kl": "Topení kabiny – teplé v",
   "Kupévärme på/av": "Topení kabiny zap/vyp",
