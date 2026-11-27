@@ -33,7 +33,9 @@ const cur = slots[0];
 const attrs = { v: 1, ts: new Date().toISOString(), unit: q.get("unit") || "kr", flow: q.get("empty") ? [] : flow,
   why: { varmepump: "Rumsåterkoppling sätter börvärdet till 18.0 °C. ML: lägsta börvärde som håller de två kallaste rummen över 20.7 °C.", ev_tesla: "Laddar enligt schema." },
   slots: q.get("empty") ? [] : slots, cars: [{ id: "nissan", name: "Nissan Leaf" }, { id: "tesla", name: "Tesla Model Y" }],
-  price: { now: cur[1], spot: cur[2], mode: cur[3] }, battery: false,
+  price: { now: cur[1], spot: cur[2], mode: cur[3] }, battery: !q.get("empty"),
+  solar: q.get("empty") ? null : { w: 1850, today_kwh: 6.4, tomorrow_kwh: 3.1 },
+  batt: q.get("empty") ? null : { soc: q.get("nosoc") ? null : 72, w: (q.get("plan") || "discharge") === "hold" ? 40 : -820, plan: q.get("plan") || "discharge", plan_kw: (q.get("plan") || "discharge") === "hold" ? 0 : -2.4 },
   heat: { indoor: 21.4, target: 20, setpoint: 21, outdoor: -2, water: 59, water_set: 60, mode: cur[3], cop: 3.3, floor: 20.5, cheap: 22.5, max: 22, min: 19 } };
 const win = (a, b, k) => [start + a * 900, start + b * 900, k];
 attrs.cars = [{ id: "nissan", name: "Nissan Leaf", soc: 64, w: 0, on: false, win: [win(48, 56, 3.7)] },
@@ -41,6 +43,7 @@ attrs.cars = [{ id: "nissan", name: "Nissan Leaf", soc: 64, w: 0, on: false, win
 const kind = q.get("card");
 const tag = kind === "heat" ? "energywizard-heat-card"
   : kind === "car" ? "energywizard-car-card"
+  : kind === "battery" ? "energywizard-battery-card"
   : "energywizard-house-card";
 const el = document.createElement(tag); el.id = "c"; document.getElementById("w").appendChild(el);
 el.setConfig({ tab: q.get("tab") || "now", language: q.get("lang") || "sv", title: q.get("title") || undefined });
