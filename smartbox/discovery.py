@@ -369,18 +369,47 @@ _AUX_BATTERY = re.compile(r"12 ?v\b|auxiliary|\baux\b|car battery|starter|startb
 _TRACTION_BATTERY = re.compile(r"ev battery|traction|high.?voltage|\bhv\b|state of charge|battery level|battery_level|laddniv|\bsoc\b", re.I)
 
 
+def _car_soc_candidates(ents) -> list:
+    """Alla %-sensorer som kan vara bilens laddnivå, traktionsbatteriet först och 12 V-batteriet sist (#596)."""
+    cand = [x for x in ents if x["e"].startswith("sensor.") and x.get("u") == "%"
+            and (x.get("dc") == "battery" or _has(x.get("n"), _SOC_NAME))]
+
+    def rank(x):
+        name = f"{x.get('n') or ''} {x['e']}"
+        return (1 if _has(name, _AUX_BATTERY) else 0, 0 if _has(name, _TRACTION_BATTERY) else 1)
+
+    cand.sort(key=rank)                # stabil: oförändrat val när allt är lika
+    return cand
+
+
+def _soc_option(x) -> dict:
+    raw = str(x.get("st") or "").strip().replace(",", ".")
+    name = x.get("n") if isinstance(x.get("n"), str) and x.get("n") else x["e"]
+    return {"entity": x["e"], "name": name[:80], "state": raw if re.fullmatch(r"-?\d+(?:\.\d+)?", raw) else None}
+
+
+def soc_options(entities: list[dict], current: str | None) -> list[dict]:
+    """Laddnivåsensorer på samma enhet som den valda. Nuvarande värde finns alltid med, även om det är 12 V-batteriet."""
+    current = current if isinstance(current, str) else None
+    device = next((e.get("d") for e in entities if e.get("e") == current and e.get("d")), None)
+    pool = [e for e in entities if device and e.get("d") == device]
+    options, seen = [], set()
+    for row in _car_soc_candidates(pool):
+        if row["e"] in seen:
+            continue
+        seen.add(row["e"])
+        options.append(_soc_option(row))
+    if current and current not in seen and re.fullmatch(r"sensor\.[a-z0-9_]{1,128}", current):
+        options.insert(0, {"entity": current, "name": current, "state": None})
+    return options
+
+
 def _car_soc_sensor(ents):
     """Bilens laddnivå (%) ur enhetens entiteter. Många bilintegrationer har två batterier: traktionsbatteriet och 12 V-batteriet
     (Kia/Hyundai: "Car battery level" är 12 V, "EV battery level" är laddnivån; #596). 12 V-batteriet väljs bara om inget annat finns,
     och namn som tydligt är traktionsbatteriet går före allmänna "battery"."""
-    cand = [x for x in ents if x["e"].startswith("sensor.") and x.get("u") == "%"
-            and (x.get("dc") == "battery" or _has(x.get("n"), _SOC_NAME))]
-    if not cand:
-        return None
-    def rank(x):
-        name = f"{x.get('n') or ''} {x['e']}"
-        return (1 if _has(name, _AUX_BATTERY) else 0, 0 if _has(name, _TRACTION_BATTERY) else 1)
-    return min(cand, key=rank)         # min är stabil: oförändrat val när allt är lika
+    cand = _car_soc_candidates(ents)
+    return cand[0] if cand else None
 
 
 def _battery_control_preset(ents, all_ents=None):
@@ -783,9 +812,12 @@ def discover_house(entities: list[dict] | None = None) -> dict:
         climate = next((x for x in ents if x["e"].startswith("climate.")), None)
         driver = "nissan" if _has(maker, re.compile("nissan", re.I)) else "tesla" if _has(maker, re.compile("tesla", re.I)) else "generic_ev"
         car_device_ids.add(device_id)
+        cands = _car_soc_candidates(ents)
+        battery = cands[0]
         cars.append({
             "device_name": ents[0].get("dn") or maker, "maker": maker or None,
-            "soc_entity": battery["e"], "plugged_in_entity": plugged["e"] if plugged else None,
+            "soc_entity": battery["e"], "soc_candidates": [_soc_option(x) for x in cands],
+            "plugged_in_entity": plugged["e"] if plugged else None,
             "climate_entity": climate["e"] if climate else None,
             "driver": driver, "driver_known": driver in CAR_DRIVER_REGISTRY,
         })

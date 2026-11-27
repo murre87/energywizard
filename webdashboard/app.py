@@ -2499,8 +2499,9 @@ def _build_house_config_yaml(sel: dict) -> str:
         lines.append(f"    driver: {c.get('driver') or 'generic_ev'}")
         lines.append(f"    battery_kwh: {c.get('battery_kwh') or 60}  # FYLL I - din bils batteristorlek i kWh")
         lines.append("    entities:")
-        if c.get("soc_entity"):
-            lines.append(f"      soc: {c['soc_entity']}")
+        _soc = c.get("soc_entity")
+        if isinstance(_soc, str) and re.fullmatch(r"sensor\.[a-z0-9_]{1,128}", _soc):
+            lines.append(f"      soc: {_soc}")
         if c.get("plugged_in_entity"):
             lines.append(f"      plugged_in: {c['plugged_in_entity']}")
         if c.get("climate_entity"):
@@ -2796,30 +2797,92 @@ async def api_house_config_status(request: Request):
     return {"writable": role == "owner" and _config_writable()}
 
 
+def _configured_car_rows(configured, entities=None):
+    cars = []
+    for car in configured:
+        if not isinstance(car, dict):
+            continue
+        ents = car.get("entities") if isinstance(car.get("entities"), dict) else {}
+        row = {
+            "id": car.get("id"),
+            "driver": car.get("driver"),
+            "battery_kwh": car.get("battery_kwh"),
+            "soc": ents.get("soc"),
+            "plugged_in": ents.get("plugged_in"),
+            "climate": ents.get("climate"),
+        }
+        if entities is not None:
+            row["soc_options"] = discovery.soc_options(entities, ents.get("soc") if isinstance(ents.get("soc"), str) else None)
+        cars.append(row)
+    return cars
+
+
 @app.get("/api/house-config/cars")
 async def api_configured_cars(request: Request):
     if AUTH.session(request)[0] != "owner":
         return JSONResponse({"error": "Bara ägaren"}, status_code=403)
+    want_choices = str(getattr(request, "query_params", {}).get("choices") or "") == "1"
     try:
         configured = house_config.load_house_config(HOUSE_CONFIG_FILE).get("evs") or []
         if not isinstance(configured, list):
             raise ValueError("evs must be a list")
-        cars = []
-        for car in configured:
-            entities = car.get("entities") or {}
-            cars.append({
-                "id": car.get("id"),
-                "driver": car.get("driver"),
-                "battery_kwh": car.get("battery_kwh"),
-                "soc": entities.get("soc"),
-                "plugged_in": entities.get("plugged_in"),
-                "climate": entities.get("climate"),
-            })
+        entities = None
+        if want_choices:
+            try:
+                entities = await asyncio.to_thread(discovery.read_all_entities)
+            except Exception:
+                entities = []
+            if not isinstance(entities, list):
+                entities = []
+        cars = _configured_car_rows(configured, entities)
     except FileNotFoundError:
         cars = []
     except Exception:
         return JSONResponse({"error": "Kunde inte läsa bilar från house_config.yaml."}, status_code=500)
     return {"cars": cars}
+
+
+@app.post("/api/house-config/car-soc")
+async def api_set_car_soc(request: Request):
+    """#596: byt bilens laddnivåsensor utan att skriva om resten av house_config.yaml."""
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"error": "Bara ägaren kan spara"}, status_code=403)
+    if not _config_writable():
+        return JSONResponse({"error": "Den här installationen sparar inte från webben. Ladda ner filen i stället."}, status_code=409)
+    body = await request.json()
+    car_id = body.get("id")
+    soc = body.get("soc")
+    if not isinstance(soc, str) or not re.fullmatch(r"sensor\.[a-z0-9_]{1,128}", soc):
+        return JSONResponse({"error": "Ogiltig laddnivåsensor"}, status_code=400)
+    try:
+        with open(HOUSE_CONFIG_FILE, encoding="utf-8") as current:
+            original = current.read()
+        cfg = house_config.load_house_config(HOUSE_CONFIG_FILE)
+        cars = [car for car in (cfg.get("evs") or []) if isinstance(car, dict) and car.get("id") == car_id]
+        if len(cars) != 1:
+            return JSONResponse({"error": "Bilen finns inte."}, status_code=404)
+        current_soc = (cars[0].get("entities") or {}).get("soc")
+        if current_soc == soc:
+            return {"ok": True, "message": "Laddnivån är redan vald."}
+        entities = await asyncio.to_thread(discovery.read_all_entities)
+        if not entities:
+            return JSONResponse({"error": "Kunde inte läsa Home Assistant"}, status_code=409)
+        allowed = {row["entity"] for row in discovery.soc_options(entities, current_soc if isinstance(current_soc, str) else None)}
+        if soc not in allowed:
+            return JSONResponse({"error": "Laddnivån finns inte bland bilens sensorer."}, status_code=400)
+        updated = house_config.replace_car_soc(original, car_id, soc)
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", encoding="utf-8") as candidate:
+            candidate.write(updated)
+            candidate.flush()
+            checked = house_config.load_house_config(candidate.name)
+            house_config.build_car_drivers(checked)
+    except Exception:
+        return JSONResponse({"error": "Konfigurationen kunde inte uppdateras. Den befintliga filen har inte ändrats."}, status_code=409)
+    with open(HOUSE_CONFIG_FILE, "w", encoding="utf-8") as target:
+        target.write(updated)
+    return {"ok": True, "message": "Sparat. Motorn startar om och läser in den nya inställningen inom en minut."}
 
 
 @app.post("/api/save-house-config")

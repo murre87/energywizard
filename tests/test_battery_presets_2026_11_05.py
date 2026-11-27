@@ -189,7 +189,9 @@ def test_bil_med_12v_batteri_väljer_traktionsbatteriet():
     ents = [E("sensor.ioniq_car_battery_level", "Car battery level", d="car1", m="Hyundai", dc="battery", u="%"),
             E("sensor.ioniq_ev_battery_level", "EV battery level", d="car1", m="Hyundai", dc="battery", u="%"),
             E("device_tracker.ioniq", "Location", d="car1", m="Hyundai")]
-    assert discover_house(ents)["cars"][0]["soc_entity"] == "sensor.ioniq_ev_battery_level"
+    car = discover_house(ents)["cars"][0]
+    assert car["soc_entity"] == "sensor.ioniq_ev_battery_level"
+    assert [row["entity"] for row in car["soc_candidates"]] == ["sensor.ioniq_ev_battery_level", "sensor.ioniq_car_battery_level"]
     ents.reverse()
     assert discover_house(ents)["cars"][0]["soc_entity"] == "sensor.ioniq_ev_battery_level"
     only12v = [E("sensor.x_car_battery_level", "Car battery level", d="car2", m="Hyundai", dc="battery", u="%"),

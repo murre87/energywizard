@@ -197,6 +197,80 @@ def test_setup_save_refuses_invalid_existing_file(wd, tmp_path, monkeypatch, tex
     assert p.read_text() == text
 
 
+def test_car_soc_choices_and_save_only_that_line(wd, tmp_path, monkeypatch):
+    text = '''house_id: "mitt"   # behåll
+evs:
+  - id: "IONIQ"
+    driver: generic_ev
+    battery_kwh: 38
+    entities:
+      soc: sensor.ioniq_car_battery_level  # 12 V
+      plugged_in: binary_sensor.ioniq_plug
+    charger:
+      entities:
+        status: sensor.do_not_touch
+  - id: Traveller
+    entities:
+      soc: sensor.traveller_battery
+'''
+    config = tmp_path / "house_config.yaml"
+    config.write_text(text, encoding="utf-8")
+    inode = config.stat().st_ino
+    monkeypatch.setattr(wd, "HOUSE_CONFIG_FILE", str(config))
+    monkeypatch.setenv("HOUSE_CONFIG_WRITABLE", "1")
+    entities = [
+        {"e": "sensor.ioniq_car_battery_level", "n": "Car battery level", "d": "car1", "dc": "battery", "u": "%", "st": "12.4"},
+        {"e": "sensor.ioniq_ev_battery_level", "n": "EV battery level", "d": "car1", "dc": "battery", "u": "%", "st": "64"},
+        {"e": "sensor.other_soc", "n": "Battery", "d": "other", "dc": "battery", "u": "%", "st": "80"},
+    ]
+    monkeypatch.setattr(wd.discovery, "read_all_entities", lambda: entities)
+    owner = _FakeRequest(cookies=_cookie(wd))
+    owner.query_params = {"choices": "1"}
+    listed = asyncio.run(wd.api_configured_cars(owner))
+    assert [row["entity"] for row in listed["cars"][0]["soc_options"]] == [
+        "sensor.ioniq_ev_battery_level", "sensor.ioniq_car_battery_level"]
+    assert "soc_options" not in asyncio.run(wd.api_configured_cars(_FakeRequest(cookies=_cookie(wd))))["cars"][0]
+
+    saved = asyncio.run(wd.api_set_car_soc(_FakeRequest(
+        {"id": "IONIQ", "soc": "sensor.ioniq_ev_battery_level"}, _cookie(wd))))
+    assert saved["ok"] is True
+    written = config.read_text(encoding="utf-8")
+    assert "soc: sensor.ioniq_ev_battery_level  # 12 V" in written
+    assert "sensor.ioniq_car_battery_level" not in written
+    assert "sensor.traveller_battery" in written and "sensor.do_not_touch" in written and "# behåll" in written
+    assert config.stat().st_ino == inode
+    again = asyncio.run(wd.api_set_car_soc(_FakeRequest(
+        {"id": "IONIQ", "soc": "sensor.ioniq_ev_battery_level"}, _cookie(wd))))
+    assert again["message"] == "Laddnivån är redan vald."
+    assert config.read_text(encoding="utf-8") == written
+
+
+def test_car_soc_refuses_other_device_guest_and_locked_file(wd, tmp_path, monkeypatch):
+    text = "evs:\n  - id: IONIQ\n    entities:\n      soc: sensor.ioniq_car_battery_level\n"
+    config = tmp_path / "house_config.yaml"
+    config.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(wd, "HOUSE_CONFIG_FILE", str(config))
+    monkeypatch.setenv("HOUSE_CONFIG_WRITABLE", "1")
+    monkeypatch.setattr(wd.discovery, "read_all_entities", lambda: [
+        {"e": "sensor.ioniq_car_battery_level", "n": "Car battery level", "d": "car1", "dc": "battery", "u": "%", "st": "12"},
+        {"e": "sensor.ioniq_ev_battery_level", "n": "EV battery level", "d": "car1", "dc": "battery", "u": "%", "st": "64"},
+    ])
+    other = asyncio.run(wd.api_set_car_soc(_FakeRequest({"id": "IONIQ", "soc": "sensor.other_house"}, _cookie(wd))))
+    assert other.status_code == 400
+    missing = asyncio.run(wd.api_set_car_soc(_FakeRequest({"id": "saknas", "soc": "sensor.ioniq_ev_battery_level"}, _cookie(wd))))
+    assert missing.status_code == 404
+    guest = asyncio.run(wd.api_set_car_soc(_FakeRequest({"id": "IONIQ", "soc": "sensor.ioniq_ev_battery_level"}, _cookie(wd, "guest"))))
+    assert guest.status_code == 403
+    monkeypatch.setattr(wd.discovery, "read_all_entities", lambda: [])
+    offline = asyncio.run(wd.api_set_car_soc(_FakeRequest({"id": "IONIQ", "soc": "sensor.ioniq_ev_battery_level"}, _cookie(wd))))
+    assert offline.status_code == 409
+    assert config.read_text(encoding="utf-8") == text
+    monkeypatch.delenv("HOUSE_CONFIG_WRITABLE", raising=False)
+    locked = asyncio.run(wd.api_set_car_soc(_FakeRequest({"id": "IONIQ", "soc": "sensor.ioniq_ev_battery_level"}, _cookie(wd))))
+    assert locked.status_code == 409
+    assert config.read_text(encoding="utf-8") == text
+
+
 def test_setup_merge_updates_car_fields_and_replaces_changed_driver():
     import house_config
     existing = {"evs": [{"id": "car", "battery_kwh": 75, "manual": True,
