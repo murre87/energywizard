@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.189 (2026-11-27)
+- **Easee-konto och laddboxens egen historik, under Elbil (#605).** Skriv in Easee-kontot en gång. EnergyWizard hämtar laddboxens månadssummor (kWh, och kostnad när Easee har en) och visar dem per år, med jämförelse mot samma månader förra året. Siffrorna är laddboxens mätare och gäller före den uppskattade elbilslasten. Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen. Historiken hämtas högst en gång per dygn, eftersom Easee bara tar emot några sådana frågor i timmen. Senaste timmen kan saknas.
+
 ## 1.2.188 (2026-11-27)
 - **Årets elförbrukning (#603).** Elförbrukning visar använd och köpt el per månad, fördelningen på elbil, värmepump, spabad och övrigt, och vintrarna november–mars. En månad utan mätning är tom, inte noll. Prognosen för hela året är lägsta och högsta utifrån tidigare år, skalad efter hur årets färdiga månader avvikit.
 

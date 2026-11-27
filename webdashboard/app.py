@@ -1680,6 +1680,50 @@ async def api_solar_payback_history(request: Request):
     return {"ok": True, "rows": len(rows), "errors": errors, "total": len(merged)}
 
 
+def _easee_stored():
+    st = ew_settings.get("easee")
+    return dict(st) if isinstance(st, dict) else {}
+
+
+@app.get("/api/easee-history")
+async def api_easee_history(request: Request, refresh: int = 0):
+    """Laddboxens egen månadshistorik från Easee. Lösenord och token lämnar inte svaret (#605)."""
+    import easee_account
+    from datetime import datetime, timezone
+    role, _ = AUTH.session(request)
+    now = datetime.now(timezone.utc)
+    today = datetime.now(installation_timezone()).date()
+    before = _easee_stored()
+    stored, view = easee_account.sync(before, easee_account.Client(), now, today, force=bool(refresh))
+    if stored.get("username") and stored != before:
+        ew_settings.update(easee=stored)
+    view.update(ok=True, owner=(role == "owner"))
+    return view
+
+
+@app.post("/api/easee-history")
+async def api_easee_history_save(request: Request):
+    import easee_account
+    from datetime import datetime, timezone
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"detail": "Bara ägaren kan ändra Easee-kontot"}, status_code=403)
+    body = await request.json()
+    if body.get("clear"):
+        ew_settings.update(easee={})
+        return {"ok": True, "configured": False, "username": "", "chargers": [], "owner": True, "error": None}
+    try:
+        stored = easee_account.apply_credentials(_easee_stored(), str(body.get("username") or ""), str(body.get("password") or ""))
+    except easee_account.EaseeError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    now = datetime.now(timezone.utc)
+    today = datetime.now(installation_timezone()).date()
+    stored, view = easee_account.sync(stored, easee_account.Client(), now, today)
+    ew_settings.update(easee=stored)
+    view.update(ok=True, owner=True)
+    return view
+
+
 @app.get("/api/savings")
 async def api_savings():
     """Besparingskortet: per dag de senaste ~40 dygnen + Idag / 7 dagar / Månad. Samma formel
