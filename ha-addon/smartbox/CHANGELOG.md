@@ -2,6 +2,9 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.191 (2026-11-27)
+- **Drivrutinerna når resten av EnergyWizard genom en enda modul (inget ändras för dig).** Förarbete inför att drivrutinerna flyttas till ett eget repo: de importerar inte längre motorns moduler direkt, utan hämtar dem från `drivers/host.py`. Beteendet är exakt detsamma. Tester håller sömmen tät. Se `docs/uppdelning/PLAN.md`.
+
 ## 1.2.190 (2026-11-27)
 - **Planeringen kan köras som en egen process i skuggläge (för utvecklare, av som standard).** Med miljövariabeln `EW_PLANNER_MODE=shadow` startar motorn en andra, tyst planerarprocess och jämför dess beslut med det vanliga, i bakgrunden. Det vanliga beslutet styr fortfarande, inget skickas dubbelt och motorn väntar aldrig på den nya processen. Skillnader loggas. Utan inställningen (`local`) är allt som förut. Detta är ett första steg i uppdelningen av EnergyWizard i delar, och kostar ungefär lika mycket minne som motorn en gång till när det är på. Se `docs/uppdelning/PLAN.md`.
 

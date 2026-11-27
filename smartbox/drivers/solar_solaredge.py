@@ -5,7 +5,7 @@ smartbox/drivers/solar.py.
 Entiteterna kommer ur installationen (solar.entities): pv_power_w, today_kwh, status (en entitet eller en lista,
 första med värde vinner) och exportgränsen i solar.curtailment.entity (eller entities.limit). Utan egna entiteter
 används integrationernas standardnamn."""
-import homeassistant
+from drivers.host import homeassistant
 from drivers.solar import SolarDriver
 
 

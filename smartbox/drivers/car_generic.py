@@ -1,6 +1,6 @@
 """Konkreta CarDriver-implementationer. Fas 1: tunna omslag kring homeassistant.py:s
 befintliga läsfunktioner - samma kod, bara flyttad bakom gränssnittet, inte omskriven."""
-import homeassistant
+from drivers.host import homeassistant
 from drivers.car import CarDriver
 
 

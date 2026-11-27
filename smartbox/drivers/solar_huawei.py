@@ -18,7 +18,7 @@ Produktion läses via vanliga sensor-entiteter (samma nycklar som GenericNumberS
 Gränsen går inte att läsa tillbaka via tjänsterna, så get_export_limit_pct() returnerar senast
 SKICKADE värdet (100 vid start) - main.py tolkar annars None som "växelriktaren offline".
 """
-import homeassistant
+from drivers.host import homeassistant
 from drivers.solar import SolarDriver
 
 
