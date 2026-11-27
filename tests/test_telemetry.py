@@ -292,18 +292,55 @@ def _collector(monkeypatch, tmp_path):
 
 def test_ominstallerat_hus_med_samma_utrustning_raknas_en_gang(monkeypatch, tmp_path):
     """2026-11-06: samma hus (NIBE + Solis + Tesla + Garo + Tibber) dök upp som Hus 5 och Hus 6 med nytt ID.
-    Ett äldre hus som tystnat före ett nytt med exakt samma utrustning slås ihop; överlappande hus gör det inte."""
+    Ett äldre hus som tystnat före ett nytt med samma utrustning slås ihop. Ett hus som fortfarande hörs
+    mer än 36 timmar efter att det andra dök upp är ett annat hus och blir kvar."""
     mod = _collector(monkeypatch, tmp_path)
     eq = ["heatpump:nibe_local", "solar:generic_number", "battery:generic@Solis", "car:tesla@Tesla#Model3",
           "charger:generic@Garo#X", "meter:ha@Tibber#Pulse", "size:fuse_16A", "country:SE", "mode:battery_samarbete"]
     eq2 = [d.replace("generic_number", "generic_number@Solis#S6-EH3P") for d in eq if not d.startswith("mode")] + ["mode:battery_styr"]
     latest = {"a" * 16: ("v1", eq, False), "b" * 16: ("v2", eq2, False), "c" * 16: ("v2", eq, False)}
     first = {"a" * 16: "2026-11-05T07:58", "b" * 16: "2026-11-06T20:36", "c" * 16: "2026-11-05T09:00"}
-    last = {"a" * 16: "2026-11-06T10:15", "b" * 16: "2026-11-06T20:40", "c" * 16: "2026-11-06T20:40"}
+    # c hördes två dygn efter att b dök upp: två hus som båda lever, inte en sista rapport vid bytet.
+    last = {"a" * 16: "2026-11-06T10:15", "b" * 16: "2026-11-06T20:40", "c" * 16: "2026-11-08T20:40"}
     merged = mod._merge_reinstalls(latest, first, last)
     assert merged == {"b" * 16: ["a" * 16]} and set(latest) == {"b" * 16, "c" * 16}
     small = {"d" * 16: ("v", ["meter:ha", "country:SE"], False), "e" * 16: ("v", ["meter:ha", "country:SE"], False)}
     assert mod._merge_reinstalls(small, {"d" * 16: "1", "e" * 16: "3"}, {"d" * 16: "2", "e" * 16: "4"}) == {}
+
+
+def test_ominstallation_med_en_sista_dygnsrapport_slas_ihop(monkeypatch, tmp_path):
+    """#614: Hus 96 och Hus 97 var samma installation. Det gamla id:t skickade en rapport efter att det nya
+    redan fanns. Inom 36 timmar räknas det som ominstallation. Det id som hörts senast står kvar."""
+    mod = _collector(monkeypatch, tmp_path)
+    eq = ["heatpump:ha_entities@NIBE#F730", "car:generic_ev", "car:generic_ev@Volvo", "charger:generic",
+          "meter:ha@Tibber", "country:SE", "size:fuse_20A"]
+    old, new = "a" * 16, "b" * 16
+    latest = {old: ("1.2.170", eq, False), new: ("1.2.180", eq, False)}
+    first = {old: "2026-11-20T08:00:00+00:00", new: "2026-11-24T08:00:00+00:00"}
+    last = {old: "2026-11-24T20:00:00+00:00", new: "2026-11-24T21:00:00+00:00"}
+    merged = mod._merge_reinstalls(latest, first, last)
+    assert merged == {new: [old]} and set(latest) == {new}
+    # Fortfarande igång två dygn efter det nya id:t: ett annat hus, även med samma utrustning.
+    latest = {old: ("1.2.170", eq, False), new: ("1.2.180", eq, False)}
+    last = {old: "2026-11-26T09:00:00+00:00", new: "2026-11-26T10:00:00+00:00"}
+    assert mod._merge_reinstalls(latest, first, last) == {} and set(latest) == {old, new}
+
+
+def test_aldre_telemetri_utan_matare_ar_samma_hus(monkeypatch, tmp_path):
+    """Äldre versioner skickar inte mätare, storlek och land. Samma övriga utrustning slås ihop.
+    Olika elmätare på båda sidorna är två hus. Färre än fem gemensamma delar slås inte ihop."""
+    mod = _collector(monkeypatch, tmp_path)
+    core = ["heatpump:thermia_husdata", "solar:solaredge", "car:tesla", "charger:easee", "spa:gecko"]
+    full = core + ["meter:ha@Tibber", "size:fuse_16A", "country:SE"]
+    other_meter = core + ["meter:p1@HomeWizard", "size:fuse_16A", "country:SE"]
+    assert mod._same_equipment(core, full)
+    assert not mod._same_equipment(full, other_meter)
+    assert not mod._same_equipment(["meter:ha", "country:SE", "size:fuse_16A"], ["meter:ha", "country:SE"])
+    old, new = "a" * 16, "b" * 16
+    latest = {old: ("1.2.40", core, False), new: ("1.2.180", full, False)}
+    first = {old: "2026-11-01T00:00:00+00:00", new: "2026-11-24T08:00:00+00:00"}
+    last = {old: "2026-11-24T18:00:00+00:00", new: "2026-11-24T19:00:00+00:00"}
+    assert mod._merge_reinstalls(latest, first, last) == {new: [old]}
 
 
 def test_installations_id_overlever_att_installningsfilen_skrivs_over(monkeypatch, tmp_path):
@@ -394,3 +431,21 @@ def test_huvudsakringen_ar_inte_utrustning_och_testkopior_slas_ihop_med_riktiga_
     last = {k: "2026-11-27" for k in houses}
     m = mod._merge_reinstalls(houses, first, last)
     assert m == {"c" * 16: ["d" * 16]} and set(houses) == {"c" * 16, "e" * 16, "f" * 16}       # två riktiga samtida hus slås inte ihop
+
+
+def test_kortlivade_testkorningar_och_misstankta_dubbletter(monkeypatch, tmp_path):
+    """#614: ID:n som levde minuter låg kvar i husöversikten i tre dygn; och en vakt som larmar om två aktiva hus ändå har
+    exakt samma utrustning efter ihopslagningen."""
+    from datetime import datetime, timedelta, timezone
+    mod = _collector(monkeypatch, tmp_path)
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+    iso = lambda dt: dt.isoformat()
+    assert mod._is_trial(iso(now - timedelta(hours=10)), iso(now - timedelta(hours=10) + timedelta(minutes=2)), now)
+    assert not mod._is_trial(iso(now - timedelta(hours=10)), iso(now - timedelta(hours=1)), now)           # levde länge
+    assert not mod._is_trial(iso(now - timedelta(minutes=20)), iso(now - timedelta(minutes=18)), now)      # pågår nyss
+    assert not mod._is_trial("trasigt", "tid", now)
+    eq = ["heatpump:a", "solar:b", "battery:c", "car:d", "charger:e", "meter:f", "size:car_30-50kWh", "country:SE"]
+    houses = {"a" * 16: ("v", eq, False), "b" * 16: ("v", eq, False), "c" * 16: ("v", eq[:4], False)}
+    first = {"a" * 16: "2026-11-01", "b" * 16: "2026-11-02", "c" * 16: "2026-11-03"}
+    assert mod._suspected_duplicates(houses, first) == [("a" * 16, "b" * 16, 8)]
+    assert mod._suspected_duplicates({"c" * 16: houses["c" * 16]}, first) == []

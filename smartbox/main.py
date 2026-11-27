@@ -1071,9 +1071,11 @@ while True:
 
         # Håll vid liv i 10-sekundersloopen, inte bara i kvartsstyrningen: Solis RC släpper efter sin RC Timeout
         # (standard 5 min) och kvartsloopen hann inte före den - laddning/håll föll tillbaka till växelriktarens läge.
-        # Bara drivrutiner med keepalive_s (den självbegränsar); FTW:s vakthund sköts redan i kvartsstyrningen.
+        # Reservnivåns håll förnyas också (#615). Övriga säkerhetsregler förnyas inte. Bara drivrutiner med
+        # keepalive_s (den självbegränsar); FTW:s vakthund sköts redan i kvartsstyrningen.
         if (battery_cfg["control"] == "styr" and getattr(battery_driver, "_keepalive", None)
-                and _battery.get("decision_rule") not in battery_control.SAFETY_RULES and not system_test.active()):
+                and battery_control.keepalive_allowed(_battery.get("decision_rule"), _battery.get("last"))
+                and not system_test.active()):
             try:
                 battery_driver.refresh()
             except Exception as _bre:
@@ -2525,8 +2527,8 @@ while True:
                         gpm_actions["log"].append(f"🔋 (BATTERI): {_alpha}")
                         print(f"🔋 {_alpha}")
                     battery_driver.set_balancing(_bdec.get("rule") == "balance")
-                    if _bdec.get("rule") not in battery_control.SAFETY_RULES and not system_test.active():
-                        battery_driver.refresh()       # håller en pågående tvångsladdning vid liv (Solis RC m.fl.)
+                    if battery_control.keepalive_allowed(_bdec.get("rule"), _battery.get("last")) and not system_test.active():
+                        battery_driver.refresh()       # håller pågående tvångsladdning och reservnivåns håll vid liv (Solis RC m.fl.)
                     if not system_test.active() and battery_control.should_apply(    # pausas medan systemtestet pågår
                             _bdec, _battery["last"], _battery["at"], now, battery_cfg["min_change_minutes"]):
                         if battery_commands.apply(_battery_commands, battery_driver, _bdec["intent"], _bdec.get("power_w")):

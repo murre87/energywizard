@@ -1585,7 +1585,8 @@ async def api_economy():
         today = now.date().isoformat()
         money = savings.money_rows(c, days=40)
         timing = savings.daily_rows(c, days=40)
-        everything, _benefit = savings.cached(c, today)
+        everything, _benefit = savings.cached(c, today)          # bakgrundstråd: blockerar inte sidan
+        everything_money = savings.money_cached()               # fylls av samma tråd; None tills den är klar (då visas ingen period "Totalt")
     span = savings.price_span(today_prices)
     spot, buy = span["spot"], span["buy"]
     settings = nordpool.cost_settings()
@@ -1595,7 +1596,8 @@ async def api_economy():
             "price_24h": price_24h,
             "symbol": settings["symbol"], "money_days": money[-31:],
             "electricity_support_area": eligible_area(settings, now),
-            "money": savings.money_periods(money, today), "timing": savings.summarize_periods(timing, today, everything)}
+            "money": savings.money_periods(money, today, everything_money),
+            "timing": savings.summarize_periods(timing, today, everything)}
 
 
 @app.get("/api/economy/electricity-support")
@@ -1676,6 +1678,50 @@ async def api_solar_payback_history(request: Request):
     st["history"] = merged
     ew_settings.update(solar_payback=st)
     return {"ok": True, "rows": len(rows), "errors": errors, "total": len(merged)}
+
+
+def _easee_stored():
+    st = ew_settings.get("easee")
+    return dict(st) if isinstance(st, dict) else {}
+
+
+@app.get("/api/easee-history")
+async def api_easee_history(request: Request, refresh: int = 0):
+    """Laddboxens egen månadshistorik från Easee. Lösenord och token lämnar inte svaret (#605)."""
+    import easee_account
+    from datetime import datetime, timezone
+    role, _ = AUTH.session(request)
+    now = datetime.now(timezone.utc)
+    today = datetime.now(installation_timezone()).date()
+    before = _easee_stored()
+    stored, view = easee_account.sync(before, easee_account.Client(), now, today, force=bool(refresh))
+    if stored.get("username") and stored != before:
+        ew_settings.update(easee=stored)
+    view.update(ok=True, owner=(role == "owner"))
+    return view
+
+
+@app.post("/api/easee-history")
+async def api_easee_history_save(request: Request):
+    import easee_account
+    from datetime import datetime, timezone
+    role, _ = AUTH.session(request)
+    if role != "owner":
+        return JSONResponse({"detail": "Bara ägaren kan ändra Easee-kontot"}, status_code=403)
+    body = await request.json()
+    if body.get("clear"):
+        ew_settings.update(easee={})
+        return {"ok": True, "configured": False, "username": "", "chargers": [], "owner": True, "error": None}
+    try:
+        stored = easee_account.apply_credentials(_easee_stored(), str(body.get("username") or ""), str(body.get("password") or ""))
+    except easee_account.EaseeError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    now = datetime.now(timezone.utc)
+    today = datetime.now(installation_timezone()).date()
+    stored, view = easee_account.sync(stored, easee_account.Client(), now, today)
+    ew_settings.update(easee=stored)
+    view.update(ok=True, owner=True)
+    return view
 
 
 @app.get("/api/savings")
@@ -1950,7 +1996,12 @@ async def api_consumption():
                            "extra": [x for x in _json_list(lb.get("extra_w")) if isinstance(x, dict) and x.get("name")]} if lb else None)}
 
 
-@app.get("/api/pump-modes")
+@app.get("/api/consumption-year")
+async def api_consumption_year(year: int = 0):
+    """Årets förbrukning (#603): köpt och använd el per månad, fördelning och ett spann för hela året."""
+    import year_use
+    with ENGINE.connect() as c:
+        return year_use.load(c, year or None)
 async def api_pump_modes(hours: int = 24):
     """Värmepumpens driftläge per tiominuters ruta ur sensor_log: tillsats 2 > tillsats 1 > varmvatten > värme > vilar.
     Tillsatsen kommer från Husdatas register för Add heat step 1/2 (Thermia Diplomat); saknas de visas inget tillsatsläge."""

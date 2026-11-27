@@ -2,8 +2,26 @@
 
 ❤️ EnergyWizard är gratis och öppet. Om det sparar pengar hemma hos dig kan du hålla det så med en sponsring (runt 10 USD i månaden räcker långt): https://github.com/sponsors/murre87
 
+## 1.2.189 (2026-11-27)
+- **Easee-konto och laddboxens egen historik, under Elbil (#605).** Skriv in Easee-kontot en gång. EnergyWizard hämtar laddboxens månadssummor (kWh, och kostnad när Easee har en) och visar dem per år, med jämförelse mot samma månader förra året. Siffrorna är laddboxens mätare och gäller före den uppskattade elbilslasten. Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen. Historiken hämtas högst en gång per dygn, eftersom Easee bara tar emot några sådana frågor i timmen. Senaste timmen kan saknas.
+
+## 1.2.188 (2026-11-27)
+- **Årets elförbrukning (#603).** Elförbrukning visar använd och köpt el per månad, fördelningen på elbil, värmepump, spabad och övrigt, och vintrarna november–mars. En månad utan mätning är tom, inte noll. Prognosen för hela året är lägsta och högsta utifrån tidigare år, skalad efter hur årets färdiga månader avvikit.
+
+- **Kort för sol och batteri i Home Assistant (#558).** Ett nytt kort visar solproduktionen just nu, prognosen för resten av idag och för imorgon, batteriets laddnivå och effekt, och om planen laddar, sparar, laddar ur eller säljer. Prognosen är samma solprognos som planen redan använder. Saknas en uppmätt laddnivå används planens nivå. Hus utan sol och batteri får en tom rad. Hemmet, Värme och Bil är oförändrade.
+
+## 1.2.187 (2026-11-27)
+- **Ekonomisidan har perioden Totalt (#599).** Vid sidan av Idag, 7 dagar och Månad summeras köpt el, såld el, netto och sparat genom tajmning sedan EnergyWizard började mäta. Samma formel som de andra perioderna. Dagar utan pris eller effekt räknas inte som noll, och raden säger hur många dagar som ingick och från vilket datum. Diagrammen är kvar som senaste 31 dagarna. Månad för månad och år för år är kvar.
+
+## 1.2.186 (2026-11-27)
+- **Kupétemperaturen syns under Bil (#610).** Bilfliken i appen och Elbil på webben visar hur varmt det är i bilen, även när kupévärmen är av. Temperaturen tas från bilens egen temperaturgivare om den finns, annars från climate-entitetens current_temperature. Saknas båda visas ingen temperatur.
+
+## 1.2.185 (2026-11-27)
+- **Solis RC håller kvar reservnivån (#615).** När batteriet låg på reservnivån skrev EnergyWizard håll en gång och förnyade det inte. Solis släpper fjärrstyrningen efter RC Timeout (5–7 minuter) och batteriet laddade då ur under reservnivån. Håll på reservnivån skrivs nu om lika ofta som övriga håll. En laddning eller urladdning som ännu inte hunnit bytas till håll förlängs inte. Övriga säkerhetsregler (gammal data, säkring, effekttak och laddtak) förnyas fortfarande inte.
+
 ## 1.2.184 (2026-11-27)
 - **Dubbletter i telemetrins husöversikt (#614).** Två orsaker rättade i insamlaren: (1) en ominstallation där användaren ändrat huvudsäkringen (25 A till 20 A) räknades som ett nytt hus, eftersom säkringen ingick i husets utrustningsavtryck. Säkringen är en inställning och ingår inte längre. (2) En testkopia av ett hus utan versionsnummer som körde samtidigt med det riktiga räknades som ett eget hus. Den slås nu ihop med det riktiga huset om utrustningen är exakt densamma. Två riktiga installationer slås aldrig ihop bara för att de är samtida.
+- **Vakt mot nya dubbletter i husöversikten.** Insamlaren markerar nu två aktiva hus som ändå har exakt samma utrustning (minst sju delar) som "Misstänkt dubblett" på Installationer, så att en ny orsak syns direkt i stället för att räknas som flera hus. Korta testkörningar (hörda under högst 30 minuter och tysta i över sex timmar) räknas inte längre som hus.
 
 ## 1.2.183 (2026-11-27)
 - **Total nytta sedan start, post för post, på startsidan.** Förut visade startsidan bara prisstyrningen. Nu finns en komplett uppställning: prisstyrning av köpt el, solel som huset använt (värderad till vad den hade kostat att köpa, med moms, nätavgift och skatt), såld solel, och därav sol som gick till elbil och spabad (visas men räknas inte dubbelt). Summan lägger ihop posterna. Prisstyrningen är det EnergyWizard styr, solposterna är vad solcellerna ger med eller utan styrning. Posterna för sol visas bara om huset har solceller. I appen: tryck "Se alla poster". Gäller alla installationer. Hela historiken läses i en bakgrundstråd (flera sekunder), så sidan blir inte långsammare: summan dyker upp när den är klar och uppdateras var 30:e minut.

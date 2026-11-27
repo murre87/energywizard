@@ -608,6 +608,48 @@ function goalText(g) {
   return `Planen räknar nu med: ${goalDay(g.at)} ${hhmm(new Date(g.at))}${g.soc != null ? " · " + g.soc + " %" : ""}`;
 }
 
+// #605: Easees egen månadshistorik. Lösenordet skickas bara vid sparning och kommer aldrig tillbaka.
+const EE_KWH = (v) => v == null ? "–" : v.toLocaleString("sv-SE", { maximumFractionDigits: 0 }) + " kWh";
+async function renderEaseeHistory(preset) {
+  const box = document.getElementById("easeehist"); if (!box) return;
+  let d = preset;
+  if (!d) { try { d = await api("api/easee-history"); } catch (e) { if (box.isConnected) box.innerHTML = `<div class="card"><h2>Easee</h2><div class="note">${esc(e.message)}</div></div>`; return; } }
+  if (!box.isConnected) return;
+  const form = !d.owner ? "" : `<div style="margin-top:10px">
+      <label for="eeuser"><span>E-post till Easee-kontot</span></label>
+      <input id="eeuser" autocomplete="username" value="${esc(d.username || "")}" style="max-width:320px">
+      <label for="eepass" style="display:block;margin-top:8px"><span>${d.configured ? "Nytt lösenord (lämna tomt för att behålla)" : "Lösenord"}</span></label>
+      <input id="eepass" type="password" autocomplete="new-password" value="" style="max-width:320px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        <button class="icobtn" id="eesave">Spara</button>
+        ${d.configured ? `<button class="icobtn" id="eerefresh">Hämta igen</button><button class="icobtn" id="eeclear">Ta bort kontot</button>` : ""}
+      </div>
+      <div class="note" style="margin-top:6px"><span>Lösenordet sparas på samma ställe som nyckeln till Home Assistant och visas aldrig igen.</span></div></div>`;
+  const chargers = (d.chargers || []).map((ch) => {
+    const cmp = ch.compare;
+    const years = (ch.years || []).slice().reverse().map((y) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--line)"><span data-noi18n>${esc(y.year)}</span><b data-noi18n>${EE_KWH(y.kwh)}${y.cost != null ? " · " + Math.round(y.cost).toLocaleString("sv-SE") + " " + esc(y.currency || "kr") : ""}</b></div>`).join("");
+    return `<div style="margin-top:12px"><div style="font-weight:700"><span data-noi18n>${esc(ch.name || ch.id)}</span></div>
+      ${cmp ? `<div class="note"><span>Hittills i år</span> <span data-noi18n>${EE_KWH(cmp.this_kwh)}</span> <span>mot</span> <span data-noi18n>${EE_KWH(cmp.last_kwh)}</span> <span>samma månader</span> <span data-noi18n>${esc(cmp.last_year)}</span></div>` : ""}
+      ${years || `<div class="note"><span>Inga månader från laddboxen än.</span></div>`}</div>`;
+  }).join("");
+  box.innerHTML = `<div class="card"><h2>🔌 <span>Easee</span></h2>
+    <div class="note"><span>Laddboxens egen mätare, månad för månad. Den gäller före EnergyWizards uppskattning av elbilens förbrukning. Senaste timmen kan saknas, för boxen rapporterar en gång i timmen.</span></div>
+    ${d.error ? `<div class="note" style="margin-top:8px">${esc(d.error)}</div>` : ""}
+    ${d.fetched_at ? `<div class="note" style="margin-top:6px"><span>Hämtad</span> <span data-noi18n>${esc(String(d.fetched_at).slice(0, 16).replace("T", " "))}</span></div>` : ""}
+    ${chargers}
+    ${form}</div>`;
+  if (!d.owner) return;
+  const save = box.querySelector("#eesave");
+  if (save) save.onclick = async () => {
+    try { const r = await postJSON("api/easee-history", { username: box.querySelector("#eeuser").value, password: box.querySelector("#eepass").value });
+      toast(r.error || "Sparat"); renderEaseeHistory(r); } catch (e) { toast(e.message); }
+  };
+  const refresh = box.querySelector("#eerefresh");
+  if (refresh) refresh.onclick = async () => { try { renderEaseeHistory(await api("api/easee-history?refresh=1")); } catch (e) { toast(e.message); } };
+  const clear = box.querySelector("#eeclear");
+  if (clear) clear.onclick = async () => { try { renderEaseeHistory(await postJSON("api/easee-history", { clear: true })); } catch (e) { toast(e.message); } };
+}
+
 async function renderElbil() {
   const heat = await api("api/schedule/climate").catch(() => ({}));
   const heatCard = (c) => {
@@ -642,7 +684,7 @@ async function renderElbil() {
         <div class="note">${c.stale ? badge("warn", "⚠️ gammalt värde") : badge("on", "live")} ${c.status ? "· " + c.status : ""}</div>
         <div class="note" style="margin-top:6px">⚡ ${fmt(c.power_kw, 1, " kW")} just nu${c.planned_kwh_today != null ? ` · 📅 ${c.planned_kwh_today.toFixed(1)} kWh planerat idag` : ""}</div>
         ${c.limits ? `<div class="note">🔌 ${c.limits.phases === "auto" ? "Faser: auto" : c.limits.phases + "-fas"}${c.limits.phases_src === "inlärt" ? " (inlärt)" : ""} · max ${c.limits.max_a} A${c.limits.max_a_src === "inlärt" ? " (inlärt av laddningarna)" : c.limits.max_a_src === "standard" ? " (standard)" : ""}</div>` : ""}
-        ${c.climate_state ? `<div class="note">🌡️ Klimat: ${c.climate_state}${c.climate_temp != null ? " (" + c.climate_temp.toFixed(0) + "°C)" : ""}</div>` : ""}
+        ${c.climate_temp != null ? `<div class="note">🌡️ Kupé ${c.climate_temp.toFixed(0)} °C${c.climate_state && c.climate_state !== "off" ? " · Värmen är på" : ""}</div>` : (c.climate_state && c.climate_state !== "off" ? `<div class="note">🌡️ Värmen är på</div>` : "")}
         ${(() => { const ma = (c.limits || {}).max_a || 16;           // #182: förklaring på varje knapp
           const t = { start: `Laddar nu med ${ma} A, före planen och elpriset. Gäller tills du trycker Auto eller Stoppa. Säkringsskyddet gäller fortfarande.`,
             max: `Laddar med full ström (${ma} A) direkt, oavsett elpris. Gäller tills du trycker Auto eller Stoppa. Säkringsskyddet gäller fortfarande.`,
@@ -692,8 +734,10 @@ async function renderElbil() {
     </div>
     <div class="card" style="margin-bottom:16px"><h2>🔌 Laddplanen</h2><div class="note">Planerad laddeffekt per kvart mot elpriset. Håll muspekaren över en stapel för batterinivån.</div>${d.plan && d.plan.length ? `<div id="evplanchart" style="height:260px;margin-top:10px"></div>` : `<div class="note" style="margin-top:8px">Ingen laddning planerad just nu.</div>`}</div>
     <div class="note">Laddström: ${fmt(d.current_a, 0, " A")} · Dynamisk gräns: ${fmt(d.dynamic_limit_a, 0, " A")} · Målgräns just nu: ${fmt(d.current_target_limit, 0, " A")}</div>
+    <div id="easeehist" style="margin-top:16px"></div>
     <div id="tesla-access" style="margin-top:16px"></div>`);
   if (!d) return;
+  renderEaseeHistory();
   if (d.plan && d.plan.length) evPlanChart("evplanchart", d);
   document.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => postAction(`api/car/${b.dataset.car}/action`, { kind: b.dataset.kind }).then(renderElbil));
   loadTeslaAccess();
@@ -1031,7 +1075,7 @@ async function renderEkonomi() {
     const m = d.money[econPeriod], t = d.timing[econPeriod] || {}, sym = d.symbol || "kr";
     const money = (v) => v == null ? "–" : `${v.toFixed(v >= 100 || v <= -100 ? 0 : 2).replace(".", ",")} ${sym}`;
     const chip = (k, label) => `<button class="icobtn" data-econ="${k}"${k === econPeriod ? ` style="border-color:var(--acc);color:var(--acc)"` : ""}>${label}</button>`;
-    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden" }[econPeriod];
+    const label = { today: "idag", week: "senaste 7 dagarna", month: "den här månaden", all: "sedan start" }[econPeriod];
     // #510: snittet på köpt el är inklusive avgifter. Lägst/snitt/högst måste vara samma bas,
     // annars kan snittet se högre ut än dagens högsta (det var bara spotpriset).
     const paidSub = (buy, spot) => {
@@ -1043,11 +1087,11 @@ async function renderEkonomi() {
     const avgPaid = m.avg_paid == null ? "" : ` · <span>snittpris inklusive avgifter</span> <span data-noi18n>${m.avg_paid.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     const avgSold = m.avg_sold == null ? "" : ` · <span>snittpris</span> <span data-noi18n>${m.avg_sold.toFixed(2).replace(".", ",")} ${sym}/kWh</span>`;
     return `
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip("today", "Idag")}${chip("week", "7 dagar")}${chip("month", "Månad")}${chip("all", "Totalt")}</div>
     <div class="grid" style="margin-bottom:16px">
       ${statTile("🧾 Köpt el", money(m.cost), `${fmt(m.bought_kwh, 1, " kWh")}${avgPaid}`)}
       ${statTile("☀️ Såld el", money(m.income), `${fmt(m.sold_kwh, 1, " kWh")}${avgSold}`)}
-      ${statTile("💰 Netto", money(m.net), "köpt minus sålt")}
+      ${statTile("💰 Netto", money(m.net), econPeriod === "all" ? `köpt minus sålt · ${m.days} dagar med data` : "köpt minus sålt")}
       ${statTile("🎯 Sparat genom tajmning", t.saved_kr != null ? (t.saved_kr >= 0 ? "+" : "") + money(t.saved_kr) : "–", t.pct != null ? `${t.pct.toFixed(0)} % billigare än ett vanligt hushåll` : "")}
     </div>
     ${d.electricity_support_area ? `<div class="card" style="margin-bottom:16px">
@@ -1068,7 +1112,7 @@ async function renderEkonomi() {
       ${paidTile("📈", "Högst idag", d.price_buy_max, d.price_max)}
     </div>
     <div class="card"><h2>Elpris senaste dygnet</h2><div id="econpricechart" style="height:240px;margin-top:10px"></div></div>
-    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).</div>`;
+    <div class="note" style="margin-top:10px">Beloppen räknas minut för minut med dina inställningar under Inställningar → Elpris och avgifter (${esc(label)}).${econPeriod === "all" && m.since ? ` <span data-noi18n>(${esc(m.since)})</span>` : ""}</div>`;
   });
   if (!d) return;
   const supportButton = document.getElementById("electricity-support-calculate");
@@ -1186,6 +1230,53 @@ async function mountCapacityTariff(slotId) {
   };
 }
 
+const _MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+function yearUseHtml(d) {
+  const years = d.years && d.years.length ? d.years : [d.year];
+  const buttons = years.map((y) => `<button type="button" data-y="${y}" class="${y === d.year ? "on" : ""}">${y}</button>`).join("");
+  const forecast = d.forecast
+    ? (d.forecast.low === d.forecast.high
+      ? `${fmt(d.forecast.low, 0, " kWh")}<div class="l">Ett tidigare år, så det finns inget spann än.</div>`
+      : `${fmt(d.forecast.low, 0, "")}–${fmt(d.forecast.high, 0, " kWh")}`)
+    : "–";
+  const cell = (v) => v == null ? "–" : fmt(v, 0, "");
+  const rows = (d.months || []).map((m) => `<tr>
+    <td>${_MONTHS[m.month - 1]}</td><td>${cell(m.used_kwh)}</td><td>${cell(m.bought_kwh)}</td>
+    <td>${cell(m.ev_kwh)}</td><td>${cell(m.pump_kwh)}</td><td>${cell(m.spa_kwh)}</td><td>${cell(m.other_kwh)}</td></tr>`).join("");
+  const parts = d.parts || {};
+  const partSum = ["ev_kwh", "pump_kwh", "spa_kwh", "other_kwh"].reduce((s, k) => s + (parts[k] || 0), 0) || 1;
+  const winter = (d.winters || []).map((w) => `<div class="note">${esc(w.label)}: ${w.months.map((m) => `${_MONTHS[m.month - 1]} ${cell(m.used_kwh)}`).join(" · ")}</div>`).join("");
+  return `<div class="card" style="margin-bottom:16px">
+    <h2>📅 <span>Årets förbrukning</span></h2>
+    <div class="seg" id="yearpick" style="margin:8px 0">${buttons}</div>
+    <div class="grid">
+      ${statTile("Hittills", fmt(d.used_kwh, 0, " kWh"), "använd el")}
+      ${statTile("Köpt", fmt(d.bought_kwh, 0, " kWh"))}
+      ${statTile("Prognos för hela året", forecast)}
+    </div>
+    <div class="note" style="margin-top:8px">En månad utan mätning är tom, inte noll. Prognosen jämför årets färdiga månader med samma månader tidigare år och visar lägsta och högsta. Fördelningen finns bara från den dag den började loggas.</div>
+    <div style="margin-top:10px">
+      ${barRow("🚗 Elbil", (parts.ev_kwh || 0) / partSum * 100, fmt(parts.ev_kwh, 0, " kWh"))}
+      ${barRow("♨️ Värmepump", (parts.pump_kwh || 0) / partSum * 100, fmt(parts.pump_kwh, 0, " kWh"))}
+      ${barRow("🛁 Spabad", (parts.spa_kwh || 0) / partSum * 100, fmt(parts.spa_kwh, 0, " kWh"))}
+      ${barRow("❓ Övrigt", (parts.other_kwh || 0) / partSum * 100, fmt(parts.other_kwh, 0, " kWh"))}
+    </div>
+    <table style="width:100%;margin-top:12px;font-size:.85rem;border-collapse:collapse">
+      <thead><tr><th></th><th>Använt</th><th>Köpt</th><th>Elbil</th><th>Värmepump</th><th>Spabad</th><th>Övrigt</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <h2 style="margin-top:14px">Vinter, november till mars</h2>
+    ${winter || `<div class="note">Ingen vinter är loggad än.</div>`}
+  </div>`;
+}
+async function mountYearUse(year) {
+  const slot = document.getElementById("yearuse");
+  if (!slot) return;
+  let d;
+  try { d = await api("api/consumption-year" + (year ? "?year=" + year : "")); } catch (e) { slot.innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
+  if (!d || !d.ok) { slot.innerHTML = `<div class="note">Kunde inte läsa årets förbrukning.</div>`; return; }
+  slot.innerHTML = yearUseHtml(d);
+  slot.querySelectorAll("#yearpick button").forEach((b) => { b.onclick = () => mountYearUse(b.dataset.y); });
+}
 async function renderElforbrukning() {
   const d = await loadPage("api/consumption", (d) => {
     const b = d.breakdown;
@@ -1202,6 +1293,7 @@ async function renderElforbrukning() {
       <h2>🔌 Faser <span class="muted" style="font-weight:400;font-size:.8em">(huvudsäkring ${fmt(fuse, 0, " A")}, full stapel = 150 %)</span></h2>
       ${["l1", "l2", "l3"].map((ph) => phaseBar(ph.toUpperCase(), d["avg_w_" + ph], fuse)).join("")}
     </div>
+    <div id="yearuse"></div>
     ${b ? `<div class="card">
       <h2>📦 Vad drar strömmen</h2>
       ${d.has_ev === false ? "" : barRow("🚗 Elbil", b.ev_w / maxW * 100, fmt(b.ev_w, 0, " W"))}
@@ -1219,6 +1311,7 @@ async function renderElforbrukning() {
     <div id="captariffslot"></div>`;
   });
   if (d) {
+    mountYearUse();
     document.getElementById("peakenabled").onchange = (e) => postAction("api/settings-action", { key: "peak_shaving_enabled", value: e.target.checked }).then(renderElforbrukning);
     const btn = document.getElementById("peaklimitbtn");
     if (btn) btn.onclick = () => postAction("api/settings-action", { key: "power_limit_kw", value: parseFloat(document.getElementById("peaklimit").value) }).then(renderElforbrukning);
@@ -2558,6 +2651,8 @@ function installsCard(d) {
       </div>
       ${d.without_devices ? `<div class="note" style="margin-top:8px">${d.without_devices} har inte valt några enheter än.</div>` : ""}
       ${d.ping_only ? `<div class="note" style="margin-top:4px">${d.ping_only} kör en äldre version utan telemetri och syns med utrustning efter uppdateringen.</div>` : ""}
+      ${d.trial_runs ? `<div class="note" style="margin-top:4px">${d.trial_runs} korta testkörningar (under 30 minuter) räknas inte som hus.</div>` : ""}
+      ${(d.suspected_duplicates || []).length ? `<div class="note" style="margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(239,68,68,.14)"><b>Misstänkt dubblett:</b> ${d.suspected_duplicates.map((x) => `${esc(x.a)} och ${esc(x.b)} (${x.parts} delar)`).join(", ")} har exakt samma utrustning. Rätta orsaken i insamlaren.</div>` : ""}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-top:14px">${cats}</div>
       <div class="note" style="margin-top:10px">Antal enheter, från telemetrin: bara drivrutin och märke, aldrig vem eller var. En installation syns med sina enheter när den valt dem i startguiden.</div>
     </div>`;
