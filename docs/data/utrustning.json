@@ -1,15 +1,15 @@
 {
- "updated": "2026-11-27",
- "installations": 94,
+ "updated": "2026-11-28",
+ "installations": 92,
  "equipment": {
   "heatpump": [
    {
     "name": "NIBE",
-    "n": 20
+    "n": 19
    },
    {
     "name": "Thermia",
-    "n": 8
+    "n": 7
    },
    {
     "name": "Mitsubishi Electric",
@@ -27,7 +27,7 @@
   "spa": [
    {
     "name": "Gecko",
-    "n": 4
+    "n": 3
    },
    {
     "name": "Balboa",
@@ -39,10 +39,6 @@
    }
   ],
   "solar": [
-   {
-    "name": "SolarEdge",
-    "n": 4
-   },
    {
     "name": "Sungrow",
     "n": 4
@@ -57,6 +53,10 @@
    },
    {
     "name": "SolaX",
+    "n": 3
+   },
+   {
+    "name": "SolarEdge",
     "n": 3
    },
    {
@@ -144,20 +144,20 @@
    {
     "name": "SolarEdge",
     "n": 1
-   },
-   {
-    "name": "Solinteg",
-    "n": 1
    }
   ],
   "charger": [
    {
     "name": "Easee",
-    "n": 17
+    "n": 15
    },
    {
     "name": "Zaptec",
     "n": 4
+   },
+   {
+    "name": "Wallbox",
+    "n": 3
    },
    {
     "name": "Charge Amps",
@@ -172,10 +172,6 @@
     "n": 2
    },
    {
-    "name": "Wallbox",
-    "n": 2
-   },
-   {
     "name": "cFos",
     "n": 1
    },
@@ -187,7 +183,7 @@
   "car": [
    {
     "name": "Tesla",
-    "n": 13
+    "n": 12
    },
    {
     "name": "Volvo",
@@ -202,10 +198,6 @@
     "n": 5
    },
    {
-    "name": "Nissan",
-    "n": 3
-   },
-   {
     "name": "Škoda",
     "n": 3
    },
@@ -215,6 +207,10 @@
    },
    {
     "name": "Mercedes-Benz",
+    "n": 2
+   },
+   {
+    "name": "Nissan",
     "n": 2
    },
    {
@@ -261,15 +257,7 @@
    },
    {
     "name": "HomeWizard",
-    "n": 6
-   },
-   {
-    "name": "Growatt",
-    "n": 2
-   },
-   {
-    "name": "IAMMETER",
-    "n": 2
+    "n": 7
    },
    {
     "name": "Remne",
@@ -297,6 +285,14 @@
    },
    {
     "name": "GivEnergy",
+    "n": 1
+   },
+   {
+    "name": "Growatt",
+    "n": 1
+   },
+   {
+    "name": "IAMMETER",
     "n": 1
    },
    {
