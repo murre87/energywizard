@@ -14,7 +14,7 @@ tydligt vad som redan är beslutat och vad som väntar på mer underlag.
   prova styrning (driver_command) på riktig hårdvara drivrutin för drivrutin och lägga in dem i `FTW_CONTROL_VERIFIED`
   – Sungrow, Sonnen, Victron och SMA först. Guiden namnger FTW-drivrutinen (deye, sigenergy, solinteg, pixii) när Home Assistant kan läsa märket men inte styra batteriet. Användaren fyller i IP själv, och styrning förblir av.
 - **Tillägget använder färdigbyggda images** – klart 2026-11-06: CI-jobbet `tillagg` taggar imagen med tilläggets
-  version och höjer `version` i config.yaml först när imagen är pushad (ny version = ny rubrik i CHANGELOG.md).
+  version och höjer `version` i config.yaml först när imagen är pushad (ny version = ny rubrik i CHANGELOG.md, eller en fil i changelog.d/ som släppjobbet slår ihop till nästa version).
 - **Testa Modbus-drivrutinerna mot srcfl/device-simulator i CI** (Solax, Ferroamp, Thermia, Pixii) - utan hårdvara.
   (Kollat 2026-11-07: simulatorn byggs från Go-källkod och har profiler för Sungrow, SolarEdge, Fronius, Huawei, SMA,
   Solis, Deye och Pixii, men inte för Solax, Ferroamp eller Thermia. Mest värde för FTW-drivrutinerna.)

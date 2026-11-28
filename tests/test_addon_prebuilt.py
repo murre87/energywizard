@@ -33,7 +33,10 @@ def test_ci_tar_bilden_innan_versionen_hojs():
     wf = (ROOT / ".github" / "workflows" / "docker.yml").read_text(encoding="utf-8")
     job = wf[wf.index("  tillagg:"):]
     assert "needs: allt-i-ett" in job
-    assert job.index("imagetools create") < job.index("addon_version.py set \"")
+    assert 'bash scripts/tillagg.sh "${{ github.sha }}"' in job            # logiken ligger i skriptet (steg: changelog.d)
+    script = (ROOT / "scripts" / "tillagg.sh").read_text(encoding="utf-8")
+    assert script.index("imagetools create") < script.index("$AV set ")      # bilden taggas innan versionen höjs (båda lägena)
+    assert script.rindex("imagetools create") < script.rindex("$AV set ")
     assert "provenance: false" in wf
 
 
@@ -49,4 +52,5 @@ def test_aldre_korning_hojer_aldrig_bakat():
     assert subprocess.run([_s.executable, script, "newer", "1.2.26", "1.2.27"]).returncode == 1
     assert subprocess.run([_s.executable, script, "newer", "1.2.27", "1.2.27"]).returncode == 1
     wf = (ROOT / ".github" / "workflows" / "docker.yml").read_text(encoding="utf-8")
-    assert "ref: main" in wf and 'exit 1' in wf and "git show" in wf
+    script = (ROOT / "scripts" / "tillagg.sh").read_text(encoding="utf-8")
+    assert "ref: main" in wf and 'exit 1' in script and "git show" in script
