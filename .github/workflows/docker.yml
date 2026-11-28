@@ -152,31 +152,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Logiken ligger i scripts/tillagg.sh (testad i tests/test_tillagg_script.py): versionen kommer från rubriken överst i CHANGELOG.md i den
+      # byggda commiten, eller, när PR:en lagt fragment i changelog.d/, från fragmenten (de slås ihop till nästa version och tas bort).
       - name: Tagga bilden med tilläggets version och höj versionen i config.yaml
-        run: |
-          set -eu
-          IMG=ghcr.io/murre87/energywizard
-          # Versionen som den HÄR körningens bild hör till: CHANGELOG i den byggda commiten
-          git show "${{ github.sha }}:ha-addon/smartbox/CHANGELOG.md" > /tmp/changelog.md
-          NEW=$(python3 ha-addon/smartbox/addon_version.py changelog /tmp/changelog.md)
-          echo "Bildens version: $NEW"
-          if docker buildx imagetools inspect "$IMG:$NEW" >/dev/null 2>&1; then
-            echo "$IMG:$NEW finns redan - skrivs inte om"
-          else
-            docker buildx imagetools create -t "$IMG:$NEW" "$IMG:${{ github.sha }}"
-          fi
-          docker buildx imagetools inspect "$IMG:$NEW" | grep -q "linux/arm64"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for i in 1 2 3 4 5; do
-            git fetch -q origin main && git reset -q --hard origin/main
-            CUR=$(python3 ha-addon/smartbox/addon_version.py config)
-            if ! python3 ha-addon/smartbox/addon_version.py newer "$NEW" "$CUR"; then
-              echo "config.yaml har redan $CUR (>= $NEW) - inget att höja"; exit 0
-            fi
-            python3 ha-addon/smartbox/addon_version.py set "$NEW" "$IMG"
-            git commit -qam "Tillägg $NEW: färdig bild publicerad ($IMG:$NEW)"
-            if git push -q origin HEAD:main; then echo "config.yaml höjd till $NEW"; exit 0; fi
-            sleep $((2 ** i))
-          done
-          echo "Kunde inte höja config.yaml till $NEW"; exit 1
+        run: bash scripts/tillagg.sh "${{ github.sha }}"
